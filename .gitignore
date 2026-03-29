@@ -1,0 +1,5 @@
+build/**
+code/core/__pycache__/pdf_handler.cpython-37.pyc
+code/test/**
+dist/**
+code/ui/__pycache__/**
