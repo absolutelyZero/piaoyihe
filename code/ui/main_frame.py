@@ -56,7 +56,13 @@ class MainFrame(wx.Frame):
         self.layout_choices = ["竖向 1x2", "竖向 1x3", "竖向 2x4", "横向 2x2"]
         self.layout_radio = wx.RadioBox(self.panel, choices=self.layout_choices, majorDimension=0, style=wx.RA_SPECIFY_COLS)
         self.layout_radio.SetSelection(0)  # 默认选择 竖向 1x2
-        layout_sizer.Add(self.layout_radio, 0, wx.ALL, 0)
+        # 根据操作系统设置不同的边距参数
+        if wx.Platform == '__WXMSW__':
+            # Windows系统
+            layout_sizer.Add(self.layout_radio, 0, wx.ALL, -10)
+        else:
+            # macOS及其他系统
+            layout_sizer.Add(self.layout_radio, 0, wx.ALL, 0)
         
         top_sizer.Add(layout_sizer, 0, wx.ALL, 10)
 

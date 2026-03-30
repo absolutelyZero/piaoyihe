@@ -32,6 +32,13 @@ class PDFHandler:
             # 解析布局
             layout_config = self._parse_layout(layout)
             
+            # 页边距设置（单位：点，1点=1/72英寸）
+            margin = 20  # 页边距
+            
+            # 计算可用区域（扣除页边距）
+            available_width = 595 - 2 * margin
+            available_height = 842 - 2 * margin
+            
             # 处理每个PDF文件
             current_page = None
             page_count = 0
@@ -45,44 +52,60 @@ class PDFHandler:
                             # 创建新页（A4尺寸）
                             current_page = output_doc.new_page(width=595, height=842)  # A4尺寸
                             page_count = 0
+                            
+                            # 如果是多发票页面，绘制分割线
+                            if layout_config['rows'] * layout_config['cols'] > 1:
+                                self._draw_dividers(current_page, layout_config, margin, available_width, available_height)
                         
                         # 计算当前页面在新页中的位置
                         row = page_count // layout_config['cols']
                         col = page_count % layout_config['cols']
                         
-                        # 计算缩放和位置
-                        if layout_config['orientation'] == 'landscape':
-                            # 横向布局
-                            page_width = 595 / layout_config['cols']
-                            page_height = 842 / layout_config['rows']
-                            x = col * page_width
-                            y = row * page_height
-                        else:
-                            # 竖向布局
-                            page_width = 595 / layout_config['cols']
-                            page_height = 842 / layout_config['rows']
-                            x = col * page_width
-                            y = row * page_height
+                        # 计算每个单元格的尺寸（基于可用区域）
+                        cell_width = available_width / layout_config['cols']
+                        cell_height = available_height / layout_config['rows']
+                        
+                        # 计算位置（加上页边距偏移）
+                        x = margin + col * cell_width
+                        y = margin + row * cell_height
                         
                         # 获取源页面
                         src_page = doc[i]
                         
-                        # 计算缩放比例
+                        # 检查是否需要旋转
+                        rotate = layout_config.get('rotate', 0)
+                        
+                        # 计算缩放比例（留出小间隙）
+                        gap = 5  # 发票之间的间隙
                         src_rect = src_page.rect
-                        scale_x = page_width / src_rect.width
-                        scale_y = page_height / src_rect.height
+                        
+                        # 如果需要旋转90度，交换宽高进行缩放计算
+                        if rotate == 90:
+                            scale_x = (cell_width - gap) / src_rect.height
+                            scale_y = (cell_height - gap) / src_rect.width
+                        else:
+                            scale_x = (cell_width - gap) / src_rect.width
+                            scale_y = (cell_height - gap) / src_rect.height
+                        
                         scale = min(scale_x, scale_y)  # 保持比例缩放
                         
-                        # 计算最终位置（居中）
-                        scaled_width = src_rect.width * scale
-                        scaled_height = src_rect.height * scale
-                        x += (page_width - scaled_width) / 2
-                        y += (page_height - scaled_height) / 2
+                        # 计算最终尺寸
+                        if rotate == 90:
+                            scaled_width = src_rect.height * scale
+                            scaled_height = src_rect.width * scale
+                        else:
+                            scaled_width = src_rect.width * scale
+                            scaled_height = src_rect.height * scale
                         
-                        # 插入页面
+                        # 计算最终位置（居中）
+                        x += (cell_width - scaled_width) / 2
+                        y += (cell_height - scaled_height) / 2
+                        
+                        # 插入页面（带旋转）
                         current_page.show_pdf_page(
                             fitz.Rect(x, y, x + scaled_width, y + scaled_height),
-                            doc, i
+                            doc, i,
+                            rotate=rotate
                         )
                         
                         page_count += 1
@@ -98,6 +121,90 @@ class PDFHandler:
             output_doc.close()
             raise
     
+    def _draw_dividers(self, page, layout_config, margin, available_width, available_height):
+        """
+        绘制虚线分割线
+        
+        Args:
+            page: PDF页面对象
+            layout_config: 布局配置
+            margin: 页边距
+            available_width: 可用宽度
+            available_height: 可用高度
+        """
+        # 虚线参数
+        dash_length = 5    # 实线段长度
+        gap_length = 3     # 空白段长度
+        line_color = (0.6, 0.6, 0.6)  # 浅灰色
+        line_width = 0.5
+        
+        # 计算单元格尺寸
+        cell_width = available_width / layout_config['cols']
+        cell_height = available_height / layout_config['rows']
+        
+        # 绘制垂直分割线
+        for col in range(1, layout_config['cols']):
+            x = margin + col * cell_width
+            y_start = margin
+            y_end = margin + available_height
+            self._draw_dashed_line(page, x, y_start, x, y_end, dash_length, gap_length, line_color, line_width)
+        
+        # 绘制水平分割线
+        for row in range(1, layout_config['rows']):
+            y = margin + row * cell_height
+            x_start = margin
+            x_end = margin + available_width
+            self._draw_dashed_line(page, x_start, y, x_end, y, dash_length, gap_length, line_color, line_width)
+    
+    def _draw_dashed_line(self, page, x1, y1, x2, y2, dash_length, gap_length, color, width):
+        """
+        绘制单条虚线
+        
+        Args:
+            page: PDF页面对象
+            x1, y1: 起点坐标
+            x2, y2: 终点坐标
+            dash_length: 实线段长度
+            gap_length: 空白段长度
+            color: 线条颜色
+            width: 线条宽度
+        """
+        import math
+        
+        # 计算线段总长度和方向
+        dx = x2 - x1
+        dy = y2 - y1
+        total_length = math.sqrt(dx * dx + dy * dy)
+        
+        if total_length == 0:
+            return
+        
+        # 归一化方向向量
+        ux = dx / total_length
+        uy = dy / total_length
+        
+        # 交替绘制实线和空白
+        current = 0
+        is_dash = True
+        
+        while current < total_length:
+            if is_dash:
+                # 绘制实线段
+                seg_start = current
+                seg_end = min(current + dash_length, total_length)
+                page.draw_line(
+                    fitz.Point(x1 + ux * seg_start, y1 + uy * seg_start),
+                    fitz.Point(x1 + ux * seg_end, y1 + uy * seg_end),
+                    color=color,
+                    width=width
+                )
+                current = seg_end
+            else:
+                # 跳过空白段
+                current = min(current + gap_length, total_length)
+            
+            is_dash = not is_dash
+    
     def _parse_layout(self, layout):
         """
         解析布局配置
@@ -112,22 +219,26 @@ class PDFHandler:
             "横向 2x2": {
                 'orientation': 'landscape',
                 'rows': 2,
-                'cols': 2
+                'cols': 2,
+                'rotate': 90  # 每张发票旋转90度
             },
             "竖向 1x2": {
                 'orientation': 'portrait',
                 'rows': 2,
-                'cols': 1
+                'cols': 1,
+                'rotate': 0
             },
             "竖向 1x3": {
                 'orientation': 'portrait',
                 'rows': 3,
-                'cols': 1
+                'cols': 1,
+                'rotate': 0
             },
             "竖向 2x4": {
                 'orientation': 'portrait',
                 'rows': 4,
-                'cols': 2
+                'cols': 2,
+                'rotate': 0
             }
         }
         
