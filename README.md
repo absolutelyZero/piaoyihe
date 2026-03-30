@@ -1,39 +1,52 @@
-# piaoyihe
+# 票易合 - 发票PDF合并排版工具
 
 #### 介绍
-{**以下是 Gitee 平台说明，您可以替换此简介**
-Gitee 是 OSCHINA 推出的基于 Git 的代码托管平台（同时支持 SVN）。专为开发者提供稳定、高效、安全的云端软件开发协作平台
-无论是个人、团队、或是企业，都能够用 Gitee 实现代码托管、项目管理、协作开发。企业项目请看 [https://gitee.com/enterprises](https://gitee.com/enterprises)}
+票易合是一款基于 Python + wxPython 开发的桌面应用程序，专门用于将多张发票 PDF 文件合并排版成指定格式。软件支持多种布局方式，可满足不同场景下的发票合并需求。
+
+![界面预览](req/界面.png)
 
 #### 软件架构
-软件架构说明
+- **前端框架**: wxPython (跨平台 GUI 框架)
+- **PDF 处理**: PyMuPDF (fitz)
+- **编程语言**: Python 3
+- **打包工具**: PyInstaller
 
+#### 功能特性
+- 支持拖拽导入 PDF 文件
+- 多种布局模式可选：竖向 1x2、竖向 1x3、竖向 2x4、横向 2x2
+- 显示文件数量、选中数量、总金额、选中金额统计
+- 支持删除选中、删除全部操作
+- 支持合并后直接打印
+- 自定义保存路径
 
 #### 安装教程
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+1. 安装 Python 3 环境
+2. 安装依赖包：
+   ```bash
+   pip install wxPython PyMuPDF pyinstaller
+   ```
+3. 克隆项目后运行：
+   ```bash
+   python code/main.py
+   ```
 
 #### 使用说明
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+1. **添加文件**：将 PDF 发票文件拖入窗口，或点击"添加文件"按钮
+2. **选择布局**：根据需要选择合适的排版布局
+3. **查看统计**：右侧面板显示文件数量和金额统计
+4. **合并文件**：点击"合并"按钮生成合并后的 PDF
+5. **打印输出**：可选择"并打印"复选框直接打印，或点击"打印"按钮单独打印
+
+#### 打包发布
+
+- Windows 打包：`package_win.bat`
+- macOS 打包：`package_macos.sh`
 
 #### 参与贡献
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
-
-
-#### 特技
-
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+1. Fork 本仓库
+2. 新建 Feat_xxx 分支
+3. 提交代码
+4. 新建 Pull Request
