@@ -27,9 +27,10 @@ class FileListPanel(wx.Panel):
         # 添加列
         self.list_ctrl.InsertColumn(0, "文件名", width=200)
         self.list_ctrl.InsertColumn(1, "金额", width=100)
-        self.list_ctrl.InsertColumn(2, "路径", width=300)
-        self.list_ctrl.InsertColumn(3, "修改日期", width=150)
-        self.list_ctrl.InsertColumn(4, "大小", width=100)
+        self.list_ctrl.InsertColumn(2, "开票日期", width=120)
+        self.list_ctrl.InsertColumn(3, "路径", width=300)
+        self.list_ctrl.InsertColumn(4, "修改日期", width=150)
+        self.list_ctrl.InsertColumn(5, "大小", width=100)
         
         sizer.Add(self.list_ctrl, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -52,10 +53,14 @@ class FileListPanel(wx.Panel):
         # 提取金额
         amount = self.pdf_handler.extract_amount(file_path)
         
+        # 提取开票日期
+        invoice_date = self.pdf_handler.extract_invoice_date(file_path)
+        
         # 创建文件信息字典
         file_info = {
             'name': file_name,
             'amount': amount,
+            'invoice_date': invoice_date,
             'path': file_path,
             'mod_time': mod_time_str,
             'size': f"{file_size:.2f} KB"
@@ -70,9 +75,10 @@ class FileListPanel(wx.Panel):
         # 添加到列表控件
         index = self.list_ctrl.InsertItem(self.list_ctrl.GetItemCount(), file_name)
         self.list_ctrl.SetItem(index, 1, str(amount))
-        self.list_ctrl.SetItem(index, 2, file_path)
-        self.list_ctrl.SetItem(index, 3, mod_time_str)
-        self.list_ctrl.SetItem(index, 4, file_info['size'])
+        self.list_ctrl.SetItem(index, 2, invoice_date)
+        self.list_ctrl.SetItem(index, 3, file_path)
+        self.list_ctrl.SetItem(index, 4, mod_time_str)
+        self.list_ctrl.SetItem(index, 5, file_info['size'])
         
         # 如果是第一个文件，调用回调函数更新保存路径
         if is_first_file and self.on_file_added:
@@ -108,3 +114,36 @@ class FileListPanel(wx.Panel):
             selected_files.append(self.files[item]['path'])
             item = self.list_ctrl.GetNextSelected(item)
         return selected_files
+    
+    def get_sorted_files(self, sort_by, selected_only=False):
+        """获取排序后的文件路径列表
+        
+        Args:
+            sort_by: 排序方式，可选值：'list'（列表顺序）, 'date'（开票日期）, 'amount'（开票金额）
+            selected_only: 是否只返回选中的文件
+            
+        Returns:
+            list: 排序后的文件路径列表
+        """
+        # 获取文件列表
+        if selected_only:
+            # 获取选中的文件索引
+            selected_indices = []
+            item = self.list_ctrl.GetFirstSelected()
+            while item != -1:
+                selected_indices.append(item)
+                item = self.list_ctrl.GetNextSelected(item)
+            files_to_sort = [self.files[i] for i in selected_indices]
+        else:
+            files_to_sort = self.files.copy()
+        
+        # 根据排序方式排序
+        if sort_by == 'date':
+            # 按开票日期排序
+            files_to_sort.sort(key=lambda x: x['invoice_date'])
+        elif sort_by == 'amount':
+            # 按金额排序
+            files_to_sort.sort(key=lambda x: x['amount'])
+        
+        # 返回排序后的文件路径列表
+        return [file_info['path'] for file_info in files_to_sort]

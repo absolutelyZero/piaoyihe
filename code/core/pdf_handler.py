@@ -319,3 +319,61 @@ class PDFHandler:
         except Exception as e:
             print(f"提取金额失败: {str(e)}")
             return 0.0
+    
+    def extract_invoice_date(self, pdf_path):
+        """
+        从PDF中提取开票日期
+        
+        Args:
+            pdf_path: PDF文件路径
+            
+        Returns:
+            str: 提取的开票日期，格式为YYYY-MM-DD
+        """
+        import re
+        
+        try:
+            # 打开PDF文件
+            with fitz.open(pdf_path) as doc:
+                # 遍历所有页面
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    text = page.get_text()
+                    
+                    # 优先匹配"开票日期:"后面的日期
+                    invoice_date_pattern = r'开票日期[:：]\s*(\d{4})年(\d{1,2})月(\d{1,2})日?'
+                    match = re.search(invoice_date_pattern, text)
+                    if match:
+                        year, month, day = match.groups()
+                        return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                    
+                    # 如果没有找到"开票日期:"，再匹配其他日期格式
+                    # 匹配YYYY年MM月DD日格式
+                    date_patterns = [
+                        r'(\d{4})年(\d{1,2})月(\d{1,2})日',  # YYYY年MM月DD日
+                        r'(\d{4})年(\d{1,2})月(\d{1,2})',    # YYYY年MM月DD
+                        r'(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})',  # YYYY-MM-DD, YYYY/MM/DD
+                    ]
+                    
+                    for pattern in date_patterns:
+                        matches = re.findall(pattern, text)
+                        for match in matches:
+                            if len(match) == 3:
+                                year, month, day = match
+                                # 验证日期范围
+                                if 1 <= int(month) <= 12 and 1 <= int(day) <= 31:
+                                    return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                
+                # 如果没有找到开票日期，返回文件修改日期
+                import os
+                import time
+                mod_time = os.path.getmtime(pdf_path)
+                return time.strftime('%Y-%m-%d', time.localtime(mod_time))
+                
+        except Exception as e:
+            print(f"提取开票日期失败: {str(e)}")
+            # 返回文件修改日期作为备选
+            import os
+            import time
+            mod_time = os.path.getmtime(pdf_path)
+            return time.strftime('%Y-%m-%d', time.localtime(mod_time))

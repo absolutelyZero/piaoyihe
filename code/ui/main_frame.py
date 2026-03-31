@@ -65,9 +65,18 @@ class MainFrame(wx.Frame):
             layout_sizer.Add(self.layout_radio, 0, wx.ALL, 0)
         
         top_sizer.Add(layout_sizer, 0, wx.ALL, 10)
+        
+        # 打印顺序选择
+        order_box = wx.StaticText(self.panel, label="打印顺序:")
+        top_sizer.Add(order_box, 0, wx.RIGHT | wx.TOP, 20)
+        
+        self.order_choices = ["列表顺序", "开票日期(从先到后)", "开票金额(从小到大)"]
+        self.order_combo = wx.ComboBox(self.panel, choices=self.order_choices,size=(150,-1), style=wx.CB_READONLY)
+        self.order_combo.SetSelection(0)  # 默认选择列表顺序
+        top_sizer.Add(self.order_combo, 0, wx.TOP, 18)
 
         # 添加反馈问题按钮
-        feedback_button = wx.Button(self.panel, label="反馈问题")
+        feedback_button = wx.Button(self.panel, label="?")
         feedback_button.Bind(wx.EVT_BUTTON, self.on_feedback)
         top_sizer.Add(feedback_button, 0, wx.ALL, 15)
 
@@ -227,6 +236,16 @@ class MainFrame(wx.Frame):
         # 获取布局选择
         layout_index = self.layout_radio.GetSelection()
         layout = self.layout_choices[layout_index]
+        
+        # 获取打印顺序选择
+        order_index = self.order_combo.GetSelection()
+        order = self.order_choices[order_index]
+        
+        # 根据打印顺序获取排序后的文件列表（不影响列表显示）
+        if order == "开票日期":
+            files = self.file_list.get_sorted_files('date', selected_only)
+        elif order == "开票金额":
+            files = self.file_list.get_sorted_files('amount', selected_only)
         
         # 执行合并
         save_path = self.save_path_ctrl.GetValue()
