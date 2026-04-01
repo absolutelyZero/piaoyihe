@@ -242,9 +242,9 @@ class MainFrame(wx.Frame):
         order = self.order_choices[order_index]
         
         # 根据打印顺序获取排序后的文件列表（不影响列表显示）
-        if order == "开票日期":
+        if order_index == 1:
             files = self.file_list.get_sorted_files('date', selected_only)
-        elif order == "开票金额":
+        elif order_index == 2:
             files = self.file_list.get_sorted_files('amount', selected_only)
         
         # 执行合并
