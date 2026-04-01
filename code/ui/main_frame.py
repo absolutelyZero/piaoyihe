@@ -5,6 +5,7 @@
 
 import wx
 import os
+import sys
 from ui.file_list import FileListPanel
 from core.pdf_handler import PDFHandler
 
@@ -76,7 +77,7 @@ class MainFrame(wx.Frame):
         top_sizer.Add(self.order_combo, 0, wx.TOP, 18)
 
         # 添加反馈问题按钮
-        feedback_button = wx.Button(self.panel, label="?")
+        feedback_button = wx.Button(self.panel, label="?",size=(30,-1))
         feedback_button.Bind(wx.EVT_BUTTON, self.on_feedback)
         top_sizer.Add(feedback_button, 0, wx.ALL, 15)
 
@@ -313,7 +314,11 @@ class MainFrame(wx.Frame):
         dialog_sizer = wx.BoxSizer(wx.VERTICAL)
         
         # 添加二维码图片
-        qrcode_path = os.path.join(os.path.dirname(__file__), '../res/qrcode.jpg')
+        # 处理PyInstaller打包后的路径
+        if hasattr(sys, '_MEIPASS'):
+            qrcode_path = os.path.join(sys._MEIPASS, 'res', 'qrcode.jpg')
+        else:
+            qrcode_path = os.path.join(os.path.dirname(__file__), '../res/qrcode.jpg')
         if os.path.exists(qrcode_path):
             qrcode_img = wx.Image(qrcode_path, wx.BITMAP_TYPE_JPEG)
             qrcode_img = qrcode_img.Rescale(200, 200)
