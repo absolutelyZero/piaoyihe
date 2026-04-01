@@ -44,7 +44,7 @@
 - Windows 打包：`package_win.bat`
 - macOS 打包：`package_macos.sh`
 
-#### 发型包获取
+#### 安装包获取
 
 关注公众号，私信“票易合”自动回复下载地址。
 
