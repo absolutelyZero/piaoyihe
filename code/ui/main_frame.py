@@ -90,6 +90,10 @@ class MainFrame(wx.Frame):
         self.file_list = FileListPanel(self.panel, self.pdf_handler, on_file_added=self.on_first_file_added)
         middle_sizer.Add(self.file_list, 1, wx.ALL | wx.EXPAND, 10)
         
+        # 绑定列表选择事件
+        self.file_list.list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_list_selection_changed)
+        self.file_list.list_ctrl.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_list_selection_changed)
+        
         # 统计面板
         self.stats_panel = wx.Panel(self.panel)
         stats_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -112,6 +116,18 @@ class MainFrame(wx.Frame):
         
         # 操作按钮
         button_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        # 上下移动按钮
+        move_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.move_up_button = wx.Button(self.stats_panel, label="↑", size=(30, -1))
+        self.move_up_button.Bind(wx.EVT_BUTTON, self.on_move_up)
+        move_sizer.Add(self.move_up_button, 0, wx.ALL, 2)
+        
+        self.move_down_button = wx.Button(self.stats_panel, label="↓", size=(30, -1))
+        self.move_down_button.Bind(wx.EVT_BUTTON, self.on_move_down)
+        move_sizer.Add(self.move_down_button, 0, wx.ALL, 2)
+        
+        button_sizer.Add(move_sizer, 0, wx.ALL, 5)
         
         self.del_button = wx.Button(self.stats_panel, label="删除选中")
         self.del_button.Bind(wx.EVT_BUTTON, self.on_del)
@@ -173,6 +189,9 @@ class MainFrame(wx.Frame):
         
         # 更新统计信息
         self.update_stats()
+        
+        # 初始化按钮状态
+        self.update_button_states()
     
     def on_del(self, event):
         """删除选中文件"""
@@ -289,17 +308,46 @@ class MainFrame(wx.Frame):
             if 0 <= index < len(self.file_list.files):
                 selected_amount += self.file_list.files[index]['amount']
         self.selected_amount_label.SetLabel(f"选中金额: {selected_amount:.2f}")
+        
+        # 更新按钮状态
+        self.update_button_states()
+    
+    def update_button_states(self):
+        """更新按钮状态"""
+        selected_item = self.file_list.list_ctrl.GetFirstSelected()
+        file_count = len(self.file_list.files)
+        
+        # 上移按钮状态
+        if selected_item == -1 or selected_item == 0:
+            self.move_up_button.Disable()
+        else:
+            self.move_up_button.Enable()
+        
+        # 下移按钮状态
+        if selected_item == -1 or selected_item >= file_count - 1:
+            self.move_down_button.Disable()
+        else:
+            self.move_down_button.Enable()
+    
+    def on_move_up(self, event):
+        """上移选中文件"""
+        if self.file_list.move_up():
+            self.update_stats()
+    
+    def on_move_down(self, event):
+        """下移选中文件"""
+        if self.file_list.move_down():
+            self.update_stats()
+    
+    def on_list_selection_changed(self, event):
+        """列表选择变更事件处理"""
+        self.update_button_states()
     
     def add_files(self, paths):
         """添加文件（从拖放调用）"""
         for path in paths:
-            # 处理Windows下可能的路径格式问题
-            path = path.strip()
-            # 检查文件扩展名
             if path.lower().endswith('.pdf'):
-                # 确保文件存在
-                if os.path.exists(path):
-                    self.file_list.add_file(path)
+                self.file_list.add_file(path)
         self.update_stats()
     
     def on_first_file_added(self, file_path):
