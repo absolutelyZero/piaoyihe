@@ -8,6 +8,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('code/res/logo3.png', 'res'),
+        ('code/res/qrcode.jpg', 'res'),
     ],
     hiddenimports=['wx', 'fitz'],
     hookspath=[],
