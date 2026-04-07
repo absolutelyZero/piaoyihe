@@ -293,8 +293,13 @@ class MainFrame(wx.Frame):
     def add_files(self, paths):
         """添加文件（从拖放调用）"""
         for path in paths:
+            # 处理Windows下可能的路径格式问题
+            path = path.strip()
+            # 检查文件扩展名
             if path.lower().endswith('.pdf'):
-                self.file_list.add_file(path)
+                # 确保文件存在
+                if os.path.exists(path):
+                    self.file_list.add_file(path)
         self.update_stats()
     
     def on_first_file_added(self, file_path):
