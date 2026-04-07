@@ -7,6 +7,61 @@ import wx
 import os
 import time
 
+class ListDropTarget(wx.DropTarget):
+    """列表拖拽目标类"""
+    
+    def __init__(self, list_panel):
+        """初始化拖拽目标"""
+        super(ListDropTarget, self).__init__()
+        self.list_panel = list_panel
+        # 设置拖拽数据格式
+        self.data = wx.TextDataObject()
+        self.SetDataObject(self.data)
+        self.dragged_index = -1
+    
+    def OnDragOver(self, x, y, defResult):
+        """处理拖拽经过事件"""
+        # 获取鼠标位置对应的项
+        item, flags = self.list_panel.list_ctrl.HitTest((x, y))
+        if item != -1:
+            # 设置高亮效果
+            self.list_panel.list_ctrl.SetItemState(item, wx.LIST_STATE_DROPHILITED, wx.LIST_STATE_DROPHILITED)
+            return wx.DragMove
+        return wx.DragNone
+    
+    def OnData(self, x, y, defResult):
+        """处理拖拽数据"""
+        if self.GetData():
+            text = self.data.GetText()
+            if text:
+                self.dragged_index = int(text)
+                # 获取目标位置
+                target_item, flags = self.list_panel.list_ctrl.HitTest((x, y))
+                
+                if target_item != -1 and target_item != self.dragged_index:
+                    # 更新文件列表
+                    dragged_file = self.list_panel.files.pop(self.dragged_index)
+                    self.list_panel.files.insert(target_item, dragged_file)
+                    
+                    # 更新列表控件
+                    self.list_panel.list_ctrl.DeleteAllItems()
+                    for i, file_info in enumerate(self.list_panel.files):
+                        index = self.list_panel.list_ctrl.InsertItem(i, file_info['name'])
+                        self.list_panel.list_ctrl.SetItem(index, 1, str(file_info['amount']))
+                        self.list_panel.list_ctrl.SetItem(index, 2, file_info['invoice_date'])
+                        self.list_panel.list_ctrl.SetItem(index, 3, file_info['path'])
+                        self.list_panel.list_ctrl.SetItem(index, 4, file_info['mod_time'])
+                        self.list_panel.list_ctrl.SetItem(index, 5, file_info['size'])
+                return wx.DragMove
+        return wx.DragNone
+    
+    def OnLeave(self):
+        """处理拖拽离开事件"""
+        # 清除所有高亮
+        for i in range(self.list_panel.list_ctrl.GetItemCount()):
+            self.list_panel.list_ctrl.SetItemState(i, 0, wx.LIST_STATE_DROPHILITED)
+
+
 class FileListPanel(wx.Panel):
     """文件列表面板类"""
     
@@ -36,6 +91,12 @@ class FileListPanel(wx.Panel):
         
         # 设置面板布局
         self.SetSizer(sizer)
+        
+        # 设置拖拽目标
+        self.list_ctrl.SetDropTarget(ListDropTarget(self))
+        
+        # 绑定拖拽开始事件
+        self.Bind(wx.EVT_LIST_BEGIN_DRAG, self.on_begin_drag, self.list_ctrl)
     
     def add_file(self, file_path):
         """添加文件到列表"""
@@ -147,3 +208,16 @@ class FileListPanel(wx.Panel):
         
         # 返回排序后的文件路径列表
         return [file_info['path'] for file_info in files_to_sort]
+    
+    def on_begin_drag(self, event):
+        """处理拖拽开始事件"""
+        dragged_index = event.GetIndex()
+        print(f"开始拖拽: {dragged_index}")
+        # 创建拖拽源
+        data = wx.TextDataObject()
+        data.SetText(str(dragged_index))
+        drop_source = wx.DropSource(self.list_ctrl)
+        drop_source.SetData(data)
+        # 开始拖拽
+        result = drop_source.DoDragDrop(wx.Drag_AllowMove)
+        print(f"拖拽结果: {result}")
