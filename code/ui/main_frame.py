@@ -67,6 +67,16 @@ class MainFrame(wx.Frame):
         
         top_sizer.Add(layout_sizer, 0, wx.ALL, 10)
         
+        # 模式选择
+        mode_box = wx.StaticText(self.panel, label="模式:")
+        top_sizer.Add(mode_box, 0, wx.RIGHT | wx.TOP, 20)
+        
+        self.mode_choices = ["普通", "图像"]
+        self.mode_combo = wx.ComboBox(self.panel, choices=self.mode_choices, size=(100,-1), style=wx.CB_READONLY)
+        self.mode_combo.SetSelection(0)  # 默认选择普通模式
+        self.mode_combo.SetToolTip(wx.ToolTip("普通模式：直接合并PDF，体积小，合并后内容可编辑，支持大部分情况；图像模式：将PDF转为图片后合并，兼容性更好，普通模式丢失信息时可以使用，合并后文件体积可能会变大"))
+        top_sizer.Add(self.mode_combo, 0, wx.TOP, 18)
+        
         # 打印顺序选择
         order_box = wx.StaticText(self.panel, label="打印顺序:")
         top_sizer.Add(order_box, 0, wx.RIGHT | wx.TOP, 20)
@@ -261,6 +271,10 @@ class MainFrame(wx.Frame):
         order_index = self.order_combo.GetSelection()
         order = self.order_choices[order_index]
         
+        # 获取模式选择
+        mode_index = self.mode_combo.GetSelection()
+        mode = self.mode_choices[mode_index]
+        
         # 根据打印顺序获取排序后的文件列表（不影响列表显示）
         if order_index == 1:
             files = self.file_list.get_sorted_files('date', selected_only)
@@ -270,7 +284,7 @@ class MainFrame(wx.Frame):
         # 执行合并
         save_path = self.save_path_ctrl.GetValue()
         try:
-            result = self.pdf_handler.merge_pdfs(files, save_path, layout)
+            result = self.pdf_handler.merge_pdfs(files, save_path, layout, mode)
             if result:
                 wx.MessageBox(f"合并成功！保存至：{save_path}", "成功", wx.OK | wx.ICON_INFORMATION)
                 # 如果勾选了并打印，执行打印

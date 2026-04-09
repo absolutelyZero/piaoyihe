@@ -13,7 +13,7 @@ class PDFHandler:
         """初始化PDF处理器"""
         pass
     
-    def merge_pdfs(self, pdf_paths, output_path, layout):
+    def merge_pdfs(self, pdf_paths, output_path, layout, mode='普通'):
         """
         合并PDF文件并按指定布局排版
         
@@ -21,6 +21,7 @@ class PDFHandler:
             pdf_paths: PDF文件路径列表
             output_path: 输出文件路径
             layout: 布局类型，如"横向 2x2"
+            mode: 模式，可选值：'普通'、'图像'
         
         Returns:
             bool: 合并是否成功
@@ -35,9 +36,22 @@ class PDFHandler:
             # 页边距设置（单位：点，1点=1/72英寸）
             margin = 20  # 页边距
             
+            # 根据模式和布局确定页面尺寸
+            # 图像模式下2x2布局使用横向纸张
+            is_landscape = (mode == '图像' and layout_config['rows'] == 2 and layout_config['cols'] == 2)
+            
+            if is_landscape:
+                page_width = 842  # A4横向宽度
+                page_height = 595  # A4横向高度
+                # 横向纸张不需要再旋转内容
+                layout_config['rotate'] = 0
+            else:
+                page_width = 595  # A4纵向宽度
+                page_height = 842  # A4纵向高度
+            
             # 计算可用区域（扣除页边距）
-            available_width = 595 - 2 * margin
-            available_height = 842 - 2 * margin
+            available_width = page_width - 2 * margin
+            available_height = page_height - 2 * margin
             
             # 处理每个PDF文件
             current_page = None
@@ -49,8 +63,8 @@ class PDFHandler:
                     for i in range(len(doc)):
                         # 检查是否需要创建新页
                         if page_count % (layout_config['rows'] * layout_config['cols']) == 0:
-                            # 创建新页（A4尺寸）
-                            current_page = output_doc.new_page(width=595, height=842)  # A4尺寸
+                            # 创建新页（根据方向设置尺寸）
+                            current_page = output_doc.new_page(width=page_width, height=page_height)
                             page_count = 0
                             
                             # 如果是多发票页面，绘制分割线
@@ -97,16 +111,61 @@ class PDFHandler:
                             scaled_width = src_rect.width * scale
                             scaled_height = src_rect.height * scale
                         
-                        # 计算最终位置（居中）
-                        x += (cell_width - scaled_width) / 2
-                        y += (cell_height - scaled_height) / 2
+                        # 计算居中位置（基于单元格起始位置）
+                        center_x = x + (cell_width - scaled_width) / 2
+                        center_y = y + (cell_height - scaled_height) / 2
                         
-                        # 插入页面（带旋转）
-                        current_page.show_pdf_page(
-                            fitz.Rect(x, y, x + scaled_width, y + scaled_height),
-                            doc, i,
-                            rotate=rotate
-                        )
+                        # 根据模式选择插入方式
+                        if mode == '普通':
+                            # 普通模式：直接插入PDF页面
+                            current_page.show_pdf_page(
+                                fitz.Rect(center_x, center_y, center_x + scaled_width, center_y + scaled_height),
+                                doc, i,
+                                rotate=rotate
+                            )
+                        else:
+                            # 图像模式：先转换为图片再插入
+                            src_page = doc[i]
+                            # 渲染页面为图片（高分辨率）
+                            pix = src_page.get_pixmap(dpi=150)
+                            
+                            # 如果需要旋转90度，创建旋转后的图片
+                            if rotate == 90:
+                                # 使用Pixmap的旋转方法（创建新的旋转后的pixmap）
+                                from PIL import Image
+                                import io
+                                
+                                # 将pixmap转换为PIL Image
+                                img_data = pix.tobytes("png")
+                                pil_img = Image.open(io.BytesIO(img_data))
+                                # 旋转90度（逆时针）
+                                pil_img = pil_img.rotate(90, expand=True)
+                                # 转换回bytes
+                                img_buffer = io.BytesIO()
+                                pil_img.save(img_buffer, format='PNG')
+                                img_buffer.seek(0)
+                                # 创建新的pixmap
+                                pix = fitz.Pixmap(img_buffer)
+                            
+                            img_width = pix.width
+                            img_height = pix.height
+                            
+                            scale_x = (cell_width - gap) / img_width
+                            scale_y = (cell_height - gap) / img_height
+                            scale = min(scale_x, scale_y)
+                            
+                            final_width = img_width * scale
+                            final_height = img_height * scale
+                            
+                            # 计算居中位置（与普通模式保持一致）
+                            img_x = center_x + (scaled_width - final_width) / 2
+                            img_y = center_y + (scaled_height - final_height) / 2
+                            
+                            # 创建图像矩形
+                            img_rect = fitz.Rect(img_x, img_y, img_x + final_width, img_y + final_height)
+                            
+                            # 插入图像
+                            current_page.insert_image(img_rect, pixmap=pix)
                         
                         page_count += 1
             
