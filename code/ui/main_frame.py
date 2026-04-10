@@ -414,9 +414,7 @@ class MainFrame(wx.Frame):
                         order_index = config['order']
                         if 0 <= order_index < len(self.order_choices):
                             self.order_combo.SetSelection(order_index)
-                    # 恢复保存路径
-                    if 'save_path' in config:
-                        self.save_path_ctrl.SetValue(config['save_path'])
+                    
                     # 恢复并打印复选框
                     if 'print_checkbox' in config:
                         self.print_checkbox.SetValue(config['print_checkbox'])
