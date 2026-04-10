@@ -6,8 +6,12 @@
 import wx
 import os
 import sys
+import json
 from ui.file_list import FileListPanel
 from core.pdf_handler import PDFHandler
+
+# 配置文件路径
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), '../config.json')
 
 class MainFrame(wx.Frame):
     """主窗口类"""
@@ -56,7 +60,6 @@ class MainFrame(wx.Frame):
         
         self.layout_choices = ["竖向 1x2", "竖向 1x3", "竖向 2x4", "横向 2x2"]
         self.layout_radio = wx.RadioBox(self.panel, choices=self.layout_choices, majorDimension=0, style=wx.RA_SPECIFY_COLS)
-        self.layout_radio.SetSelection(0)  # 默认选择 竖向 1x2
         # 根据操作系统设置不同的边距参数
         if wx.Platform == '__WXMSW__':
             # Windows系统
@@ -73,7 +76,6 @@ class MainFrame(wx.Frame):
         
         self.mode_choices = ["普通", "图像"]
         self.mode_combo = wx.ComboBox(self.panel, choices=self.mode_choices, size=(100,-1), style=wx.CB_READONLY)
-        self.mode_combo.SetSelection(0)  # 默认选择普通模式
         self.mode_combo.SetToolTip(wx.ToolTip("普通模式：直接合并PDF，体积小，合并后内容可编辑，支持大部分情况；图像模式：将PDF转为图片后合并，兼容性更好，普通模式丢失信息时可以使用，合并后文件体积可能会变大"))
         top_sizer.Add(self.mode_combo, 0, wx.TOP, 18)
         
@@ -83,7 +85,6 @@ class MainFrame(wx.Frame):
         
         self.order_choices = ["列表顺序", "开票日期(从先到后)", "开票金额(从小到大)"]
         self.order_combo = wx.ComboBox(self.panel, choices=self.order_choices,size=(150,-1), style=wx.CB_READONLY)
-        self.order_combo.SetSelection(0)  # 默认选择列表顺序
         top_sizer.Add(self.order_combo, 0, wx.TOP, 18)
 
         # 添加反馈问题按钮
@@ -202,6 +203,21 @@ class MainFrame(wx.Frame):
         
         # 初始化按钮状态
         self.update_button_states()
+        
+        # 加载配置
+        self.load_config()
+        
+        # 绑定窗口关闭事件
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+        
+        # 绑定布局选择事件
+        self.layout_radio.Bind(wx.EVT_RADIOBOX, self.on_config_changed)
+        # 绑定模式选择事件
+        self.mode_combo.Bind(wx.EVT_COMBOBOX, self.on_config_changed)
+        # 绑定打印顺序选择事件
+        self.order_combo.Bind(wx.EVT_COMBOBOX, self.on_config_changed)
+        # 绑定并打印复选框事件
+        self.print_checkbox.Bind(wx.EVT_CHECKBOX, self.on_config_changed)
     
     def on_del(self, event):
         """删除选中文件"""
@@ -237,6 +253,8 @@ class MainFrame(wx.Frame):
                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal() == wx.ID_OK:
                 self.save_path_ctrl.SetValue(dialog.GetPath())
+                # 保存配置
+                self.save_config()
     
     def on_print(self, event):
         """打印功能"""
@@ -287,6 +305,8 @@ class MainFrame(wx.Frame):
             result = self.pdf_handler.merge_pdfs(files, save_path, layout, mode)
             if result:
                 wx.MessageBox(f"合并成功！保存至：{save_path}", "成功", wx.OK | wx.ICON_INFORMATION)
+                # 保存配置
+                self.save_config()
                 # 如果勾选了并打印，执行打印
                 if self.print_checkbox.GetValue():
                     self.on_print(None)
@@ -373,6 +393,66 @@ class MainFrame(wx.Frame):
         # 更新保存路径文本框
         self.save_path_ctrl.SetValue(output_path)
     
+    def load_config(self):
+        """加载配置文件"""
+        try:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    # 恢复布局选择
+                    if 'layout' in config:
+                        layout_index = config['layout']
+                        if 0 <= layout_index < len(self.layout_choices):
+                            self.layout_radio.SetSelection(layout_index)
+                    # 恢复模式选择
+                    if 'mode' in config:
+                        mode_index = config['mode']
+                        if 0 <= mode_index < len(self.mode_choices):
+                            self.mode_combo.SetSelection(mode_index)
+                    # 恢复打印顺序选择
+                    if 'order' in config:
+                        order_index = config['order']
+                        if 0 <= order_index < len(self.order_choices):
+                            self.order_combo.SetSelection(order_index)
+                    # 恢复保存路径
+                    if 'save_path' in config:
+                        self.save_path_ctrl.SetValue(config['save_path'])
+                    # 恢复并打印复选框
+                    if 'print_checkbox' in config:
+                        self.print_checkbox.SetValue(config['print_checkbox'])
+            else:
+                # 默认配置
+                self.layout_radio.SetSelection(0)
+                self.mode_combo.SetSelection(0)
+                self.order_combo.SetSelection(0)
+                self.save_path_ctrl.SetValue("out.pdf")
+                self.print_checkbox.SetValue(False)
+        except Exception as e:
+            print(f"加载配置失败: {e}")
+            # 使用默认配置
+            self.layout_radio.SetSelection(0)
+            self.mode_combo.SetSelection(0)
+            self.order_combo.SetSelection(0)
+            self.save_path_ctrl.SetValue("out.pdf")
+            self.print_checkbox.SetValue(False)
+    
+    def save_config(self):
+        """保存配置文件"""
+        try:
+            config = {
+                'layout': self.layout_radio.GetSelection(),
+                'mode': self.mode_combo.GetSelection(),
+                'order': self.order_combo.GetSelection(),
+                'save_path': self.save_path_ctrl.GetValue(),
+                'print_checkbox': self.print_checkbox.GetValue()
+            }
+            # 确保配置目录存在
+            os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+        except Exception as e:
+            print(f"保存配置失败: {e}")
+    
     def on_feedback(self, event):
         """显示反馈问题对话框"""
         # 创建对话框
@@ -408,6 +488,15 @@ class MainFrame(wx.Frame):
         dialog.CenterOnParent()
         dialog.ShowModal()
         dialog.Destroy()
+    
+    def on_config_changed(self, event):
+        """配置变更事件"""
+        self.save_config()
+    
+    def on_close(self, event):
+        """窗口关闭事件"""
+        self.save_config()
+        self.Destroy()
 
 class FileDropTarget(wx.FileDropTarget):
     """文件拖放目标"""
