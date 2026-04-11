@@ -9,9 +9,12 @@ import sys
 import json
 from ui.file_list import FileListPanel
 from core.pdf_handler import PDFHandler
+from core.update_checker import UpdateChecker, show_update_dialog
 
 # 配置文件路径
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), '../config.json')
+# 版本文件路径
+VERSION_FILE = os.path.join(os.path.dirname(__file__), '../version.json')
 
 class MainFrame(wx.Frame):
     """主窗口类"""
@@ -189,9 +192,18 @@ class MainFrame(wx.Frame):
         self.print_button = wx.Button(self.panel, label="打印")
         self.print_button.Bind(wx.EVT_BUTTON, self.on_print)
         bottom_sizer.Add(self.print_button, 0, wx.ALL, 5)
+
+        # 添加版本号显示
+        self.version_label = wx.StaticText(self.panel, label=self._get_version(), style=wx.ALIGN_CENTER)
+        self.version_label.SetForegroundColour(wx.Colour(128, 128, 128))
+        # 设置为可点击
+        self.version_label.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        # 绑定点击事件
+        self.version_label.Bind(wx.EVT_LEFT_DOWN, self.on_version_click)
+        bottom_sizer.Add(self.version_label, 0, wx.ALL | wx.CENTER, 5)
         
         main_sizer.Add(bottom_sizer, 0, wx.ALL | wx.EXPAND, 10)
-        
+
         # 设置主面板布局
         self.panel.SetSizer(main_sizer)
         
@@ -218,6 +230,98 @@ class MainFrame(wx.Frame):
         self.order_combo.Bind(wx.EVT_COMBOBOX, self.on_config_changed)
         # 绑定并打印复选框事件
         self.print_checkbox.Bind(wx.EVT_CHECKBOX, self.on_config_changed)
+        
+        # 检查更新状态并更新版本标签
+        self.check_update_status()
+    
+    def _is_version_newer(self, current_version, new_version):
+        """
+        比较版本号
+        参数:
+            current_version: 当前版本号
+            new_version: 新版本号
+        返回:
+            bool: 如果新版本更新则返回True
+        """
+        try:
+            current_parts = list(map(int, current_version.split(".")))
+            new_parts = list(map(int, new_version.split(".")))
+            
+            for i in range(max(len(current_parts), len(new_parts))):
+                current = current_parts[i] if i < len(current_parts) else 0
+                new = new_parts[i] if i < len(new_parts) else 0
+                
+                if new > current:
+                    return True
+                elif new < current:
+                    return False
+            return False
+        except Exception:
+            return False
+    
+    def check_update_status(self):
+        """
+        检查更新状态并更新版本标签
+        """
+        try:
+            # 获取本地版本
+            local_version_file = os.path.join(os.path.dirname(__file__), '../version.json')
+            current_version = '0.0.0'
+            if os.path.exists(local_version_file):
+                with open(local_version_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    current_version = data.get('version', '0.0.0')
+            
+            # 获取远程版本
+            remote_version_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/version.json"
+            remote_version = '0.0.0'
+            import requests
+            response = requests.get(remote_version_url, timeout=5)
+            response.raise_for_status()
+            remote_data = response.json()
+            remote_version = remote_data.get('version', '0.0.0')
+            
+            # 直接比较版本号
+            has_update = self._is_version_newer(current_version, remote_version)
+            
+            # 更新版本标签状态
+            if has_update:
+                # 有更新时显示蓝色，可点击
+                self.version_label.SetForegroundColour(wx.Colour(0, 0, 255))
+                self.version_label.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+                # 存储远程版本号，用于点击时显示
+                self.remote_version = remote_version
+            else:
+                # 无更新时显示灰色，不可点击
+                self.version_label.SetForegroundColour(wx.Colour(128, 128, 128))
+                self.version_label.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+                self.remote_version = None
+            
+            # 刷新显示
+            self.version_label.Refresh()
+        except Exception as e:
+            print(f"检查更新状态失败: {e}")
+    
+    def on_version_click(self, event):
+        """
+        版本标签点击事件
+        """
+        try:
+            # 只有当有更新时才处理点击事件
+            if self.remote_version:
+                local_version_file = os.path.join(os.path.dirname(__file__), '../version.json')
+                remote_version_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/version.json"
+                qrcode_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/updatelog.png"
+                
+                # 检查是否有更新（忽略已忽略的版本）
+                checker = UpdateChecker(local_version_file, remote_version_url, CONFIG_FILE)
+                has_update, remote_version = checker.check_for_updates(ignore_ignored_version=True)
+                
+                if has_update:
+                    # 显示更新对话框
+                    show_update_dialog(self, qrcode_url, CONFIG_FILE, remote_version)
+        except Exception as e:
+            print(f"版本标签点击处理失败: {e}")
     
     def on_del(self, event):
         """删除选中文件"""
@@ -490,6 +594,23 @@ class MainFrame(wx.Frame):
     def on_config_changed(self, event):
         """配置变更事件"""
         self.save_config()
+    
+    def _get_version(self):
+        """
+        获取版本号
+        返回:
+            str: 版本号字符串
+        """
+        try:
+            if os.path.exists(VERSION_FILE):
+                with open(VERSION_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    version = data.get('version', '0.0.0')
+                    return f"v{version}"
+            return "v0.0.0"
+        except Exception as e:
+            print(f"获取版本号失败: {e}")
+            return "v0.0.0"
     
     def on_close(self, event):
         """窗口关闭事件"""
