@@ -66,7 +66,7 @@ class MainFrame(wx.Frame):
             layout_sizer.Add(self.layout_radio, 0, wx.ALL, -10)
         else:
             # macOS及其他系统
-            layout_sizer.Add(self.layout_radio, 0, wx.ALL, 0)
+            layout_sizer.Add(self.layout_radio, 0, wx.TOP, 5)
         
         top_sizer.Add(layout_sizer, 0, wx.ALL, 10)
         
@@ -75,7 +75,7 @@ class MainFrame(wx.Frame):
         top_sizer.Add(mode_box, 0, wx.RIGHT | wx.TOP, 20)
         
         self.mode_choices = ["普通", "图像"]
-        self.mode_combo = wx.ComboBox(self.panel, choices=self.mode_choices, size=(100,-1), style=wx.CB_READONLY)
+        self.mode_combo = wx.ComboBox(self.panel, choices=self.mode_choices, size=(60,-1), style=wx.CB_READONLY)
         self.mode_combo.SetToolTip(wx.ToolTip("普通模式：直接合并PDF，体积小，合并后内容可编辑，支持大部分情况；图像模式：将PDF转为图片后合并，兼容性更好，普通模式丢失信息时可以使用，合并后文件体积可能会变大"))
         top_sizer.Add(self.mode_combo, 0, wx.TOP, 18)
         
@@ -84,7 +84,7 @@ class MainFrame(wx.Frame):
         top_sizer.Add(order_box, 0, wx.RIGHT | wx.TOP, 20)
         
         self.order_choices = ["列表顺序", "开票日期(从先到后)", "开票金额(从小到大)"]
-        self.order_combo = wx.ComboBox(self.panel, choices=self.order_choices,size=(150,-1), style=wx.CB_READONLY)
+        self.order_combo = wx.ComboBox(self.panel, choices=self.order_choices,size=(120,-1), style=wx.CB_READONLY)
         top_sizer.Add(self.order_combo, 0, wx.TOP, 18)
 
         # 添加反馈问题按钮

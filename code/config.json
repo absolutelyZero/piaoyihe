@@ -1,7 +1,7 @@
 {
     "layout": 3,
     "mode": 0,
-    "order": 0,
-    "save_path": "D:\\minipro\\piaoyihe\\piaoyihe_test\\output.pdf",
+    "order": 1,
+    "save_path": "out.pdf",
     "print_checkbox": false
 }
