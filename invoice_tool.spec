@@ -14,7 +14,11 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'tkinter', 'sqlite3', 'test', 'distutils', 'setuptools',
+        'numpy', 'scipy', 'matplotlib', 'pandas', 'requests',
+        'bs4', 'lxml', 'PIL.ImageQt', 'PIL.PdfImagePlugin'
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
