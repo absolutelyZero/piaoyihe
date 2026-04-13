@@ -1,7 +1,10 @@
 {
-    "layout": 2,
-    "mode": 0,
-    "order": 1,
-    "print_checkbox": false,
-    "ignored_version": "0.0.4"
+  "layout": "横向 2x2",
+  "mode": "普通",
+  "order": "列表顺序",
+  "print_checkbox": false,
+  "ignored_version": "0.0.4",
+  "save_path": "",
+  "sort_by": "list",
+  "output_path": "D:/minipro/piaoyihe/piaoyihe_test\\output.pdf"
 }
