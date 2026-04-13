@@ -1,6 +1,7 @@
 {
-    "layout": 3,
+    "layout": 2,
     "mode": 0,
     "order": 1,
-    "print_checkbox": false
+    "print_checkbox": false,
+    "ignored_version": "0.0.4"
 }

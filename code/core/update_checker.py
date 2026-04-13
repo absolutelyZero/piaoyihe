@@ -1,36 +1,48 @@
-#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 更新检查模块
+
+提供软件版本更新检查功能，包括：
+- 本地版本与远程版本比较
+- 更新提示对话框
+- 二维码展示对话框
 """
 
 import json
 import os
-import requests
-import threading
-import wx
+from urllib import request
+
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox
+
 
 class UpdateChecker:
     """
-    软件更新检查器
+    版本更新检查器类
+    
+    用于检查软件是否有新版本可用，支持版本号比较和忽略版本功能。
     """
-    def __init__(self, local_version_file, remote_version_url, config_file=None):
+    
+    def __init__(self, local_version_file, remote_version_url, config_file):
         """
         初始化更新检查器
-        参数:
-            local_version_file: 本地版本文件路径
-            remote_version_url: 远程版本文件URL
-            config_file: 配置文件路径
+        
+        Args:
+            local_version_file (str): 本地版本文件路径
+            remote_version_url (str): 远程版本信息URL
+            config_file (str): 配置文件路径
         """
         self.local_version_file = local_version_file
         self.remote_version_url = remote_version_url
         self.config_file = config_file
-        self.current_version = self._get_local_version()
     
     def _get_local_version(self):
         """
-        获取本地版本号
-        返回:
-            str: 本地版本号
+        从本地版本文件读取版本号
+        
+        Returns:
+            str: 本地版本号，如果读取失败返回'0.0.0'
         """
         try:
             if os.path.exists(self.local_version_file):
@@ -38,253 +50,330 @@ class UpdateChecker:
                     data = json.load(f)
                     return data.get('version', '0.0.0')
             return '0.0.0'
-        except Exception as e:
-            print(f"获取本地版本失败: {e}")
+        except Exception:
             return '0.0.0'
     
     def _get_ignored_version(self):
         """
-        获取忽略的版本号
-        返回:
-            str: 忽略的版本号
+        从config.json读取ignored_version字段
+        
+        Returns:
+            str: 已忽略的版本号，如果不存在或读取失败返回'0.0.0'
         """
         try:
-            if self.config_file and os.path.exists(self.config_file):
+            if os.path.exists(self.config_file):
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
                     return config.get('ignored_version', '0.0.0')
             return '0.0.0'
-        except Exception as e:
-            print(f"获取忽略版本失败: {e}")
+        except Exception:
             return '0.0.0'
     
     def _set_ignored_version(self, version):
         """
-        设置忽略的版本号
-        参数:
-            version: 要忽略的版本号
+        将版本号写入config.json的ignored_version字段
+        
+        Args:
+            version (str): 要忽略的版本号
         """
         try:
-            if self.config_file and os.path.exists(self.config_file):
+            config = {}
+            if os.path.exists(self.config_file):
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                
-                config['ignored_version'] = version
-                
-                with open(self.config_file, 'w', encoding='utf-8') as f:
-                    json.dump(config, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            print(f"设置忽略版本失败: {e}")
+            config['ignored_version'] = version
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
     
-    def check_for_updates(self, ignore_ignored_version=False):
+    def _is_version_greater_than(self, version1, version2):
         """
-        检查是否有更新
-        参数:
-            ignore_ignored_version: 是否忽略已忽略的版本（用于用户主动点击检查时）
-        返回:
-            tuple: (是否有更新, 远程版本号)
+        比较版本号，返回version1 > version2
+        
+        Args:
+            version1 (str): 第一个版本号
+            version2 (str): 第二个版本号
+        
+        Returns:
+            bool: version1是否大于version2
         """
         try:
-            # 发送请求获取远程版本信息
-            response = requests.get(self.remote_version_url, timeout=5)
-            response.raise_for_status()
-            remote_data = response.json()
-            remote_version = remote_data.get('version', '0.0.0')
+            v1_parts = [int(x) for x in version1.split('.')]
+            v2_parts = [int(x) for x in version2.split('.')]
             
-            # 比较版本号
-            if self._is_version_newer(remote_version):
-                if ignore_ignored_version:
-                    # 用户主动点击检查，忽略已忽略的版本
-                    return True, remote_version
-                else:
-                    # 启动时检查，考虑已忽略的版本
-                    ignored_version = self._get_ignored_version()
-                    if not self._is_version_newer(ignored_version) or remote_version != ignored_version:
-                        return True, remote_version
-            return False, remote_version
-        except Exception as e:
-            print(f"检查更新失败: {e}")
-            return False, '0.0.0'
-    
-    def _is_version_newer(self, version):
-        """
-        比较版本号
-        参数:
-            version: 要比较的版本号
-        返回:
-            bool: 如果版本更新则返回True
-        """
-        try:
-            current_parts = list(map(int, self.current_version.split(".")))
-            new_parts = list(map(int, version.split(".")))
+            # 补齐长度
+            max_len = max(len(v1_parts), len(v2_parts))
+            v1_parts.extend([0] * (max_len - len(v1_parts)))
+            v2_parts.extend([0] * (max_len - len(v2_parts)))
             
-            for i in range(max(len(current_parts), len(new_parts))):
-                current = current_parts[i] if i < len(current_parts) else 0
-                new = new_parts[i] if i < len(new_parts) else 0
-                
-                if new > current:
+            for i in range(max_len):
+                if v1_parts[i] > v2_parts[i]:
                     return True
-                elif new < current:
+                elif v1_parts[i] < v2_parts[i]:
                     return False
             return False
         except Exception:
             return False
-
-class UpdateDialog(wx.Dialog):
-    """
-    更新提示对话框
-    """
-    def __init__(self, parent, qrcode_url, config_file, remote_version):
-        """
-        初始化更新对话框
-        参数:
-            parent: 父窗口
-            qrcode_url: 二维码图片URL
-            config_file: 配置文件路径
-            remote_version: 远程版本号
-        """
-        super().__init__(parent, title="发现新版本", size=(300, 200))
-        
-        self.config_file = config_file
-        self.remote_version = remote_version
-        
-        panel = wx.Panel(self)
-        vbox = wx.BoxSizer(wx.VERTICAL)
-        
-        # 提示信息
-        message = wx.StaticText(panel, label=f"发现新版本 v{remote_version}，是否查看更新内容？")
-        vbox.Add(message, 0, wx.ALL | wx.CENTER, 20)
-        
-        # 按钮
-        hbox = wx.BoxSizer(wx.HORIZONTAL)
-        update_btn = wx.Button(panel, label="查看更新")
-        ignore_btn = wx.Button(panel, label="忽略当前版本")
-        
-        self.Bind(wx.EVT_BUTTON, lambda e: self._show_qrcode(qrcode_url), update_btn)
-        self.Bind(wx.EVT_BUTTON, self._ignore_version, ignore_btn)
-        
-        hbox.Add(update_btn, 0, wx.ALL, 5)
-        hbox.Add(ignore_btn, 0, wx.ALL, 5)
-        
-        vbox.Add(hbox, 0, wx.CENTER, 10)
-        panel.SetSizer(vbox)
-        self.CenterOnParent()
     
-    def _show_qrcode(self, qrcode_url):
+    def _is_version_newer(self, version):
         """
-        显示二维码对话框
-        参数:
-            qrcode_url: 二维码图片URL
+        比较版本号，返回version > current_version
+        
+        Args:
+            version (str): 要比较的版本号
+        
+        Returns:
+            bool: 该版本是否比当前版本新
         """
-        dialog = QRCodeDialog(self, qrcode_url)
-        dialog.ShowModal()
-        dialog.Destroy()
-        self.Close()
+        current_version = self._get_local_version()
+        return self._is_version_greater_than(version, current_version)
     
-    def _ignore_version(self, event):
+    def check_for_updates(self, ignore_ignored_version=False):
         """
-        忽略当前版本
+        检查是否有可用更新
+        
+        Args:
+            ignore_ignored_version (bool): 是否忽略已忽略的版本，默认为False
+        
+        Returns:
+            tuple: (bool, str) - (是否有更新, 远程版本号)
         """
         try:
-            if self.config_file and os.path.exists(self.config_file):
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                
-                config['ignored_version'] = self.remote_version
-                
-                with open(self.config_file, 'w', encoding='utf-8') as f:
-                    json.dump(config, f, ensure_ascii=False, indent=4)
+            # 获取远程版本
+            with request.urlopen(self.remote_version_url, timeout=10) as response:
+                remote_data = json.loads(response.read().decode('utf-8'))
+                remote_version = remote_data.get('version', '0.0.0')
+            
+            current_version = self._get_local_version()
+            
+            print(f"当前版本: {current_version}, 远程版本: {remote_version}, 忽略版本: {self._get_ignored_version()}")
+            
+            # 如果远程版本 > 当前版本
+            if self._is_version_greater_than(remote_version, current_version):
+                if ignore_ignored_version:
+                    print(f"用户主动检查，显示更新对话框")
+                    return (True, remote_version)
+                else:
+                    ignored_version = self._get_ignored_version()
+                    # 如果远程版本 > 已忽略版本
+                    if self._is_version_greater_than(remote_version, ignored_version):
+                        print(f"远程版本 {remote_version} > 忽略版本 {ignored_version}，显示更新对话框")
+                        return (True, remote_version)
+                    else:
+                        print(f"远程版本 {remote_version} <= 忽略版本 {ignored_version}，跳过弹窗")
+                        return (False, remote_version)
+            else:
+                print(f"当前版本已是最新")
+            
+            return (False, remote_version)
         except Exception as e:
-            print(f"设置忽略版本失败: {e}")
-        finally:
-            self.Close()
+            print(f"检查更新失败: {e}")
+            return (False, '0.0.0')
 
-class QRCodeDialog(wx.Dialog):
+
+class UpdateDialog(QDialog):
     """
-    二维码显示对话框
+    更新提示对话框类
+    
+    用于显示发现新版本的提示，提供查看更新和忽略当前版本选项。
     """
+    
+    def __init__(self, parent, qrcode_url, config_file, remote_version):
+        """
+        初始化更新提示对话框
+        
+        Args:
+            parent (QWidget): 父窗口
+            qrcode_url (str): 二维码图片URL
+            config_file (str): 配置文件路径
+            remote_version (str): 远程版本号
+        """
+        super().__init__(parent)
+        self.qrcode_url = qrcode_url
+        self.config_file = config_file
+        self.remote_version = remote_version
+        self._update_checker = UpdateChecker('', '', config_file)
+        self._init_ui()
+    
+    def _init_ui(self):
+        """
+        创建界面
+        
+        显示"发现新版本 v{remote_version}，是否查看更新内容？"，
+        两个按钮"查看更新"和"忽略当前版本"
+        """
+        self.setWindowTitle('发现新版本')
+        self.setModal(True)
+        self.setMinimumWidth(300)
+        
+        layout = QVBoxLayout()
+        
+        # 提示文本
+        message_label = QLabel(f'发现新版本 v{self.remote_version}，是否查看更新内容？')
+        message_label.setWordWrap(True)
+        layout.addWidget(message_label)
+        
+        # 按钮布局
+        button_layout = QHBoxLayout()
+        
+        self.view_button = QPushButton('查看更新')
+        self.view_button.clicked.connect(self._show_qrcode)
+        button_layout.addWidget(self.view_button)
+        
+        self.ignore_button = QPushButton('忽略当前版本')
+        self.ignore_button.clicked.connect(self._ignore_version)
+        button_layout.addWidget(self.ignore_button)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+    
+    def _show_qrcode(self):
+        """
+        打开QRCodeDialog
+        
+        显示二维码对话框供用户扫码查看更新内容
+        """
+        dialog = QRCodeDialog(self, self.qrcode_url)
+        dialog.exec()
+    
+    def _ignore_version(self):
+        """
+        忽略当前版本
+        
+        调用_update_checker._set_ignored_version保存忽略版本，关闭对话框
+        """
+        self._update_checker._set_ignored_version(self.remote_version)
+        self.close()
+
+
+class QRCodeDialog(QDialog):
+    """
+    二维码展示对话框类
+    
+    用于显示二维码图片，供用户扫码查看更新内容。
+    """
+    
     def __init__(self, parent, qrcode_url):
         """
         初始化二维码对话框
-        参数:
-            parent: 父窗口
-            qrcode_url: 二维码图片URL
+        
+        Args:
+            parent (QWidget): 父窗口
+            qrcode_url (str): 二维码图片URL
         """
-        super().__init__(parent, title="更新内容", size=(400, 450))
+        super().__init__(parent)
+        self.qrcode_url = qrcode_url
+        self._init_ui()
+    
+    def _init_ui(self):
+        """
+        创建界面
         
-        panel = wx.Panel(self)
-        vbox = wx.BoxSizer(wx.VERTICAL)
+        显示"请扫码查看更新内容和更新方法"，二维码图片，关闭按钮
+        """
+        self.setWindowTitle('查看更新')
+        self.setModal(True)
+        self.setMinimumWidth(300)
         
-        # 提示信息
-        message = wx.StaticText(panel, label="请扫码查看更新内容和更新方法")
-        message.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-        vbox.Add(message, 0, wx.ALL | wx.CENTER, 20)
+        layout = QVBoxLayout()
         
-        # 二维码图片
-        try:
-            # 下载二维码图片
-            response = requests.get(qrcode_url, timeout=10)
-            response.raise_for_status()
-            
-            # 创建临时文件保存图片
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
-                f.write(response.content)
-                temp_file = f.name
-            
-            # 显示图片
-            qrcode_img = wx.Image(temp_file, wx.BITMAP_TYPE_PNG)
-            qrcode_img = qrcode_img.Rescale(300, 300)
-            qrcode_bmp = wx.Bitmap(qrcode_img)
-            qrcode_static = wx.StaticBitmap(panel, -1, qrcode_bmp)
-            vbox.Add(qrcode_static, 0, wx.ALL | wx.CENTER, 10)
-            
-            # 删除临时文件
-            os.unlink(temp_file)
-        except Exception as e:
-            print(f"加载二维码失败: {e}")
-            error_text = wx.StaticText(panel, label="二维码加载失败")
-            vbox.Add(error_text, 0, wx.ALL | wx.CENTER, 100)
+        # 提示文本
+        message_label = QLabel('请扫码查看更新内容和更新方法')
+        message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(message_label)
+        
+        # 二维码图片标签
+        self.qrcode_label = QLabel()
+        self.qrcode_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.qrcode_label.setMinimumSize(200, 200)
+        layout.addWidget(self.qrcode_label)
+        
+        # 加载二维码
+        self._load_qrcode()
         
         # 关闭按钮
-        close_button = wx.Button(panel, label="关闭")
-        close_button.Bind(wx.EVT_BUTTON, lambda e: self.Close())
-        vbox.Add(close_button, 0, wx.ALL | wx.CENTER, 20)
+        close_button = QPushButton('关闭')
+        close_button.clicked.connect(self.close)
+        layout.addWidget(close_button)
         
-        panel.SetSizer(vbox)
-        self.CenterOnParent()
+        self.setLayout(layout)
+    
+    def _load_qrcode(self):
+        """
+        下载并显示二维码图片
+        
+        从远程URL下载二维码图片并显示在对话框中
+        """
+        try:
+            from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+            from PySide6.QtCore import QUrl
+            
+            self.network_manager = QNetworkAccessManager()
+            self.network_manager.finished.connect(self._on_qrcode_loaded)
+            req = QNetworkRequest(QUrl(self.qrcode_url))
+            self.network_manager.get(req)
+        except Exception as e:
+            self.qrcode_label.setText(f'加载二维码失败: {str(e)}')
+    
+    def _on_qrcode_loaded(self, reply):
+        """
+        二维码图片加载完成的回调函数
+        
+        Args:
+            reply: 网络请求的回复对象
+        """
+        from PySide6.QtNetwork import QNetworkReply
+        
+        if reply.error() == QNetworkReply.NetworkError.NoError:
+            data = reply.readAll()
+            pixmap = QPixmap()
+            pixmap.loadFromData(data)
+            if not pixmap.isNull():
+                # 缩放图片到合适大小
+                scaled_pixmap = pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                self.qrcode_label.setPixmap(scaled_pixmap)
+            else:
+                self.qrcode_label.setText('二维码图片格式错误')
+        else:
+            self.qrcode_label.setText(f'加载二维码失败: {reply.errorString()}')
+        reply.deleteLater()
 
-def check_updates_on_start(app, local_version_file, remote_version_url, qrcode_url, config_file=None):
+
+def check_updates_on_start(parent, local_version_file, remote_version_url, qrcode_url, config_file):
     """
     启动时检查更新
-    参数:
-        app: wx.App实例
-        local_version_file: 本地版本文件路径
-        remote_version_url: 远程版本文件URL
-        qrcode_url: 二维码图片URL
-        config_file: 配置文件路径
+    
+    使用QTimer.singleShot延迟2秒后执行更新检查，
+    如果有更新则显示更新对话框。
+    
+    Args:
+        parent (QWidget): 父窗口
+        local_version_file (str): 本地版本文件路径
+        remote_version_url (str): 远程版本信息URL
+        qrcode_url (str): 二维码图片URL
+        config_file (str): 配置文件路径
     """
-    def check():
+    def _do_check():
         checker = UpdateChecker(local_version_file, remote_version_url, config_file)
         has_update, remote_version = checker.check_for_updates()
-        
         if has_update:
-            wx.CallAfter(show_update_dialog, app.GetTopWindow(), qrcode_url, config_file, remote_version)
+            show_update_dialog(parent, qrcode_url, config_file, remote_version)
     
-    # 在后台线程中检查，避免阻塞UI
-    thread = threading.Thread(target=check)
-    thread.daemon = True
-    thread.start()
+    QTimer.singleShot(2000, _do_check)
+
 
 def show_update_dialog(parent, qrcode_url, config_file, remote_version):
     """
     显示更新对话框
-    参数:
-        parent: 父窗口
-        qrcode_url: 二维码图片URL
-        config_file: 配置文件路径
-        remote_version: 远程版本号
+    
+    创建并显示UpdateDialog供用户选择是否查看更新。
+    
+    Args:
+        parent (QWidget): 父窗口
+        qrcode_url (str): 二维码图片URL
+        config_file (str): 配置文件路径
+        remote_version (str): 远程版本号
     """
     dialog = UpdateDialog(parent, qrcode_url, config_file, remote_version)
-    dialog.ShowModal()
-    dialog.Destroy()
+    dialog.exec()

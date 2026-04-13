@@ -1,4 +1,4 @@
 PyMuPDF>=1.24.0
-wxPython>=4.2.0
+PySide6>=6.6.0
 Pillow>=10.0.0
 requests>=2.31.0
