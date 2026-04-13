@@ -527,6 +527,7 @@ class MainFrame(wx.Frame):
                 self.layout_radio.SetSelection(0)
                 self.mode_combo.SetSelection(0)
                 self.order_combo.SetSelection(0)
+                # 保存路径不保存到配置，使用默认值
                 self.save_path_ctrl.SetValue("out.pdf")
                 self.print_checkbox.SetValue(False)
         except Exception as e:
@@ -535,6 +536,7 @@ class MainFrame(wx.Frame):
             self.layout_radio.SetSelection(0)
             self.mode_combo.SetSelection(0)
             self.order_combo.SetSelection(0)
+            # 保存路径不保存到配置，使用默认值
             self.save_path_ctrl.SetValue("out.pdf")
             self.print_checkbox.SetValue(False)
     
@@ -545,7 +547,6 @@ class MainFrame(wx.Frame):
                 'layout': self.layout_radio.GetSelection(),
                 'mode': self.mode_combo.GetSelection(),
                 'order': self.order_combo.GetSelection(),
-                'save_path': self.save_path_ctrl.GetValue(),
                 'print_checkbox': self.print_checkbox.GetValue()
             }
             # 确保配置目录存在
