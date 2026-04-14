@@ -36,15 +36,13 @@ class PDFHandler:
             # 页边距设置（单位：点，1点=1/72英寸）
             margin = 20  # 页边距
             
-            # 根据模式和布局确定页面尺寸
-            # 图像模式下2x2布局使用横向纸张
-            is_landscape = (mode == '图像' and layout_config['rows'] == 2 and layout_config['cols'] == 2)
+            # 根据布局方向确定页面尺寸
+            # 横向布局使用横向A4纸张，竖向布局使用纵向A4纸张
+            is_landscape = layout_config['orientation'] == 'landscape'
             
             if is_landscape:
                 page_width = 842  # A4横向宽度
                 page_height = 595  # A4横向高度
-                # 横向纸张不需要再旋转内容
-                layout_config['rotate'] = 0
             else:
                 page_width = 595  # A4纵向宽度
                 page_height = 842  # A4纵向高度
@@ -331,11 +329,51 @@ class PDFHandler:
             dict: 布局配置
         """
         layout_map = {
+            # 新格式（不带空格）
+            # 横向布局：A4纸横向，发票保持横向不旋转
+            "横向2x2": {
+                'orientation': 'landscape',  # A4纸横向
+                'rows': 2,
+                'cols': 2,
+                'rotate': 0  # 发票不旋转
+            },
+            "横向2x4": {
+                'orientation': 'landscape',  # A4纸横向
+                'rows': 2,
+                'cols': 4,
+                'rotate': 0  # 发票不旋转
+            },
+            # 竖向布局：A4纸纵向，发票不旋转
+            "竖向1x2": {
+                'orientation': 'portrait',  # A4纸纵向
+                'rows': 2,
+                'cols': 1,
+                'rotate': 0
+            },
+            "竖向1x3": {
+                'orientation': 'portrait',  # A4纸纵向
+                'rows': 3,
+                'cols': 1,
+                'rotate': 0
+            },
+            "竖向2x4": {
+                'orientation': 'portrait',  # A4纸纵向
+                'rows': 4,
+                'cols': 2,
+                'rotate': 0
+            },
+            # 旧格式（带空格，兼容旧配置）
             "横向 2x2": {
                 'orientation': 'landscape',
                 'rows': 2,
                 'cols': 2,
-                'rotate': 90  # 每张发票旋转90度
+                'rotate': 0
+            },
+            "横向 2x4": {
+                'orientation': 'landscape',
+                'rows': 2,
+                'cols': 4,
+                'rotate': 0
             },
             "竖向 1x2": {
                 'orientation': 'portrait',
@@ -357,7 +395,7 @@ class PDFHandler:
             }
         }
         
-        return layout_map.get(layout, layout_map["横向 2x2"])
+        return layout_map.get(layout, layout_map["横向2x2"])
     
     def extract_amount(self, pdf_path):
         """

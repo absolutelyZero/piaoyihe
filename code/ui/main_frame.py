@@ -387,18 +387,21 @@ class MainWindow(QMainWindow):
                 width: 2px;
             }}
             
-            /* 反馈按钮特殊样式 */
+            /* 反馈按钮特殊样式 - 问号图标样式 */
             QPushButton#feedbackButton {{
-                background-color: {PRIMARY_COLOR};
-                color: white;
-                border: none;
+                background-color: transparent;
+                color: {TEXT_SECONDARY};
+                border: 1px solid {BORDER_COLOR};
                 border-radius: 15px;
                 font-weight: bold;
-                font-size: 14px;
+                font-size: 16px;
+                padding: 0px;
             }}
             
             QPushButton#feedbackButton:hover {{
-                background-color: {PRIMARY_HOVER};
+                background-color: {BG_COLOR};
+                border-color: {PRIMARY_COLOR};
+                color: {PRIMARY_COLOR};
             }}
         """)
     
@@ -437,7 +440,7 @@ class MainWindow(QMainWindow):
         self.feedback_button = QPushButton("?")
         self.feedback_button.setObjectName("feedbackButton")
         self.feedback_button.setFixedSize(30, 30)
-        self.feedback_button.setToolTip("反馈问题")
+        self.feedback_button.setToolTip("使用帮助")
         self.feedback_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.feedback_button.clicked.connect(self._on_feedback)
         layout.addWidget(self.feedback_button)
@@ -560,7 +563,7 @@ class MainWindow(QMainWindow):
         
         self.preview_stack.addWidget(placeholder_container)
         
-        # 页面2：图片预览
+        # 页面2：图片预览（支持滚轮缩放和多页面）
         self.preview_scroll = QScrollArea()
         self.preview_scroll.setWidgetResizable(True)
         self.preview_scroll.setStyleSheet(f"""
@@ -571,10 +574,23 @@ class MainWindow(QMainWindow):
             }}
         """)
         
-        self.preview_label = QLabel()
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setStyleSheet("background-color: transparent; border: none;")
-        self.preview_scroll.setWidget(self.preview_label)
+        # 创建预览容器（垂直布局，支持多页面）
+        self.preview_container = QWidget()
+        self.preview_container.setStyleSheet("background-color: transparent;")
+        self.preview_layout = QVBoxLayout(self.preview_container)
+        self.preview_layout.setSpacing(20)
+        self.preview_layout.setContentsMargins(20, 20, 20, 20)
+        self.preview_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.preview_scroll.setWidget(self.preview_container)
+        
+        # 初始化预览相关变量
+        self.preview_pixmaps = []  # 存储所有页面的pixmap
+        self.preview_scale = 1.0   # 当前缩放比例
+        self.preview_labels = []   # 存储所有预览标签
+        
+        # 启用鼠标滚轮事件
+        self.preview_scroll.viewport().installEventFilter(self)
         
         self.preview_stack.addWidget(self.preview_scroll)
         
@@ -632,27 +648,37 @@ class MainWindow(QMainWindow):
         
         # 创建布局选择按钮
         layout_options = [
-            ("竖向 1x2", "1×2"),
-            ("竖向 1x3", "1×3"),
-            ("竖向 2x4", "2×4"),
-            ("横向 2x2", "2×2")
+            ("竖向1x2", "竖向1x2"),
+            ("竖向1x3", "竖向1x3"),
+            ("竖向2x4", "竖向2x4"),
+            ("横向2x2", "横向2x2")
         ]
         
-        for i, (full_name, short_name) in enumerate(layout_options):
-            radio = QRadioButton(short_name)
+        for i, (full_name, display_name) in enumerate(layout_options):
+            radio = QRadioButton(display_name)
             radio.setToolTip(full_name)
-            radio.setMinimumWidth(50)
+            radio.setMinimumWidth(70)
             radio.setStyleSheet(f"""
                 QRadioButton {{
                     font-size: 13px;
                     font-weight: 500;
-                    padding: 4px 8px;
+                    spacing: 6px;
                 }}
                 QRadioButton::indicator {{
-                    width: 0px;
-                    height: 0px;
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 8px;
+                    border: 2px solid {TEXT_MUTED};
+                    background-color: {CARD_BG};
                 }}
-                QRadioButton::checked {{
+                QRadioButton::indicator:checked {{
+                    border-color: {PRIMARY_COLOR};
+                    background-color: {PRIMARY_COLOR};
+                }}
+                QRadioButton::indicator:hover {{
+                    border-color: {PRIMARY_COLOR};
+                }}
+                QRadioButton:checked {{
                     color: {PRIMARY_COLOR};
                     font-weight: bold;
                 }}
@@ -673,11 +699,11 @@ class MainWindow(QMainWindow):
         # 默认选中横向 2x2
         self.radio_2x2.setChecked(True)
         
-        # 连接布局变更信号
-        self.radio_1x2.toggled.connect(self._on_config_changed)
-        self.radio_1x3.toggled.connect(self._on_config_changed)
-        self.radio_2x4.toggled.connect(self._on_config_changed)
-        self.radio_2x2.toggled.connect(self._on_config_changed)
+        # 连接布局变更信号（只在选中时触发）
+        self.radio_1x2.toggled.connect(lambda checked: checked and self._on_config_changed())
+        self.radio_1x3.toggled.connect(lambda checked: checked and self._on_config_changed())
+        self.radio_2x4.toggled.connect(lambda checked: checked and self._on_config_changed())
+        self.radio_2x2.toggled.connect(lambda checked: checked and self._on_config_changed())
         
         layout_container.addLayout(layout_buttons)
         layout.addLayout(layout_container)
@@ -949,16 +975,16 @@ class MainWindow(QMainWindow):
             根据单选按钮的状态返回对应的布局字符串
         
         返回值:
-            str: 布局类型字符串（"竖向 1x2"、"竖向 1x3"、"竖向 2x4"、"横向 2x2"）
+            str: 布局类型字符串（"竖向1x2"、"竖向1x3"、"竖向2x4"、"横向2x2"）
         """
         if self.radio_1x2.isChecked():
-            return "竖向 1x2"
+            return "竖向1x2"
         elif self.radio_1x3.isChecked():
-            return "竖向 1x3"
+            return "竖向1x3"
         elif self.radio_2x4.isChecked():
-            return "竖向 2x4"
+            return "竖向2x4"
         else:
-            return "横向 2x2"
+            return "横向2x2"
     
     def _get_version(self):
         """
@@ -1023,7 +1049,7 @@ class MainWindow(QMainWindow):
         
         功能描述:
             生成并显示合并后的PDF预览图像，使用临时文件进行预览，不影响正式合并
-            预览只显示前2页内容以提高性能
+            预览显示所有页面，支持鼠标滚轮缩放
         """
         files = self.file_list.get_all_files()
         
@@ -1040,37 +1066,80 @@ class MainWindow(QMainWindow):
         QGuiApplication.processEvents()
         
         try:
-            # 生成预览图像
-            pixmap = self._generate_preview_image()
+            # 清除旧的预览标签
+            for label in self.preview_labels:
+                label.deleteLater()
+            self.preview_labels.clear()
             
-            if pixmap and not pixmap.isNull():
-                self.preview_pixmap = pixmap
-                self.preview_label.setPixmap(pixmap)
+            # 重置缩放比例
+            self._reset_preview_zoom()
+            
+            # 生成所有页面的预览图像
+            pixmaps = self._generate_preview_images()
+            
+            if pixmaps:
+                self.preview_pixmaps = pixmaps
+                
+                # 为每个页面创建标签
+                for i, pixmap in enumerate(pixmaps):
+                    # 创建页面容器
+                    page_container = QFrame()
+                    page_container.setStyleSheet(f"""
+                        QFrame {{
+                            background-color: white;
+                            border: 1px solid {BORDER_COLOR};
+                            border-radius: 4px;
+                            padding: 10px;
+                        }}
+                    """)
+                    page_layout = QVBoxLayout(page_container)
+                    page_layout.setSpacing(5)
+                    page_layout.setContentsMargins(10, 10, 10, 10)
+                    
+                    # 页面编号标签
+                    page_num_label = QLabel(f"第 {i + 1} 页")
+                    page_num_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    page_num_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px;")
+                    page_layout.addWidget(page_num_label)
+                    
+                    # 图像标签
+                    label = QLabel()
+                    label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    label.setPixmap(pixmap)
+                    label.setStyleSheet("background-color: transparent; border: none;")
+                    page_layout.addWidget(label)
+                    
+                    self.preview_labels.append(label)
+                    self.preview_layout.addWidget(page_container)
+                
                 self.preview_stack.setCurrentIndex(1)
-                self.preview_status_label.setText(f"(预览全部页面，共{len(files)}个文件)")
+                page_count = len(pixmaps)
+                self.preview_status_label.setText(f"(预览全部 {page_count} 页，共{len(files)}个文件，Ctrl+滚轮缩放)")
             else:
                 self.preview_status_label.setText("(预览生成失败)")
                 
         except Exception as e:
             print(f"预览生成失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
             self.preview_status_label.setText("(预览生成失败)")
         
         self.refresh_preview_btn.setEnabled(True)
     
-    def _generate_preview_image(self):
+    def _generate_preview_images(self):
         """
-        生成预览图像
+        生成所有页面的预览图像
         
         功能描述:
-            使用PDFHandler合并全部PDF页面作为预览图像，使用临时文件存储预览结果
-            预览图像会被缩放以适应预览区域，保持A4宽高比
+            使用PDFHandler合并全部PDF页面作为预览图像，生成所有页面的预览
+            预览图像会被缩放以适应预览区域，根据布局方向保持正确的A4比例
         
         返回值:
-            QPixmap: 生成的预览图像，如果失败则返回None
+            list: 所有页面的QPixmap列表，如果失败则返回空列表
         """
         files = self.file_list.get_all_files()
         if not files:
-            return None
+            return []
         
         # 创建临时文件用于预览
         temp_fd = None
@@ -1101,34 +1170,87 @@ class MainWindow(QMainWindow):
                 mode_str
             )
             
+            pixmaps = []
+            
             if result and os.path.exists(temp_path):
                 # 使用PyMuPDF将PDF转换为图像
                 import fitz
                 doc = fitz.open(temp_path)
                 
                 if len(doc) > 0:
-                    # 获取第一页作为预览
-                    page = doc[0]
-                    # 使用较低分辨率以提高性能，但保持A4比例
-                    mat = fitz.Matrix(1.2, 1.2)  # 缩放比例
-                    pix = page.get_pixmap(matrix=mat)
+                    # 获取第一页的尺寸以确定方向
+                    first_page = doc[0]
+                    page_rect = first_page.rect
+                    page_width_pt = page_rect.width
+                    page_height_pt = page_rect.height
+                    is_landscape = page_width_pt > page_height_pt
                     
-                    # 转换为QPixmap
-                    img_data = pix.tobytes("png")
-                    pixmap = QPixmap()
-                    pixmap.loadFromData(img_data)
+                    # 根据预览区域大小计算合适的缩放比例
+                    # 预览区域可用大小（考虑边距）
+                    available_width = self.preview_scroll.width() - 40  # 减去滚动条和边距
+                    available_height = self.preview_scroll.height() - 40
                     
-                    # 缩放以适应预览区域，保持A4比例（宽度约595pt，高度约842pt）
-                    # 预览区域宽度约650px，按A4比例计算高度
-                    preview_width = 650
-                    preview_height = int(preview_width * 842 / 595)  # A4比例
-                    if pixmap.width() > preview_width or pixmap.height() > preview_height:
-                        pixmap = pixmap.scaled(
-                            preview_width, 
-                            preview_height,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation
-                        )
+                    if available_width <= 0:
+                        available_width = 600  # 默认宽度
+                    if available_height <= 0:
+                        available_height = 800  # 默认高度
+                    
+                    # 计算缩放比例，使页面完整显示在预览区域中
+                    # 使用较高的DPI以获得清晰的预览
+                    dpi_scale = 2.0  # 高DPI缩放，确保清晰度
+                    
+                    if is_landscape:
+                        # 横向页面：A4横向比例 842:595
+                        scale_x = (available_width * dpi_scale) / page_width_pt
+                        scale_y = (available_height * dpi_scale) / page_height_pt
+                    else:
+                        # 纵向页面：A4纵向比例 595:842
+                        scale_x = (available_width * dpi_scale) / page_width_pt
+                        scale_y = (available_height * dpi_scale) / page_height_pt
+                    
+                    # 使用较小的缩放比例，确保完整显示
+                    scale = min(scale_x, scale_y) * 0.95  # 留5%边距
+                    
+                    # 生成所有页面的预览图像
+                    for page_num in range(len(doc)):
+                        page = doc[page_num]
+                        
+                        mat = fitz.Matrix(scale, scale)
+                        pix = page.get_pixmap(matrix=mat)
+                        
+                        # 转换为QPixmap
+                        img_data = pix.tobytes("png")
+                        pixmap = QPixmap()
+                        pixmap.loadFromData(img_data)
+                        
+                        # 再次缩放以适应显示区域（保持比例）
+                        final_width = int(pixmap.width() / dpi_scale)
+                        final_height = int(pixmap.height() / dpi_scale)
+                        
+                        if final_width > available_width or final_height > available_height:
+                            pixmap = pixmap.scaled(
+                                int(available_width * dpi_scale),
+                                int(available_height * dpi_scale),
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation
+                            )
+                            # 缩放到最终显示大小
+                            pixmap = pixmap.scaled(
+                                pixmap.width() // int(dpi_scale),
+                                pixmap.height() // int(dpi_scale),
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation
+                            )
+                        else:
+                            # 直接缩放到显示大小
+                            pixmap = pixmap.scaled(
+                                final_width,
+                                final_height,
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation
+                            )
+                        
+                        pixmaps.append(pixmap)
                     
                     doc.close()
                     
@@ -1138,7 +1260,7 @@ class MainWindow(QMainWindow):
                     except:
                         pass
                     
-                    return pixmap
+                    return pixmaps
                 
                 doc.close()
             
@@ -1149,17 +1271,19 @@ class MainWindow(QMainWindow):
                 except:
                     pass
             
-            return None
+            return []
             
         except Exception as e:
             print(f"生成预览图像失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
             # 清理临时文件
             if temp_path and os.path.exists(temp_path):
                 try:
                     os.unlink(temp_path)
                 except:
                     pass
-            return None
+            return []
     
     def _on_del(self):
         """
@@ -1510,12 +1634,12 @@ class MainWindow(QMainWindow):
                     config = json.load(f)
                 
                 # 加载布局设置
-                layout = config.get('layout', '竖向 1x2')
-                if layout == '竖向 1x2':
+                layout = config.get('layout', '竖向1x2')
+                if layout == '竖向1x2':
                     self.radio_1x2.setChecked(True)
-                elif layout == '竖向 1x3':
+                elif layout == '竖向1x3':
                     self.radio_1x3.setChecked(True)
-                elif layout == '竖向 2x4':
+                elif layout == '横向2x4':
                     self.radio_2x4.setChecked(True)
                 else:
                     self.radio_2x2.setChecked(True)
@@ -1637,6 +1761,73 @@ class MainWindow(QMainWindow):
         except:
             return False
     
+    def eventFilter(self, obj, event):
+        """
+        事件过滤器，处理鼠标滚轮缩放
+        
+        参数:
+            obj: 事件对象
+            event: 事件
+            
+        返回值:
+            bool: 是否已处理事件
+        """
+        if obj == self.preview_scroll.viewport() and event.type() == event.Type.Wheel:
+            # 检查是否按下了Ctrl键
+            if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+                # Ctrl+滚轮进行缩放
+                delta = event.angleDelta().y()
+                if delta > 0:
+                    self._zoom_preview(1.1)  # 放大10%
+                else:
+                    self._zoom_preview(0.9)  # 缩小10%
+                return True
+        return super().eventFilter(obj, event)
+    
+    def _zoom_preview(self, factor):
+        """
+        缩放预览图像
+        
+        参数:
+            factor: 缩放因子（大于1放大，小于1缩小）
+        """
+        if not self.preview_pixmaps:
+            return
+        
+        # 计算新的缩放比例
+        new_scale = self.preview_scale * factor
+        
+        # 限制缩放范围（0.1到5倍）
+        if new_scale < 0.1:
+            new_scale = 0.1
+        elif new_scale > 5.0:
+            new_scale = 5.0
+        
+        self.preview_scale = new_scale
+        
+        # 更新所有预览标签的图像
+        for i, label in enumerate(self.preview_labels):
+            if i < len(self.preview_pixmaps):
+                pixmap = self.preview_pixmaps[i]
+                scaled_pixmap = pixmap.scaled(
+                    int(pixmap.width() * self.preview_scale),
+                    int(pixmap.height() * self.preview_scale),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                label.setPixmap(scaled_pixmap)
+        
+        # 更新状态标签显示缩放比例
+        zoom_percent = int(self.preview_scale * 100)
+        files = self.file_list.get_all_files()
+        self.preview_status_label.setText(f"(预览全部页面，共{len(files)}个文件，缩放{zoom_percent}%)")
+    
+    def _reset_preview_zoom(self):
+        """
+        重置预览缩放比例
+        """
+        self.preview_scale = 1.0
+    
     def closeEvent(self, event):
         """
         窗口关闭事件
@@ -1653,10 +1844,10 @@ class MainWindow(QMainWindow):
 
 class FeedbackDialog(QDialog):
     """
-    反馈对话框类
+    使用帮助对话框类
     
     功能描述:
-        提供用户反馈功能，收集用户意见和建议
+        显示应用程序的使用帮助信息
     
     参数:
         parent (QWidget): 父窗口
@@ -1664,15 +1855,15 @@ class FeedbackDialog(QDialog):
     
     def __init__(self, parent=None):
         """
-        初始化反馈对话框
+        初始化使用帮助对话框
         
         参数:
             parent (QWidget): 父窗口
         """
         super().__init__(parent)
         
-        self.setWindowTitle("用户反馈")
-        self.setMinimumSize(500, 400)
+        self.setWindowTitle("使用帮助")
+        self.setMinimumSize(500, 450)
         self.setModal(True)
         
         layout = QVBoxLayout(self)
@@ -1680,60 +1871,82 @@ class FeedbackDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         
         # 标题
-        title = QLabel("您的反馈对我们很重要")
+        title = QLabel("📖 使用帮助")
         title.setStyleSheet("""
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
             color: #212121;
         """)
         layout.addWidget(title)
         
-        # 说明文字
-        desc = QLabel("请描述您遇到的问题或提出改进建议，我们会认真阅读每一条反馈。")
-        desc.setWordWrap(True)
-        desc.setStyleSheet("color: #757575;")
-        layout.addWidget(desc)
+        # 帮助内容区域
+        help_text = QTextEdit()
+        help_text.setReadOnly(True)
+        help_text.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #E0E0E0;
+                border-radius: 8px;
+                background-color: #FFFFFF;
+                padding: 12px;
+                font-size: 13px;
+                line-height: 1.6;
+            }
+        """)
         
-        # 反馈类型
-        type_layout = QHBoxLayout()
-        type_label = QLabel("反馈类型:")
-        type_layout.addWidget(type_label)
+        help_content = """<h3>🚀 快速开始</h3>
+<ol>
+<li><b>添加文件</b>：点击"添加"按钮或直接将PDF文件拖入列表</li>
+<li><b>选择布局</b>：选择合并布局（竖向1x2、竖向1x3、横向2x2等）</li>
+<li><b>调整顺序</b>：使用"上移"/"下移"按钮或拖拽调整文件顺序</li>
+<li><b>合并保存</b>：选择保存路径，点击"合并PDF"按钮</li>
+</ol>
+
+<h3>📋 功能说明</h3>
+<ul>
+<li><b>布局选择</b>：
+  <ul>
+    <li>竖向1x2：每页A4纸竖向排列2张发票</li>
+    <li>竖向1x3：每页A4纸竖向排列3张发票</li>
+    <li>横向2x2：每页A4纸横向排列4张发票</li>
+    <li>横向2x4：每页A4纸横向排列8张发票</li>
+  </ul>
+</li>
+<li><b>处理模式</b>：
+  <ul>
+    <li>普通模式：保留PDF矢量信息，文件较小</li>
+    <li>图像模式：转换为图片，兼容性更好</li>
+  </ul>
+</li>
+<li><b>排序方式</b>：支持按列表顺序、开票日期、开票金额排序</li>
+</ul>
+
+<h3>💡 使用技巧</h3>
+<ul>
+<li>双击列表中的文件可直接打开查看</li>
+<li>支持批量拖拽添加多个文件</li>
+<li>合并前可在右侧预览效果</li>
+<li>勾选"合并后打印"可自动调用系统打印</li>
+</ul>
+
+<h3>❓ 常见问题</h3>
+<ul>
+<li><b>Q: 支持哪些文件格式？</b><br>A: 目前仅支持PDF格式文件</li>
+<li><b>Q: 合并后的文件在哪里？</b><br>A: 默认保存在第一个PDF文件的目录下，可手动选择保存位置</li>
+<li><b>Q: 如何调整文件顺序？</b><br>A: 选中文件后点击"上移"/"下移"按钮，或直接拖拽调整</li>
+</ul>"""
         
-        self.type_combo = QComboBox()
-        self.type_combo.addItems(["功能建议", "问题反馈", "其他"])
-        type_layout.addWidget(self.type_combo)
-        type_layout.addStretch()
-        layout.addLayout(type_layout)
+        help_text.setHtml(help_content)
+        layout.addWidget(help_text)
         
-        # 反馈内容
-        content_label = QLabel("反馈内容:")
-        layout.addWidget(content_label)
-        
-        self.content_edit = QTextEdit()
-        self.content_edit.setPlaceholderText("请输入您的反馈内容...")
-        self.content_edit.setMinimumHeight(150)
-        layout.addWidget(self.content_edit)
-        
-        # 联系邮箱（可选）
-        email_label = QLabel("联系邮箱（可选）:")
-        layout.addWidget(email_label)
-        
-        self.email_edit = QLineEdit()
-        self.email_edit.setPlaceholderText("请输入您的邮箱，方便我们回复您")
-        layout.addWidget(self.email_edit)
-        
-        # 按钮
+        # 关闭按钮
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
-        self.cancel_btn = QPushButton("取消")
-        self.cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(self.cancel_btn)
-        
-        self.submit_btn = QPushButton("提交反馈")
-        self.submit_btn.setObjectName("primaryButton")
-        self.submit_btn.clicked.connect(self._on_submit)
-        btn_layout.addWidget(self.submit_btn)
+        close_btn = QPushButton("关闭")
+        close_btn.setObjectName("primaryButton")
+        close_btn.setMinimumWidth(80)
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
         
         layout.addLayout(btn_layout)
         
@@ -1751,40 +1964,6 @@ class FeedbackDialog(QDialog):
             QLabel {{
                 color: {TEXT_PRIMARY};
                 font-size: 14px;
-            }}
-            QComboBox {{
-                padding: 8px 12px;
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 6px;
-                background-color: {CARD_BG};
-                min-width: 120px;
-            }}
-            QComboBox:hover {{
-                border-color: {PRIMARY_COLOR};
-            }}
-            QComboBox::drop-down {{
-                border: none;
-                width: 24px;
-            }}
-            QTextEdit {{
-                padding: 12px;
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 6px;
-                background-color: {CARD_BG};
-                font-size: 14px;
-            }}
-            QTextEdit:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-            QLineEdit {{
-                padding: 10px 12px;
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 6px;
-                background-color: {CARD_BG};
-                font-size: 14px;
-            }}
-            QLineEdit:focus {{
-                border-color: {PRIMARY_COLOR};
             }}
             QPushButton {{
                 padding: 10px 20px;
@@ -1807,24 +1986,3 @@ class FeedbackDialog(QDialog):
                 background-color: {PRIMARY_HOVER};
             }}
         """)
-    
-    def _on_submit(self):
-        """
-        提交反馈
-        
-        功能描述:
-            处理用户提交反馈的操作
-        """
-        content = self.content_edit.toPlainText().strip()
-        if not content:
-            QMessageBox.warning(self, "提示", "请输入反馈内容")
-            return
-        
-        feedback_type = self.type_combo.currentText()
-        email = self.email_edit.text().strip()
-        
-        # 这里可以添加实际的反馈提交逻辑
-        # 例如发送到服务器或保存到本地文件
-        
-        QMessageBox.information(self, "感谢", "感谢您的反馈！我们会认真考虑您的建议。")
-        self.accept()

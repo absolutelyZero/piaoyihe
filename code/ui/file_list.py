@@ -10,10 +10,10 @@ import os
 import time
 from PySide6.QtWidgets import (
     QWidget, QTableWidget, QVBoxLayout, QTableWidgetItem, 
-    QHeaderView, QAbstractItemView
+    QHeaderView, QAbstractItemView, QMenu
 )
 from PySide6.QtCore import Qt, Signal, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QAction
 
 
 class FileListPanel(QWidget):
@@ -98,7 +98,10 @@ class FileListPanel(QWidget):
         
         # 连接信号
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
-        self.table.itemDoubleClicked.connect(self._on_item_double_clicked)
+        
+        # 启用自定义上下文菜单（右键菜单）
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_context_menu)
         
         layout.addWidget(self.table)
     
@@ -111,22 +114,130 @@ class FileListPanel(QWidget):
         """
         self.selection_changed.emit()
     
-    def _on_item_double_clicked(self, item):
+    def _show_context_menu(self, position):
         """
-        双击项目事件处理
+        显示右键上下文菜单
         
         功能描述:
-            双击某行时，使用系统默认程序打开该PDF文件
+            右键点击表格行时显示上下文菜单，包含打开文件、删除等选项
         
         参数:
-            item: 被双击的表格项
+            position: 鼠标右键点击的位置
         """
-        row = item.row()
+        # 获取视觉行索引
+        visual_row = self.table.rowAt(position.y())
+        if visual_row < 0 or visual_row >= len(self.files):
+            return
+        
+        # 获取该行的文件路径，用于找到对应的数据索引
+        path_item = self.table.item(visual_row, 3)  # 第3列是路径列
+        if not path_item:
+            return
+        
+        file_path = path_item.text()
+        
+        # 在self.files中查找对应的索引
+        data_row = -1
+        for i, file_info in enumerate(self.files):
+            if file_info['path'] == file_path:
+                data_row = i
+                break
+        
+        if data_row < 0:
+            return
+        
+        # 选中当前行
+        self.table.selectRow(visual_row)
+        
+        # 创建菜单
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: white;
+                border: 1px solid #E0E0E0;
+                border-radius: 6px;
+                padding: 6px;
+            }
+            QMenu::item {
+                padding: 8px 24px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #E3F2FD;
+                color: #1976D2;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #E0E0E0;
+                margin: 6px 0px;
+            }
+        """)
+        
+        # 添加"打开文件"动作
+        open_action = QAction("📄 打开文件", self)
+        open_action.triggered.connect(lambda: self._open_file_at_row(data_row))
+        menu.addAction(open_action)
+        
+        # 添加"在文件夹中显示"动作
+        show_in_folder_action = QAction("📁 在文件夹中显示", self)
+        show_in_folder_action.triggered.connect(lambda: self._show_in_folder(data_row))
+        menu.addAction(show_in_folder_action)
+        
+        menu.addSeparator()
+        
+        # 添加"删除"动作
+        delete_action = QAction("🗑️ 删除", self)
+        delete_action.triggered.connect(self.delete_selected)
+        menu.addAction(delete_action)
+        
+        # 显示菜单
+        menu.exec(self.table.viewport().mapToGlobal(position))
+    
+    def _open_file_at_row(self, row):
+        """
+        打开指定行的文件
+        
+        功能描述:
+            使用系统默认程序打开指定行的PDF文件
+        
+        参数:
+            row: 文件所在的行索引
+        """
         if 0 <= row < len(self.files):
             file_path = self.files[row]['path']
             if os.path.exists(file_path):
                 url = QUrl.fromLocalFile(file_path)
                 QDesktopServices.openUrl(url)
+    
+    def _show_in_folder(self, row):
+        """
+        在文件夹中显示指定文件
+        
+        功能描述:
+            使用系统文件管理器打开文件所在文件夹（仅打开目录，不选中文件）
+        
+        参数:
+            row: 文件所在的行索引
+        """
+        if 0 <= row < len(self.files):
+            file_path = self.files[row]['path']
+            if os.path.exists(file_path):
+                import subprocess
+                import platform
+                
+                folder_path = os.path.dirname(file_path)
+                system = platform.system()
+                try:
+                    if system == 'Windows':
+                        # 仅打开文件夹，不选中文件
+                        subprocess.run(['explorer', folder_path], check=True)
+                    elif system == 'Darwin':  # macOS
+                        subprocess.run(['open', folder_path], check=True)
+                    else:  # Linux
+                        subprocess.run(['xdg-open', folder_path], check=True)
+                except Exception as e:
+                    # 如果打开文件夹失败，静默处理
+                    pass
     
     def dropEvent(self, event):
         """
@@ -134,16 +245,23 @@ class FileListPanel(QWidget):
         
         功能描述:
             处理表格内部的行拖拽，调整文件顺序
+            拖拽前会禁用排序，确保视觉顺序和数据顺序一致
         
         参数:
             event: 拖放事件对象
         """
-        # 获取拖放的源行和目标行
+        # 临时禁用排序，确保视觉顺序和数据顺序一致
+        was_sorting_enabled = self.table.isSortingEnabled()
+        self.table.setSortingEnabled(False)
+        
+        # 获取拖放的源行和目标行（视觉行索引）
         source_row = self.table.currentRow()
         target_row = self.table.rowAt(event.position().toPoint().y())
         
         if source_row < 0 or target_row < 0 or source_row == target_row:
             event.ignore()
+            if was_sorting_enabled:
+                self.table.setSortingEnabled(True)
             return
         
         if target_row >= len(self.files):
@@ -153,8 +271,8 @@ class FileListPanel(QWidget):
         file_info = self.files.pop(source_row)
         self.files.insert(target_row, file_info)
         
-        # 更新表格显示
-        self._update_table()
+        # 更新表格显示（不恢复排序，保持列表顺序）
+        self._update_table_without_sort()
         
         # 选中被移动的行
         self.table.selectRow(target_row)
@@ -163,6 +281,39 @@ class FileListPanel(QWidget):
         self.order_changed.emit()
         
         event.accept()
+    
+    def _update_table_without_sort(self):
+        """
+        更新表格显示（不恢复排序）
+        
+        功能描述:
+            重新渲染表格内容，不恢复之前的排序状态
+        """
+        self.table.setRowCount(0)
+        
+        for file_info in self.files:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            
+            name_item = QTableWidgetItem(file_info['name'])
+            
+            amount_item = QTableWidgetItem()
+            amount_item.setData(Qt.ItemDataRole.DisplayRole, file_info['amount'])
+            amount_item.setData(Qt.ItemDataRole.UserRole, file_info['amount'])
+            
+            date_item = QTableWidgetItem(file_info['invoice_date'])
+            date_item.setData(Qt.ItemDataRole.UserRole, file_info['invoice_date'])
+            
+            path_item = QTableWidgetItem(file_info['path'])
+            mod_item = QTableWidgetItem(file_info['mod_time'])
+            size_item = QTableWidgetItem(file_info['size'])
+            
+            self.table.setItem(row, 0, name_item)
+            self.table.setItem(row, 1, amount_item)
+            self.table.setItem(row, 2, date_item)
+            self.table.setItem(row, 3, path_item)
+            self.table.setItem(row, 4, mod_item)
+            self.table.setItem(row, 5, size_item)
     
     def add_file(self, file_path):
         """
