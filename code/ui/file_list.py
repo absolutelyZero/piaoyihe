@@ -76,11 +76,11 @@ class FileListPanel(QWidget):
         # 启用排序功能
         self.table.setSortingEnabled(True)
         
-        # 启用拖拽功能（用于调整顺序）
-        self.table.setDragEnabled(True)
-        self.table.setAcceptDrops(True)
-        self.table.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
-        self.table.setDropIndicatorShown(True)
+        # 禁用拖拽功能（根据需求）
+        self.table.setDragEnabled(False)
+        self.table.setAcceptDrops(False)
+        self.table.setDragDropMode(QAbstractItemView.DragDropMode.NoDragDrop)
+        self.table.setDropIndicatorShown(False)
         
         # 设置交替行颜色
         self.table.setAlternatingRowColors(True)

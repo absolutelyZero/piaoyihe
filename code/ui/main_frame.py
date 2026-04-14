@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):
         
         功能描述:
             创建所有UI控件并设置布局
+            采用左右分栏布局：左侧功能区（垂直排列），右侧预览区
         """
         self.setWindowTitle("票易合 - 发票合并工具")
         self.setMinimumSize(1400, 800)
@@ -101,21 +102,22 @@ class MainWindow(QMainWindow):
         top_widget = self._create_top_widget()
         main_layout.addWidget(top_widget)
         
-        # 中间主要内容区域（文件列表 + 预览）
-        middle_widget = self._create_middle_widget()
-        main_layout.addWidget(middle_widget, 1)
+        # 主要内容区域 - 使用水平分割器分为左右两列
+        content_splitter = QSplitter(Qt.Orientation.Horizontal)
+        content_splitter.setHandleWidth(2)
         
-        # 选项设置区域
-        options_widget = self._create_options_widget()
-        main_layout.addWidget(options_widget)
+        # 左侧：功能区（垂直排列所有控件）
+        left_widget = self._create_left_functional_area()
+        content_splitter.addWidget(left_widget)
         
-        # 操作按钮区域
-        actions_widget = self._create_actions_widget()
-        main_layout.addWidget(actions_widget)
+        # 右侧：预览区
+        right_widget = self._create_right_preview_area()
+        content_splitter.addWidget(right_widget)
         
-        # 底部区域（保存路径 + 版本号）
-        bottom_widget = self._create_bottom_widget()
-        main_layout.addWidget(bottom_widget)
+        # 设置分割器比例（左:右 = 4:6）
+        content_splitter.setSizes([560, 840])
+        
+        main_layout.addWidget(content_splitter, 1)
     
     def _setup_stylesheet(self):
         """
@@ -598,8 +600,8 @@ class MainWindow(QMainWindow):
         
         splitter.addWidget(preview_card)
         
-        # 设置分割器比例（左:右 = 4:6）
-        splitter.setSizes([560, 840])
+        # 设置分割器比例（左:右 = 5:5，文件列表更宽）
+        splitter.setSizes([700, 700])
         
         layout.addWidget(splitter)
         
@@ -735,6 +737,7 @@ class MainWindow(QMainWindow):
         self.mode_combo.addItems(["普通", "图像"])
         self.mode_combo.setToolTip("普通模式保留PDF矢量信息，图像模式转换为图片（兼容性更好）")
         self.mode_combo.currentIndexChanged.connect(self._on_config_changed)
+        self.mode_combo.setMaximumWidth(120)  # 减小宽度
         mode_container.addWidget(self.mode_combo)
         mode_container.addStretch()
         
@@ -756,7 +759,7 @@ class MainWindow(QMainWindow):
         order_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
         order_header.addWidget(order_icon)
         
-        order_title = QLabel("排序方式")
+        order_title = QLabel("打印顺序")
         order_title.setObjectName("titleLabel")
         order_title.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
         order_header.addWidget(order_title)
@@ -767,6 +770,7 @@ class MainWindow(QMainWindow):
         self.order_combo.addItems(["列表顺序", "开票日期(从先到后)", "开票金额(从小到大)"])
         self.order_combo.setToolTip("选择发票的排序方式")
         self.order_combo.currentIndexChanged.connect(self._on_config_changed)
+        self.order_combo.setMaximumWidth(180)  # 减小宽度
         order_container.addWidget(self.order_combo)
         order_container.addStretch()
         
@@ -798,9 +802,9 @@ class MainWindow(QMainWindow):
         file_ops_layout = QHBoxLayout()
         file_ops_layout.setSpacing(8)
         
-        file_ops_icon = QLabel("📂")
-        file_ops_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
-        file_ops_layout.addWidget(file_ops_icon)
+        # file_ops_icon = QLabel("📂")
+        # file_ops_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
+        # file_ops_layout.addWidget(file_ops_icon)
         
         # 添加文件按钮
         self.add_file_btn = QPushButton("➕ 添加")
@@ -836,9 +840,9 @@ class MainWindow(QMainWindow):
         sort_ops_layout = QHBoxLayout()
         sort_ops_layout.setSpacing(8)
         
-        sort_ops_icon = QLabel("🔃")
-        sort_ops_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
-        sort_ops_layout.addWidget(sort_ops_icon)
+        # sort_ops_icon = QLabel("🔃")
+        # sort_ops_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
+        # sort_ops_layout.addWidget(sort_ops_icon)
         
         # 上移按钮
         self.move_up_btn = QPushButton("⬆️ 上移")
@@ -867,9 +871,9 @@ class MainWindow(QMainWindow):
         main_ops_layout = QHBoxLayout()
         main_ops_layout.setSpacing(12)
         
-        main_ops_icon = QLabel("⚡")
-        main_ops_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
-        main_ops_layout.addWidget(main_ops_icon)
+        # main_ops_icon = QLabel("⚡")
+        # main_ops_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
+        # main_ops_layout.addWidget(main_ops_icon)
         
         # 合并按钮（主要操作）
         self.merge_btn = QPushButton("🔀 合并PDF")
@@ -957,6 +961,411 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.version_label)
         
         return card
+    
+    def _create_left_functional_area(self):
+        """
+        创建左侧功能区
+        
+        功能描述:
+            创建左侧功能区容器，垂直排列文件列表、配置项、操作按钮、保存路径和版本号
+        
+        返回值:
+            QWidget: 左侧功能区控件
+        """
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+        
+        # 1. 文件列表区域（占据主要空间）
+        file_list_card = QFrame()
+        file_list_card.setObjectName("card")
+        file_list_card.setFrameShape(QFrame.Shape.StyledPanel)
+        
+        file_list_layout = QVBoxLayout(file_list_card)
+        file_list_layout.setContentsMargins(12, 12, 12, 12)
+        file_list_layout.setSpacing(8)
+        
+        # 文件列表标题
+        file_list_header = QHBoxLayout()
+        file_list_icon = QLabel("📁")
+        file_list_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
+        file_list_header.addWidget(file_list_icon)
+        
+        file_list_label = QLabel("文件列表")
+        file_list_label.setObjectName("titleLabel")
+        file_list_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
+        file_list_header.addWidget(file_list_label)
+        file_list_header.addStretch()
+        file_list_layout.addLayout(file_list_header)
+        
+        # 文件列表组件
+        self.file_list = FileListPanel(self.pdf_handler, on_file_added=self._on_first_file_added)
+        self.file_list.selection_changed.connect(self._on_list_selection_changed)
+        self.file_list.setStyleSheet(f"background-color: {CARD_BG}; border: none;")
+        file_list_layout.addWidget(self.file_list)
+        
+        layout.addWidget(file_list_card, 1)  # 占据主要空间
+        
+        # 2. 配置选项区域（布局、模式、排序）
+        options_card = QFrame()
+        options_card.setObjectName("card")
+        options_card.setFrameShape(QFrame.Shape.StyledPanel)
+        
+        options_layout = QVBoxLayout(options_card)
+        options_layout.setContentsMargins(12, 12, 12, 12)
+        options_layout.setSpacing(10)
+        
+        # 布局选择
+        layout_header = QHBoxLayout()
+        layout_icon = QLabel("🎨")
+        layout_icon.setStyleSheet("font-size: 12px; background: transparent; border: none;")
+        layout_header.addWidget(layout_icon)
+        layout_title = QLabel("布局选择")
+        layout_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY};")
+        layout_header.addWidget(layout_title)
+        layout_header.addStretch()
+        options_layout.addLayout(layout_header)
+        
+        # 布局按钮组（2x2网格）
+        layout_grid = QGridLayout()
+        layout_grid.setSpacing(6)
+        
+        self.layout_button_group = QButtonGroup(self)
+        layout_options = [
+            ("竖向1x2", "竖向1x2"),
+            ("竖向1x3", "竖向1x3"),
+            ("竖向2x4", "竖向2x4"),
+            ("横向2x2", "横向2x2")
+        ]
+        
+        for i, (full_name, display_name) in enumerate(layout_options):
+            radio = QRadioButton(display_name)
+            radio.setToolTip(full_name)
+            radio.setStyleSheet(f"""
+                QRadioButton {{
+                    font-size: 12px;
+                    spacing: 4px;
+                }}
+                QRadioButton::indicator {{
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 7px;
+                }}
+                QRadioButton:checked {{
+                    color: {PRIMARY_COLOR};
+                    font-weight: bold;
+                }}
+            """)
+            self.layout_button_group.addButton(radio)
+            layout_grid.addWidget(radio, i // 2, i % 2)
+            
+            if i == 0:
+                self.radio_1x2 = radio
+            elif i == 1:
+                self.radio_1x3 = radio
+            elif i == 2:
+                self.radio_2x4 = radio
+            else:
+                self.radio_2x2 = radio
+        
+        # 默认选中横向 2x2
+        self.radio_2x2.setChecked(True)
+        
+        # 连接布局变更信号
+        self.radio_1x2.toggled.connect(lambda checked: checked and self._on_config_changed())
+        self.radio_1x3.toggled.connect(lambda checked: checked and self._on_config_changed())
+        self.radio_2x4.toggled.connect(lambda checked: checked and self._on_config_changed())
+        self.radio_2x2.toggled.connect(lambda checked: checked and self._on_config_changed())
+        
+        options_layout.addLayout(layout_grid)
+        
+        # 处理模式和排序方式（横向排列）
+        mode_order_layout = QHBoxLayout()
+        
+        # 处理模式
+        mode_container = QVBoxLayout()
+        mode_header = QHBoxLayout()
+        mode_icon = QLabel("⚙")
+        mode_icon.setStyleSheet("font-size: 12px; background: transparent; border: none;")
+        mode_header.addWidget(mode_icon)
+        mode_title = QLabel("处理模式")
+        mode_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY};")
+        mode_header.addWidget(mode_title)
+        mode_header.addStretch()
+        mode_container.addLayout(mode_header)
+        
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["普通", "图像"])
+        self.mode_combo.setToolTip("普通模式保留PDF矢量信息，图像模式转换为图片")
+        self.mode_combo.currentIndexChanged.connect(self._on_config_changed)
+        self.mode_combo.setMaximumWidth(100)
+        mode_container.addWidget(self.mode_combo)
+        mode_order_layout.addLayout(mode_container)
+        
+        # 排序方式
+        order_container = QVBoxLayout()
+        order_header = QHBoxLayout()
+        order_icon = QLabel("📋")
+        order_icon.setStyleSheet("font-size: 12px; background: transparent; border: none;")
+        order_header.addWidget(order_icon)
+        order_title = QLabel("排序方式")
+        order_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY};")
+        order_header.addWidget(order_title)
+        order_header.addStretch()
+        order_container.addLayout(order_header)
+        
+        self.order_combo = QComboBox()
+        self.order_combo.addItems(["列表顺序", "开票日期", "开票金额"])
+        self.order_combo.setToolTip("选择发票的排序方式")
+        self.order_combo.currentIndexChanged.connect(self._on_config_changed)
+        self.order_combo.setMaximumWidth(120)
+        order_container.addWidget(self.order_combo)
+        mode_order_layout.addLayout(order_container)
+        
+        options_layout.addLayout(mode_order_layout)
+        layout.addWidget(options_card)
+        
+        # 3. 操作按钮区域
+        actions_card = QFrame()
+        actions_card.setObjectName("card")
+        actions_card.setFrameShape(QFrame.Shape.StyledPanel)
+        
+        actions_layout = QVBoxLayout(actions_card)
+        actions_layout.setContentsMargins(12, 12, 12, 12)
+        actions_layout.setSpacing(10)
+        
+        # 文件操作按钮（横向排列）
+        file_ops_layout = QHBoxLayout()
+        file_ops_layout.setSpacing(6)
+        
+        self.add_file_btn = QPushButton("➕ 添加")
+        self.add_file_btn.setObjectName("iconButton")
+        self.add_file_btn.setToolTip("添加PDF文件")
+        self.add_file_btn.clicked.connect(self._on_add_file)
+        file_ops_layout.addWidget(self.add_file_btn)
+        
+        self.del_btn = QPushButton("🗑️ 删除")
+        self.del_btn.setObjectName("iconButton")
+        self.del_btn.setToolTip("删除选中文件")
+        self.del_btn.clicked.connect(self._on_del)
+        file_ops_layout.addWidget(self.del_btn)
+        
+        self.del_all_btn = QPushButton("❌ 清空")
+        self.del_all_btn.setObjectName("dangerButton")
+        self.del_all_btn.setToolTip("清空所有文件")
+        self.del_all_btn.clicked.connect(self._on_del_all)
+        file_ops_layout.addWidget(self.del_all_btn)
+        
+        actions_layout.addLayout(file_ops_layout)
+        
+        # 排序操作按钮（横向排列）
+        sort_ops_layout = QHBoxLayout()
+        sort_ops_layout.setSpacing(6)
+        
+        self.move_up_btn = QPushButton("⬆️ 上移")
+        self.move_up_btn.setObjectName("iconButton")
+        self.move_up_btn.setToolTip("上移选中文件")
+        self.move_up_btn.clicked.connect(self._on_move_up)
+        sort_ops_layout.addWidget(self.move_up_btn)
+        
+        self.move_down_btn = QPushButton("⬇️ 下移")
+        self.move_down_btn.setObjectName("iconButton")
+        self.move_down_btn.setToolTip("下移选中文件")
+        self.move_down_btn.clicked.connect(self._on_move_down)
+        sort_ops_layout.addWidget(self.move_down_btn)
+        
+        actions_layout.addLayout(sort_ops_layout)
+        
+        # 主要操作按钮
+        main_ops_layout = QHBoxLayout()
+        main_ops_layout.setSpacing(10)
+        
+        self.merge_btn = QPushButton("🔀 合并PDF")
+        self.merge_btn.setObjectName("primaryButton")
+        self.merge_btn.setToolTip("合并所有文件")
+        self.merge_btn.setMinimumWidth(100)
+        self.merge_btn.clicked.connect(self._on_merge_all)
+        main_ops_layout.addWidget(self.merge_btn)
+        
+        self.print_checkbox = QCheckBox("🖨️ 合并后打印")
+        self.print_checkbox.setToolTip("合并后自动打印")
+        self.print_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
+        main_ops_layout.addWidget(self.print_checkbox)
+        main_ops_layout.addStretch()
+        
+        actions_layout.addLayout(main_ops_layout)
+        layout.addWidget(actions_card)
+        
+        # 4. 保存路径和版本号区域
+        bottom_card = QFrame()
+        bottom_card.setObjectName("card")
+        bottom_card.setFrameShape(QFrame.Shape.StyledPanel)
+        
+        bottom_layout = QVBoxLayout(bottom_card)
+        bottom_layout.setContentsMargins(12, 12, 12, 12)
+        bottom_layout.setSpacing(8)
+        
+        # 保存路径
+        path_header = QHBoxLayout()
+        path_icon = QLabel("💾")
+        path_icon.setStyleSheet("font-size: 12px; background: transparent; border: none;")
+        path_header.addWidget(path_icon)
+        path_label = QLabel("保存路径")
+        path_label.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY};")
+        path_header.addWidget(path_label)
+        path_header.addStretch()
+        bottom_layout.addLayout(path_header)
+        
+        path_input_layout = QHBoxLayout()
+        path_input_layout.setSpacing(6)
+        
+        self.path_edit = QLineEdit()
+        self.path_edit.setObjectName("pathInput")
+        self.path_edit.setPlaceholderText("选择保存位置...")
+        path_input_layout.addWidget(self.path_edit, 1)
+        
+        self.select_path_btn = QPushButton("📂 浏览")
+        self.select_path_btn.setObjectName("iconButton")
+        self.select_path_btn.setToolTip("选择保存位置")
+        self.select_path_btn.clicked.connect(self._on_select_path)
+        path_input_layout.addWidget(self.select_path_btn)
+        
+        bottom_layout.addLayout(path_input_layout)
+        
+        # 版本号（底部）
+        version_layout = QHBoxLayout()
+        version_layout.addStretch()
+        
+        self.version_label = QLabel(self._get_version())
+        self.version_label.setObjectName("versionLabel")
+        self.version_label.setStyleSheet(f"""
+            color: {TEXT_SECONDARY};
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: transparent;
+        """)
+        self.version_label.setToolTip("点击检查更新")
+        self.version_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.version_label.mousePressEvent = lambda event: self._on_version_click()
+        version_layout.addWidget(self.version_label)
+        
+        bottom_layout.addLayout(version_layout)
+        layout.addWidget(bottom_card)
+        
+        return widget
+    
+    def _create_right_preview_area(self):
+        """
+        创建右侧预览区
+        
+        功能描述:
+            创建右侧预览区域，占据整列显示预览内容
+        
+        返回值:
+            QWidget: 右侧预览区控件
+        """
+        preview_card = QFrame()
+        preview_card.setObjectName("card")
+        preview_card.setFrameShape(QFrame.Shape.StyledPanel)
+        
+        preview_layout = QVBoxLayout(preview_card)
+        preview_layout.setContentsMargins(12, 12, 12, 12)
+        preview_layout.setSpacing(8)
+        
+        # 预览区域标题栏
+        preview_header = QHBoxLayout()
+        preview_icon = QLabel("👁")
+        preview_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
+        preview_header.addWidget(preview_icon)
+        
+        preview_label = QLabel("合并预览")
+        preview_label.setObjectName("titleLabel")
+        preview_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
+        preview_header.addWidget(preview_label)
+        
+        self.preview_status_label = QLabel("(添加文件后自动更新)")
+        self.preview_status_label.setObjectName("subtitleLabel")
+        self.preview_status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent; border: none;")
+        preview_header.addWidget(self.preview_status_label)
+        preview_header.addStretch()
+        
+        # 刷新预览按钮
+        self.refresh_preview_btn = QPushButton("🔄 刷新")
+        self.refresh_preview_btn.setObjectName("iconButton")
+        self.refresh_preview_btn.setToolTip("手动刷新预览")
+        self.refresh_preview_btn.clicked.connect(self._update_preview)
+        self.refresh_preview_btn.setEnabled(False)
+        preview_header.addWidget(self.refresh_preview_btn)
+        
+        preview_layout.addLayout(preview_header)
+        
+        # 预览内容区域
+        self.preview_stack = QStackedWidget()
+        
+        # 页面1：提示信息
+        placeholder_container = QFrame()
+        placeholder_container.setObjectName("card")
+        placeholder_container.setStyleSheet(f"""
+            QFrame#card {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #E3F2FD,
+                    stop:0.5 #F3E5F5,
+                    stop:1 #E8F5E9);
+                border: 2px dashed {PRIMARY_COLOR};
+                border-radius: 12px;
+            }}
+        """)
+        
+        placeholder_layout = QVBoxLayout(placeholder_container)
+        
+        self.preview_placeholder = QLabel("📄\n\n添加PDF文件后，此处将显示合并后的预览效果\n\n支持实时预览，调整选项后自动更新")
+        self.preview_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_placeholder.setStyleSheet(f"""
+            color: {TEXT_SECONDARY};
+            font-size: 14px;
+            background: transparent;
+            border: none;
+        """)
+        placeholder_layout.addWidget(self.preview_placeholder)
+        
+        self.preview_stack.addWidget(placeholder_container)
+        
+        # 页面2：图片预览
+        self.preview_scroll = QScrollArea()
+        self.preview_scroll.setWidgetResizable(True)
+        self.preview_scroll.setStyleSheet(f"""
+            QScrollArea {{
+                background-color: #FAFAFA;
+                border: 1px solid {BORDER_COLOR};
+                border-radius: 8px;
+            }}
+        """)
+        
+        # 创建预览容器
+        self.preview_container = QWidget()
+        self.preview_container.setStyleSheet("background-color: transparent;")
+        self.preview_layout = QVBoxLayout(self.preview_container)
+        self.preview_layout.setSpacing(20)
+        self.preview_layout.setContentsMargins(20, 20, 20, 20)
+        self.preview_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.preview_scroll.setWidget(self.preview_container)
+        
+        # 初始化预览相关变量
+        self.preview_pixmaps = []
+        self.preview_scale = 1.0
+        self.preview_labels = []
+        
+        # 启用鼠标滚轮事件
+        self.preview_scroll.viewport().installEventFilter(self)
+        
+        self.preview_stack.addWidget(self.preview_scroll)
+        
+        preview_layout.addWidget(self.preview_stack, 1)
+        
+        return preview_card
     
     def _init_drag_drop(self):
         """
@@ -1066,9 +1475,14 @@ class MainWindow(QMainWindow):
         QGuiApplication.processEvents()
         
         try:
-            # 清除旧的预览标签
-            for label in self.preview_labels:
-                label.deleteLater()
+            # 清除旧的预览内容（包括页面容器和标签）
+            while self.preview_layout.count() > 0:
+                item = self.preview_layout.takeAt(0)
+                widget = item.widget()
+                if widget:
+                    widget.deleteLater()
+            
+            # 清除旧的预览标签列表
             self.preview_labels.clear()
             
             # 重置缩放比例
@@ -1131,8 +1545,8 @@ class MainWindow(QMainWindow):
         生成所有页面的预览图像
         
         功能描述:
-            使用PDFHandler合并全部PDF页面作为预览图像，生成所有页面的预览
-            预览图像会被缩放以适应预览区域，根据布局方向保持正确的A4比例
+            使用PDFHandler合并PDF文件，应用与实际合并相同的布局设置
+            生成高清晰度的预览图像，确保与实际合并效果一致
         
         返回值:
             list: 所有页面的QPixmap列表，如果失败则返回空列表
@@ -1158,10 +1572,11 @@ class MainWindow(QMainWindow):
                 files_to_preview = self.file_list.get_sorted_files(sort_by)
             
             # 创建临时文件
+            import tempfile
             temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
             os.close(temp_fd)
             
-            # 调用PDFHandler合并PDF（全部页面）
+            # 调用PDFHandler合并PDF（使用与实际合并相同的参数）
             mode_str = "图像" if mode == 1 else "普通"
             result = self.pdf_handler.merge_pdfs(
                 files_to_preview, 
@@ -1173,19 +1588,11 @@ class MainWindow(QMainWindow):
             pixmaps = []
             
             if result and os.path.exists(temp_path):
-                # 使用PyMuPDF将PDF转换为图像
+                # 使用PyMuPDF将合并后的PDF转换为图像
                 import fitz
                 doc = fitz.open(temp_path)
                 
                 if len(doc) > 0:
-                    # 获取第一页的尺寸以确定方向
-                    first_page = doc[0]
-                    page_rect = first_page.rect
-                    page_width_pt = page_rect.width
-                    page_height_pt = page_rect.height
-                    is_landscape = page_width_pt > page_height_pt
-                    
-                    # 根据预览区域大小计算合适的缩放比例
                     # 预览区域可用大小（考虑边距）
                     available_width = self.preview_scroll.width() - 40  # 减去滚动条和边距
                     available_height = self.preview_scroll.height() - 40
@@ -1195,74 +1602,48 @@ class MainWindow(QMainWindow):
                     if available_height <= 0:
                         available_height = 800  # 默认高度
                     
-                    # 计算缩放比例，使页面完整显示在预览区域中
-                    # 使用较高的DPI以获得清晰的预览
-                    dpi_scale = 2.0  # 高DPI缩放，确保清晰度
+                    # 使用高DPI生成预览
+                    dpi = 400  # 更高的DPI设置
+                    dpi_scale = 2.5  # 更高的缩放比例
                     
-                    if is_landscape:
-                        # 横向页面：A4横向比例 842:595
-                        scale_x = (available_width * dpi_scale) / page_width_pt
-                        scale_y = (available_height * dpi_scale) / page_height_pt
-                    else:
-                        # 纵向页面：A4纵向比例 595:842
-                        scale_x = (available_width * dpi_scale) / page_width_pt
-                        scale_y = (available_height * dpi_scale) / page_height_pt
+                    # 获取第一页的尺寸以确定方向
+                    first_page = doc[0]
+                    page_rect = first_page.rect
+                    page_width_pt = page_rect.width
+                    page_height_pt = page_rect.height
                     
-                    # 使用较小的缩放比例，确保完整显示
-                    scale = min(scale_x, scale_y) * 0.95  # 留5%边距
+                    # 计算缩放比例
+                    scale_x = (available_width * dpi_scale) / page_width_pt
+                    scale_y = (available_height * dpi_scale) / page_height_pt
+                    scale = min(scale_x, scale_y) * 0.95
                     
                     # 生成所有页面的预览图像
                     for page_num in range(len(doc)):
                         page = doc[page_num]
                         
+                        # 生成高清晰度图像
                         mat = fitz.Matrix(scale, scale)
-                        pix = page.get_pixmap(matrix=mat)
+                        pix = page.get_pixmap(matrix=mat, dpi=dpi)
                         
                         # 转换为QPixmap
                         img_data = pix.tobytes("png")
                         pixmap = QPixmap()
                         pixmap.loadFromData(img_data)
                         
-                        # 再次缩放以适应显示区域（保持比例）
-                        final_width = int(pixmap.width() / dpi_scale)
-                        final_height = int(pixmap.height() / dpi_scale)
+                        # 缩放到显示大小
+                        final_width = int(available_width * 0.95)
+                        final_height = int(available_height * 0.95)
                         
-                        if final_width > available_width or final_height > available_height:
-                            pixmap = pixmap.scaled(
-                                int(available_width * dpi_scale),
-                                int(available_height * dpi_scale),
-                                Qt.AspectRatioMode.KeepAspectRatio,
-                                Qt.TransformationMode.SmoothTransformation
-                            )
-                            # 缩放到最终显示大小
-                            pixmap = pixmap.scaled(
-                                pixmap.width() // int(dpi_scale),
-                                pixmap.height() // int(dpi_scale),
-                                Qt.AspectRatioMode.KeepAspectRatio,
-                                Qt.TransformationMode.SmoothTransformation
-                            )
-                        else:
-                            # 直接缩放到显示大小
-                            pixmap = pixmap.scaled(
-                                final_width,
-                                final_height,
-                                Qt.AspectRatioMode.KeepAspectRatio,
-                                Qt.TransformationMode.SmoothTransformation
-                            )
+                        pixmap = pixmap.scaled(
+                            final_width,
+                            final_height,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation
+                        )
                         
                         pixmaps.append(pixmap)
                     
                     doc.close()
-                    
-                    # 清理临时文件
-                    try:
-                        os.unlink(temp_path)
-                    except:
-                        pass
-                    
-                    return pixmaps
-                
-                doc.close()
             
             # 清理临时文件
             if temp_path and os.path.exists(temp_path):
@@ -1271,7 +1652,7 @@ class MainWindow(QMainWindow):
                 except:
                     pass
             
-            return []
+            return pixmaps
             
         except Exception as e:
             print(f"生成预览图像失败: {str(e)}")
@@ -1301,11 +1682,11 @@ class MainWindow(QMainWindow):
     def _on_del_all(self):
         """
         删除所有文件
-        
+
         功能描述:
             清空文件列表中的所有文件
         """
-        self.file_list.clear_all()
+        self.file_list.delete_all()
         self._update_stats()
         self._update_button_states()
         self._update_preview()
