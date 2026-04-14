@@ -3,6 +3,5 @@
     "mode": 0,
     "order": 1,
     "save_path": "out.pdf",
-    "print_checkbox": false,
-    "ignored_version": "0.0.4"
+    "print_checkbox": false
 }
