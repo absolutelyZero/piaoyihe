@@ -7,7 +7,7 @@
 import sys
 import os
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from ui.main_frame import MainWindow
 from core.update_checker import check_updates_on_start
@@ -41,14 +41,22 @@ def main():
     
     # 创建主窗口
     window = MainWindow()
-    window.show()
     
-    # 检查更新
-    local_version_file = os.path.join(os.path.dirname(__file__), 'version.json')
-    config_file = os.path.join(os.path.dirname(__file__), 'config.json')
-    remote_version_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/version.json"
-    qrcode_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/updatelog.png"
-    check_updates_on_start(window, local_version_file, remote_version_url, qrcode_url, config_file)
+    # 确保窗口正常显示（解决PyInstaller打包后窗口最小化问题）
+    window.show()
+    window.raise_()
+    window.activateWindow()
+    
+    # 延迟检查更新，确保主窗口完全显示后再弹出更新提示
+    def delayed_check_update():
+        local_version_file = os.path.join(os.path.dirname(__file__), 'version.json')
+        config_file = os.path.join(os.path.dirname(__file__), 'config.json')
+        remote_version_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/version.json"
+        qrcode_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/updatelog.png"
+        check_updates_on_start(window, local_version_file, remote_version_url, qrcode_url, config_file)
+    
+    # 延迟500毫秒后检查更新，确保主窗口已完全显示
+    QTimer.singleShot(500, delayed_check_update)
     
     # 启动事件循环
     return app.exec()

@@ -10,6 +10,7 @@
 
 import json
 import os
+import sys
 from urllib import request
 
 from PySide6.QtCore import QTimer, Qt
@@ -45,10 +46,31 @@ class UpdateChecker:
             str: 本地版本号，如果读取失败返回'0.0.0'
         """
         try:
-            if os.path.exists(self.local_version_file):
-                with open(self.local_version_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    return data.get('version', '0.0.0')
+            # 尝试多个可能的路径（开发环境和打包环境）
+            possible_paths = [self.local_version_file]
+            
+            # PyInstaller打包后的路径
+            if hasattr(sys, '_MEIPASS'):
+                possible_paths.append(os.path.join(sys._MEIPASS, 'version.json'))
+                possible_paths.append(os.path.join(sys._MEIPASS, 'code', 'version.json'))
+            
+            # 当前工作目录
+            possible_paths.append(os.path.join(os.getcwd(), 'version.json'))
+            possible_paths.append(os.path.join(os.getcwd(), 'code', 'version.json'))
+            
+            # 可执行文件所在目录
+            if getattr(sys, 'frozen', False):
+                exe_dir = os.path.dirname(sys.executable)
+                possible_paths.append(os.path.join(exe_dir, 'version.json'))
+                possible_paths.append(os.path.join(exe_dir, 'code', 'version.json'))
+            
+            # 尝试所有可能的路径
+            for path in possible_paths:
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        return data.get('version', '0.0.0')
+            
             return '0.0.0'
         except Exception:
             return '0.0.0'
