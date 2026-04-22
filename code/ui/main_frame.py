@@ -20,6 +20,7 @@ from PySide6.QtCore import Qt, QUrl, QTimer, QSize
 from PySide6.QtGui import QGuiApplication, QDesktopServices, QCursor, QPixmap, QPainter, QImage
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from ui.file_list import FileListPanel
+from ui.rename_dialog import RenameDialog
 from core.pdf_handler import PDFHandler
 from core.update_checker import UpdateChecker, show_update_dialog
 
@@ -844,12 +845,31 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(sort_ops_layout)
         
-        # 添加分隔线（下移与合并之间）
+        # 添加分隔线（下移与重命名之间）
         separator2 = QFrame()
         separator2.setFrameShape(QFrame.Shape.VLine)
         separator2.setStyleSheet(f"background-color: {BORDER_COLOR};")
         separator2.setFixedWidth(1)
         layout.addWidget(separator2)
+        
+        # ========== 重命名操作组 ==========
+        rename_ops_layout = QHBoxLayout()
+        rename_ops_layout.setSpacing(6)
+        
+        self.rename_btn = QPushButton("✏️ 重命名")
+        self.rename_btn.setObjectName("iconButton")
+        self.rename_btn.setToolTip("批量重命名文件")
+        self.rename_btn.clicked.connect(self._on_rename)
+        rename_ops_layout.addWidget(self.rename_btn)
+        
+        layout.addLayout(rename_ops_layout)
+        
+        # 添加分隔线（重命名与合并之间）
+        separator3 = QFrame()
+        separator3.setFrameShape(QFrame.Shape.VLine)
+        separator3.setStyleSheet(f"background-color: {BORDER_COLOR};")
+        separator3.setFixedWidth(1)
+        layout.addWidget(separator3)
         
         # ========== 主要操作组（合并、打印）==========
         main_ops_layout = QHBoxLayout()
@@ -1661,6 +1681,108 @@ class MainWindow(QMainWindow):
         self.file_list.move_down()
         self._update_preview()
         self._save_config()
+    
+    def _on_rename(self):
+        """
+        批量重命名按钮点击处理
+        
+        功能描述:
+            打开重命名对话框，配置重命名规则并执行批量重命名
+        """
+        files = self.file_list.get_all_files()
+        if not files:
+            QMessageBox.warning(self, "警告", "请先添加PDF文件")
+            return
+        
+        # 打开重命名对话框
+        dialog = RenameDialog(self, config_file=CONFIG_FILE)
+        dialog.rename_executed.connect(self._perform_batch_rename)
+        dialog.exec()
+    
+    def _perform_batch_rename(self, rule):
+        """
+        执行批量重命名
+        
+        功能描述:
+            根据规则对文件列表中的文件进行批量重命名
+        
+        参数:
+            rule: 重命名规则字符串
+        """
+        if not rule:
+            return
+        
+        files = self.file_list.get_all_files()
+        if not files:
+            return
+        
+        try:
+            renamed_count = 0
+            failed_count = 0
+            name_conflicts = {}
+            
+            for file_path in files:
+                try:
+                    # 提取文件信息
+                    file_info = self.pdf_handler.extract_all_invoice_info(file_path)
+                    
+                    # 应用规则生成新文件名
+                    new_name = RenameDialog.apply_rule(rule, file_info)
+                    
+                    if not new_name:
+                        failed_count += 1
+                        continue
+                    
+                    # 获取原文件扩展名
+                    _, ext = os.path.splitext(file_path)
+                    new_name_with_ext = new_name + ext
+                    
+                    # 处理文件名冲突
+                    dir_path = os.path.dirname(file_path)
+                    final_name = new_name_with_ext
+                    counter = 1
+                    
+                    while os.path.exists(os.path.join(dir_path, final_name)):
+                        if final_name == os.path.basename(file_path):
+                            # 如果生成的名字和原文件名相同，跳过
+                            break
+                        base_name = f"{new_name}({counter})"
+                        final_name = base_name + ext
+                        counter += 1
+                    
+                    # 如果最终名字和原文件名不同，执行重命名
+                    if final_name != os.path.basename(file_path):
+                        new_path = os.path.join(dir_path, final_name)
+                        os.rename(file_path, new_path)
+                        renamed_count += 1
+                        
+                        # 更新文件列表中的路径
+                        self.file_list.update_file_path(file_path, new_path)
+                    
+                except Exception as e:
+                    print(f"重命名文件失败 {file_path}: {e}")
+                    failed_count += 1
+            
+            # 刷新文件列表显示
+            self.file_list.refresh_display()
+            self._update_preview()
+            
+            # 显示结果
+            if renamed_count > 0:
+                QMessageBox.information(
+                    self, 
+                    "重命名完成", 
+                    f"成功重命名 {renamed_count} 个文件\n失败: {failed_count} 个"
+                )
+            else:
+                QMessageBox.information(
+                    self, 
+                    "重命名完成", 
+                    "没有文件需要重命名\n（可能是生成的文件名与原文件名相同）"
+                )
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"批量重命名失败: {str(e)}")
     
     def _on_feedback(self):
         """

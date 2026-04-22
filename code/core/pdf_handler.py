@@ -530,3 +530,221 @@ class PDFHandler:
             import time
             mod_time = os.path.getmtime(pdf_path)
             return time.strftime('%Y-%m-%d', time.localtime(mod_time))
+    
+    def extract_invoice_type(self, pdf_path):
+        """
+        从PDF中提取发票类型
+        
+        Args:
+            pdf_path: PDF文件路径
+            
+        Returns:
+            str: 提取的发票类型
+        """
+        import re
+        
+        # 发票类型关键词映射（按优先级排序，更具体的类型在前）
+        INVOICE_TYPE_KEYWORDS = {
+            "专用发票": ["增值税专用发票", "电子专用发票", "专用发票"],
+            "普通发票": ["增值税普通发票", "电子普通发票", "普通发票"],
+            "机动车发票": ["机动车", "二手车"],
+            "火车票": ["火车票", "铁路电子客票"],
+            "飞机票": ["航空", "机票", "电子客票"],
+        }
+        
+        try:
+            with fitz.open(pdf_path) as doc:
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    text = page.get_text()
+                    
+                    # 优先匹配发票类型字段
+                    invoice_type_pattern = r'发票类型[:：]\s*([^\n]+)'
+                    match = re.search(invoice_type_pattern, text)
+                    if match:
+                        invoice_type = match.group(1).strip()
+                        # 标准化发票类型（优先匹配更具体的类型）
+                        for standard_type, keywords in INVOICE_TYPE_KEYWORDS.items():
+                            for keyword in keywords:
+                                if keyword in invoice_type:
+                                    return standard_type
+                        return invoice_type
+                    
+                    # 优先检查标题中的发票类型（通常在PDF顶部）
+                    # 匹配"电子发票（XXX）"格式
+                    title_pattern = r'电子发票\s*[（(]([^)）]+)[)）]'
+                    match = re.search(title_pattern, text)
+                    if match:
+                        title_type = match.group(1).strip()
+                        for standard_type, keywords in INVOICE_TYPE_KEYWORDS.items():
+                            for keyword in keywords:
+                                if keyword in title_type:
+                                    return standard_type
+                    
+                    # 如果没有找到明确的发票类型字段，通过关键词匹配
+                    # 优先匹配更具体的类型（避免"增值税专用发票"被匹配为"普通发票"）
+                    for standard_type, keywords in INVOICE_TYPE_KEYWORDS.items():
+                        for keyword in keywords:
+                            if keyword in text:
+                                return standard_type
+                    
+                    # 检查是否包含"发票"字样
+                    if "发票" in text:
+                        return "普通发票"
+                
+                return "普通发票"
+                
+        except Exception as e:
+            print(f"提取发票类型失败: {str(e)}")
+            return "普通发票"
+    
+    def extract_product_type(self, pdf_path):
+        """
+        从PDF中提取商品类型/服务名称
+        
+        Args:
+            pdf_path: PDF文件路径
+            
+        Returns:
+            str: 提取的商品类型
+        """
+        import re
+        
+        try:
+            with fitz.open(pdf_path) as doc:
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    text = page.get_text()
+                    
+                    # 尝试匹配货物或应税劳务名称
+                    patterns = [
+                        r'货物或应税劳务.*?名\s*称[:：]\s*([^\n]+)',
+                        r'项目名称[:：]\s*([^\n]+)',
+                        r'商品名称[:：]\s*([^\n]+)',
+                        r'服务名称[:：]\s*([^\n]+)',
+                    ]
+                    
+                    for pattern in patterns:
+                        match = re.search(pattern, text)
+                        if match:
+                            product = match.group(1).strip()
+                            # 清理并截断
+                            product = product.replace('*', '').strip()
+                            if product:
+                                return product[:20]  # 限制长度
+                    
+                    # 尝试从表格中提取第一行商品
+                    lines = text.split('\n')
+                    for line in lines:
+                        # 匹配常见的商品/服务格式（通常以*开头）
+                        if '*' in line:
+                            product = line.strip().replace('*', '').strip()
+                            if product and len(product) > 1:
+                                return product[:20]
+                
+                return "商品"
+                
+        except Exception as e:
+            print(f"提取商品类型失败: {str(e)}")
+            return "商品"
+    
+    def extract_buyer_name(self, pdf_path):
+        """
+        从PDF中提取买方（购买方）名称
+        
+        Args:
+            pdf_path: PDF文件路径
+            
+        Returns:
+            str: 提取的买方名称
+        """
+        import re
+        
+        try:
+            with fitz.open(pdf_path) as doc:
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    text = page.get_text()
+                    
+                    # 匹配购买方名称
+                    patterns = [
+                        r'购买方.*?名\s*称[:：]\s*([^\n]+)',
+                        r'购方名称[:：]\s*([^\n]+)',
+                        r'买方[:：]\s*([^\n]+)',
+                        r'购买方[:：]\s*([^\n]+)',
+                    ]
+                    
+                    for pattern in patterns:
+                        match = re.search(pattern, text)
+                        if match:
+                            buyer = match.group(1).strip()
+                            # 清理
+                            buyer = buyer.replace(' ', '').strip()
+                            if buyer and buyer != '名称':
+                                return buyer[:30]  # 限制长度
+                
+                return "购买方"
+                
+        except Exception as e:
+            print(f"提取买方名称失败: {str(e)}")
+            return "购买方"
+    
+    def extract_seller_name(self, pdf_path):
+        """
+        从PDF中提取销方（销售方）名称
+        
+        Args:
+            pdf_path: PDF文件路径
+            
+        Returns:
+            str: 提取的销售方名称
+        """
+        import re
+        
+        try:
+            with fitz.open(pdf_path) as doc:
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    text = page.get_text()
+                    
+                    # 匹配销售方名称
+                    patterns = [
+                        r'销售方.*?名\s*称[:：]\s*([^\n]+)',
+                        r'销方名称[:：]\s*([^\n]+)',
+                        r'卖方[:：]\s*([^\n]+)',
+                        r'销售方[:：]\s*([^\n]+)',
+                    ]
+                    
+                    for pattern in patterns:
+                        match = re.search(pattern, text)
+                        if match:
+                            seller = match.group(1).strip()
+                            # 清理
+                            seller = seller.replace(' ', '').strip()
+                            if seller and seller != '名称':
+                                return seller[:30]  # 限制长度
+                
+                return "销售方"
+                
+        except Exception as e:
+            print(f"提取销方名称失败: {str(e)}")
+            return "销售方"
+    
+    def extract_all_invoice_info(self, pdf_path):
+        """
+        一次性提取所有发票信息
+        
+        Args:
+            pdf_path: PDF文件路径
+            
+        Returns:
+            dict: 包含所有字段信息的字典
+        """
+        return {
+            'amount': self.extract_amount(pdf_path),
+            'invoice_date': self.extract_invoice_date(pdf_path),
+            'invoice_type': self.extract_invoice_type(pdf_path),
+            'product_type': self.extract_product_type(pdf_path),
+            'buyer_name': self.extract_buyer_name(pdf_path),
+            'seller_name': self.extract_seller_name(pdf_path),
+        }

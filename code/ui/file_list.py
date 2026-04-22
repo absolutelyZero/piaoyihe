@@ -535,3 +535,52 @@ class FileListPanel(QWidget):
         self.table.setSortingEnabled(True)
         if sort_column >= 0:
             self.table.sortItems(sort_column, sort_order)
+    
+    def update_file_path(self, old_path, new_path):
+        """
+        更新文件路径
+        
+        功能描述:
+            在文件列表中更新指定文件的路径和名称
+        
+        参数:
+            old_path: 原文件路径
+            new_path: 新文件路径
+            
+        返回值:
+            bool: 更新是否成功
+        """
+        for file_info in self.files:
+            if file_info['path'] == old_path:
+                file_info['path'] = new_path
+                file_info['name'] = os.path.basename(new_path)
+                return True
+        return False
+    
+    def refresh_display(self):
+        """
+        刷新显示
+        
+        功能描述:
+            刷新文件列表的显示，更新所有文件信息
+        """
+        # 重新提取所有文件的信息
+        for file_info in self.files:
+            try:
+                file_path = file_info['path']
+                if os.path.exists(file_path):
+                    # 更新文件信息
+                    file_info['name'] = os.path.basename(file_path)
+                    file_info['amount'] = self.pdf_handler.extract_amount(file_path)
+                    file_info['invoice_date'] = self.pdf_handler.extract_invoice_date(file_path)
+                    
+                    # 更新文件大小和修改时间
+                    file_size = os.path.getsize(file_path) / 1024
+                    mod_time = os.path.getmtime(file_path)
+                    file_info['mod_time'] = __import__('time').strftime('%Y-%m-%d %H:%M:%S', __import__('time').localtime(mod_time))
+                    file_info['size'] = f"{file_size:.2f} KB"
+            except Exception as e:
+                print(f"刷新文件信息失败: {e}")
+        
+        # 更新表格显示
+        self._update_table()
