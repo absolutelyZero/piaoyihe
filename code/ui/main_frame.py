@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                 QSizePolicy, QFrame, QProgressBar, QSplitter,
                                 QTextEdit, QStackedWidget, QGridLayout)
 from PySide6.QtCore import Qt, QUrl, QTimer, QSize
-from PySide6.QtGui import QGuiApplication, QDesktopServices, QCursor, QPixmap, QPainter, QImage
+from PySide6.QtGui import QGuiApplication, QDesktopServices, QCursor, QPixmap, QPainter, QImage, QIcon
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from ui.file_list import FileListPanel
 from ui.rename_dialog import RenameDialog
@@ -90,6 +90,11 @@ class MainWindow(QMainWindow):
         """
         self.setWindowTitle("票易合 - 发票合并工具")
         self.setMinimumSize(1400, 800)
+        
+        # 设置窗口图标
+        icon_path = os.path.join(os.path.dirname(__file__), '../res/logo3.ico')
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         
         # 设置全局样式表
         self._setup_stylesheet()
