@@ -107,7 +107,7 @@ class RenameDialog(QDialog):
         title_layout.addStretch()
         
         # 使用说明按钮
-        help_btn = QPushButton("使用说明")
+        help_btn = QPushButton("变量说明")
         help_btn.setObjectName("helpButton")
         help_btn.setFixedWidth(80)
         help_btn.clicked.connect(self._show_help)
@@ -435,7 +435,7 @@ class RenameDialog(QDialog):
             "4. 点击保存可保存规则供下次使用\n"
             "5. 点击执行开始批量重命名\n\n"
             "可用字段：\n"
-            "• {发票类型} - 发票类型（普通发票、专用发票等）\n"
+            "• {发票类型} - 发票类型（普票、专票等）\n"
             "• {商品类型} - 商品或服务名称\n"
             "• {开票日期} - 开票日期（YYYY-MM-DD）\n"
             "• {买方名字} - 购买方名称\n"
@@ -445,7 +445,7 @@ class RenameDialog(QDialog):
             "• 张三报销-{开票日期}-{商品类型}\n"
             "• {销方名字}_{开票日期}_{金额}元"
         )
-        QMessageBox.information(self, "使用说明", help_text)
+        QMessageBox.information(self, "变量说明", help_text)
     
     def _load_rule_from_config(self):
         """
