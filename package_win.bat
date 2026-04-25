@@ -9,7 +9,7 @@ if exist build rmdir /s /q build
 
 :: 执行打包
 echo 开始打包...
-"C:\Users\Administrator\.pyenv\pyenv-win\versions\3.9.12\python.exe" -m PyInstaller invoice_tool_win.spec
+"E:\tools\python3.14.4\python.exe" -m PyInstaller invoice_tool_win.spec
 
 echo.
 echo 打包完成！
