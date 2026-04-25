@@ -545,8 +545,8 @@ class PDFHandler:
         
         # 发票类型关键词映射（按优先级排序，更具体的类型在前）
         INVOICE_TYPE_KEYWORDS = {
-            "专用发票": ["增值税专用发票", "电子专用发票", "专用发票"],
-            "普通发票": ["增值税普通发票", "电子普通发票", "普通发票"],
+            "专票": ["增值税专用发票", "电子专用发票", "专用发票"],
+            "普票": ["增值税普通发票", "电子普通发票", "普通发票"],
             "机动车发票": ["机动车", "二手车"],
             "火车票": ["火车票", "铁路电子客票"],
             "飞机票": ["航空", "机票", "电子客票"],
@@ -633,14 +633,15 @@ class PDFHandler:
                             if product:
                                 return product[:20]  # 限制长度
                     
-                    # 尝试从表格中提取第一行商品
-                    lines = text.split('\n')
-                    for line in lines:
-                        # 匹配常见的商品/服务格式（通常以*开头）
-                        if '*' in line:
-                            product = line.strip().replace('*', '').strip()
-                            if product and len(product) > 1:
-                                return product[:20]
+                    # 尝试提取第一个用*包裹的文字内容
+                    # 匹配 *xxx* 格式，取第一个匹配项
+                    star_pattern = r'\*([^*]+)\*'
+                    matches = re.findall(star_pattern, text)
+                    if matches:
+                        # 取第一个匹配的内容
+                        product = matches[0].strip()
+                        if product and len(product) > 1:
+                            return product[:20]  # 限制长度
                 
                 return "商品"
                 
@@ -666,22 +667,32 @@ class PDFHandler:
                     page = doc[page_num]
                     text = page.get_text()
                     
-                    # 匹配购买方名称
-                    patterns = [
-                        r'购买方.*?名\s*称[:：]\s*([^\n]+)',
-                        r'购方名称[:：]\s*([^\n]+)',
-                        r'买方[:：]\s*([^\n]+)',
-                        r'购买方[:：]\s*([^\n]+)',
-                    ]
+                    # 方法1：匹配"购买方信息"区域内的"名称："
+                    # 格式：购买方信息...名称：XXX...统一社会信用代码
+                    buyer_pattern = r'购[买\n]*方[\n\s]*信[\n\s]*息[\n\s]*.*?名[\n\s]*称[：:]\s*([\u4e00-\u9fa5a-zA-Z0-9（）()]+)'
+                    match = re.search(buyer_pattern, text, re.DOTALL)
+                    if match:
+                        buyer = match.group(1).strip().replace('\n', '').replace(' ', '')
+                        if len(buyer) > 4:
+                            return buyer[:30]
                     
-                    for pattern in patterns:
-                        match = re.search(pattern, text)
-                        if match:
-                            buyer = match.group(1).strip()
-                            # 清理
-                            buyer = buyer.replace(' ', '').strip()
-                            if buyer and buyer != '名称':
-                                return buyer[:30]  # 限制长度
+                    # 方法2：直接查找第一个包含公司关键词的"名称："后面的内容
+                    # 通常在"购买方信息"之后
+                    name_pattern = r'名[\n\s]*称[：:]\s*([\u4e00-\u9fa5a-zA-Z0-9（）()]+)'
+                    matches = re.findall(name_pattern, text)
+                    for buyer in matches:
+                        buyer = buyer.strip().replace('\n', '').replace(' ', '')
+                        # 检查是否包含公司/企业关键词
+                        if len(buyer) > 4 and any(keyword in buyer for keyword in ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室']):
+                            return buyer[:30]
+                    
+                    # 方法3：查找所有含有'公司', '企业', '股份', '有限', '集团', '厂', '店', '中心'的名称，取第一个
+                    company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+                    matches = re.findall(company_pattern, text)
+                    for buyer in matches:
+                        buyer = buyer.strip().replace('\n', '').replace(' ', '')
+                        if len(buyer) > 4:
+                            return buyer[:30]
                 
                 return "购买方"
                 
@@ -697,9 +708,18 @@ class PDFHandler:
             pdf_path: PDF文件路径
             
         Returns:
-            str: 提取的销售方名称
+            str: 提取的销售方名称，如果是特殊票种（火车票、飞机票等）则返回空字符串
         """
         import re
+        
+        # 特殊票种关键词（这些票种通常没有明确的销售方信息）
+        SPECIAL_INVOICE_KEYWORDS = [
+            '火车票', '铁路电子客票', '列车票',
+            '航空', '飞机票', '机票', '电子客票行程单',
+            '出租车发票', '出租汽车',
+            '定额发票',
+            '过路费', '通行费', 'ETC',
+        ]
         
         try:
             with fitz.open(pdf_path) as doc:
@@ -707,22 +727,37 @@ class PDFHandler:
                     page = doc[page_num]
                     text = page.get_text()
                     
-                    # 匹配销售方名称
-                    patterns = [
-                        r'销售方.*?名\s*称[:：]\s*([^\n]+)',
-                        r'销方名称[:：]\s*([^\n]+)',
-                        r'卖方[:：]\s*([^\n]+)',
-                        r'销售方[:：]\s*([^\n]+)',
-                    ]
+                    # 首先判断是否为特殊票种
+                    is_special_invoice = any(keyword in text for keyword in SPECIAL_INVOICE_KEYWORDS)
+                    if is_special_invoice:
+                        return ""  # 特殊票种返回空字符串
                     
-                    for pattern in patterns:
-                        match = re.search(pattern, text)
-                        if match:
-                            seller = match.group(1).strip()
-                            # 清理
-                            seller = seller.replace(' ', '').strip()
-                            if seller and seller != '名称':
-                                return seller[:30]  # 限制长度
+                    # 方法1：匹配"销售方信息"区域内的"名称："
+                    # 格式：销售方信息...名称：XXX...统一社会信用代码
+                    seller_pattern = r'销[售\n]*方[\n\s]*信[\n\s]*息[\n\s]*.*?名[\n\s]*称[：:]\s*([\u4e00-\u9fa5a-zA-Z0-9（）()]+)'
+                    match = re.search(seller_pattern, text, re.DOTALL)
+                    if match:
+                        seller = match.group(1).strip().replace('\n', '').replace(' ', '')
+                        if len(seller) > 4:
+                            return seller[:30]
+                    
+                    # 方法2：查找所有"名称："后面的内容，取第二个（第一个是购买方）
+                    name_pattern = r'名[\n\s]*称[：:]\s*([\u4e00-\u9fa5a-zA-Z0-9（）()]+)'
+                    matches = re.findall(name_pattern, text)
+                    if len(matches) >= 2:
+                        # 第二个通常是销售方
+                        seller = matches[1].strip().replace('\n', '').replace(' ', '')
+                        if len(seller) > 4 and any(keyword in seller for keyword in ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心']):
+                            return seller[:30]
+                    
+                    # 方法3：查找所有含有'公司', '企业', '股份', '有限', '集团', '厂', '店', '中心'的名称，取最后一个
+                    company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+                    matches = re.findall(company_pattern, text)
+                    if matches:
+                        # 取最后一个匹配项（通常是销售方）
+                        seller = matches[-1].strip().replace('\n', '').replace(' ', '')
+                        if len(seller) > 4:
+                            return seller[:30]
                 
                 return "销售方"
                 

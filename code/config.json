@@ -7,5 +7,5 @@
   "save_path": "",
   "sort_by": "list",
   "output_path": "D:/公司文档/05.培训(公共)/报销/251201\\output.pdf",
-  "rename_rule": "测试类型-{买方名字}"
+  "rename_rule": "ts-{发票类型}-{买方名字}-{销方名字}"
 }
