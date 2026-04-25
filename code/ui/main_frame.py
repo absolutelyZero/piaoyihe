@@ -875,7 +875,7 @@ class MainWindow(QMainWindow):
         main_ops_layout = QHBoxLayout()
         main_ops_layout.setSpacing(10)
         
-        self.merge_btn = QPushButton("🔀 合并PDF")
+        self.merge_btn = QPushButton("🔀 合并")
         self.merge_btn.setObjectName("primaryButton")
         self.merge_btn.setToolTip("合并所有文件并保存")
         self.merge_btn.setMinimumWidth(100)
@@ -982,13 +982,13 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(file_list_card, 1)  # 占据主要空间
         
-        # 2. 配置选项区域（单行水平布局）
-        options_card = self._create_options_widget()
-        layout.addWidget(options_card)
-        
-        # 3. 操作按钮区域（单行水平布局）
+        # 2. 操作按钮区域（单行水平布局）
         actions_card = self._create_actions_widget()
         layout.addWidget(actions_card)
+
+        # 3 配置选项区域（单行水平布局）
+        options_card = self._create_options_widget()
+        layout.addWidget(options_card)
         
         # 4. 保存路径和版本号区域
         bottom_card = QFrame()

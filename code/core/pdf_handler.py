@@ -665,7 +665,7 @@ class PDFHandler:
             with fitz.open(pdf_path) as doc:
                 for page_num in range(len(doc)):
                     page = doc[page_num]
-                    text = page.get_text()
+                    text = page.get_text(sort=True, clip=None, flags=None)
                     
                     # 方法1：匹配"购买方信息"区域内的"名称："
                     # 格式：购买方信息...名称：XXX...统一社会信用代码
@@ -725,7 +725,7 @@ class PDFHandler:
             with fitz.open(pdf_path) as doc:
                 for page_num in range(len(doc)):
                     page = doc[page_num]
-                    text = page.get_text()
+                    text = page.get_text(sort=True, clip=None, flags=None)
                     
                     # 首先判断是否为特殊票种
                     is_special_invoice = any(keyword in text for keyword in SPECIAL_INVOICE_KEYWORDS)
@@ -739,6 +739,7 @@ class PDFHandler:
                     if match:
                         seller = match.group(1).strip().replace('\n', '').replace(' ', '')
                         if len(seller) > 4:
+                            print("命中方法1:", seller)
                             return seller[:30]
                     
                     # 方法2：查找所有"名称："后面的内容，取第二个（第一个是购买方）
@@ -747,16 +748,23 @@ class PDFHandler:
                     if len(matches) >= 2:
                         # 第二个通常是销售方
                         seller = matches[1].strip().replace('\n', '').replace(' ', '')
-                        if len(seller) > 4 and any(keyword in seller for keyword in ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心']):
+                        if len(seller) > 4 and any(keyword in seller for keyword in ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室']):
+                            print("命中方法2:", seller)
                             return seller[:30]
                     
-                    # 方法3：查找所有含有'公司', '企业', '股份', '有限', '集团', '厂', '店', '中心'的名称，取最后一个
+                    # 方法3：使用words模式查找所有含有'公司', '企业', '股份', '有限', '集团', '厂', '店', '中心'的名称，取最后一个
+                    words = page.get_text("words", sort=True, flags=16)
+                    print(words)
                     company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
-                    matches = re.findall(company_pattern, text)
+                    matches = []
+                    # 构建完整文本以进行匹配
+                    full_text = ' '.join([word[4] for word in words])
+                    matches = re.findall(company_pattern, full_text)
                     if matches:
                         # 取最后一个匹配项（通常是销售方）
                         seller = matches[-1].strip().replace('\n', '').replace(' ', '')
                         if len(seller) > 4:
+                            print("命中方法3:", seller)
                             return seller[:30]
                 
                 return "销售方"
