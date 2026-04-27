@@ -16,6 +16,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('code\\res\\logo3.png', 'res'),
+        ('code\\res\\logo3.ico', 'res'),
         ('code\\res\\qrcode.jpg', 'res'),
         ('code\\version.json', 'code'),
     ],

@@ -92,7 +92,15 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1400, 800)
         
         # 设置窗口图标
-        icon_path = os.path.join(os.path.dirname(__file__), '../res/logo3.ico')
+        # 支持开发环境和 PyInstaller 打包后的环境
+        if getattr(sys, 'frozen', False):
+            # PyInstaller 打包后的环境
+            base_path = sys._MEIPASS
+        else:
+            # 开发环境
+            base_path = os.path.dirname(os.path.dirname(__file__))
+        
+        icon_path = os.path.join(base_path, 'res', 'logo3.ico')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
