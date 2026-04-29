@@ -1715,46 +1715,52 @@ class MainWindow(QMainWindow):
     def _perform_batch_rename(self, rule):
         """
         执行批量重命名
-        
+
         功能描述:
             根据规则对文件列表中的文件进行批量重命名
-        
+
         参数:
             rule: 重命名规则字符串
         """
         if not rule:
             return
-        
+
         files = self.file_list.get_all_files()
         if not files:
             return
-        
+
         try:
             renamed_count = 0
             failed_count = 0
+            unrecognized_files = []  # 记录无法识别的文件
             name_conflicts = {}
-            
+
             for file_path in files:
                 try:
                     # 提取文件信息
                     file_info = self.pdf_handler.extract_all_invoice_info(file_path)
-                    
+
+                    # 如果无法识别该文件（可能是图片），记录并跳过
+                    if file_info is None:
+                        unrecognized_files.append(os.path.basename(file_path))
+                        continue
+
                     # 应用规则生成新文件名
                     new_name = RenameDialog.apply_rule(rule, file_info)
-                    
+
                     if not new_name:
                         failed_count += 1
                         continue
-                    
+
                     # 获取原文件扩展名
                     _, ext = os.path.splitext(file_path)
                     new_name_with_ext = new_name + ext
-                    
+
                     # 处理文件名冲突
                     dir_path = os.path.dirname(file_path)
                     final_name = new_name_with_ext
                     counter = 1
-                    
+
                     while os.path.exists(os.path.join(dir_path, final_name)):
                         if final_name == os.path.basename(file_path):
                             # 如果生成的名字和原文件名相同，跳过
@@ -1762,38 +1768,47 @@ class MainWindow(QMainWindow):
                         base_name = f"{new_name}({counter})"
                         final_name = base_name + ext
                         counter += 1
-                    
+
                     # 如果最终名字和原文件名不同，执行重命名
                     if final_name != os.path.basename(file_path):
                         new_path = os.path.join(dir_path, final_name)
                         os.rename(file_path, new_path)
                         renamed_count += 1
-                        
+
                         # 更新文件列表中的路径
                         self.file_list.update_file_path(file_path, new_path)
-                    
+
                 except Exception as e:
                     print(f"重命名文件失败 {file_path}: {e}")
                     failed_count += 1
-            
+
             # 刷新文件列表显示
             self.file_list.refresh_display()
             self._update_preview()
-            
-            # 显示结果
+
+            # 构建提示消息
+            messages = []
             if renamed_count > 0:
+                messages.append(f"成功重命名 {renamed_count} 个文件")
+            if failed_count > 0:
+                messages.append(f"失败: {failed_count} 个")
+            if len(unrecognized_files) > 0:
+                messages.append(f"未能识别: {len(unrecognized_files)} 个文件（可能是图片格式，无法提取文本）")
+
+            # 显示结果
+            if messages:
                 QMessageBox.information(
-                    self, 
-                    "重命名完成", 
-                    f"成功重命名 {renamed_count} 个文件\n失败: {failed_count} 个"
+                    self,
+                    "重命名完成",
+                    "\n".join(messages)
                 )
             else:
                 QMessageBox.information(
-                    self, 
-                    "重命名完成", 
+                    self,
+                    "重命名完成",
                     "没有文件需要重命名\n（可能是生成的文件名与原文件名相同）"
                 )
-                
+
         except Exception as e:
             QMessageBox.critical(self, "错误", f"批量重命名失败: {str(e)}")
     
