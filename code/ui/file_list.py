@@ -36,10 +36,12 @@ class PreviewPopup(QFrame):
             parent: 父窗口部件，可选
         """
         super().__init__(parent)
-        # 使用Popup窗口类型，避免透明边框问题
-        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        # 使用ToolTip窗口类型，不拦截鼠标事件
+        self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
+        # 设置属性，使窗口不获取焦点，不拦截鼠标事件
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         
-        # 设置样式 - 使用白色背景，不设置透明
+        # 设置样式 - 使用白色背景
         self.setStyleSheet("""
             QFrame {
                 background-color: white;
