@@ -36,29 +36,27 @@ class PreviewPopup(QFrame):
             parent: 父窗口部件，可选
         """
         super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        # 使用Popup窗口类型，避免透明边框问题
+        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         
-        # 设置样式
+        # 设置样式 - 使用白色背景，不设置透明
         self.setStyleSheet("""
             QFrame {
                 background-color: white;
                 border: 2px solid #2196F3;
                 border-radius: 8px;
-                padding: 4px;
             }
         """)
         
         # 创建布局
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(0)
         
         # 创建图片标签
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setStyleSheet("border: none; background: transparent;")
+        self.image_label.setStyleSheet("border: none; background-color: white;")
         layout.addWidget(self.image_label)
         
         # 设置固定大小（增大尺寸以获得更清晰的预览）
