@@ -6,6 +6,6 @@
   "ignored_version": "0.0.4",
   "save_path": "",
   "sort_by": "list",
-  "output_path": "D:/公司文档/05.培训(公共)/报销/251201\\output.pdf",
+  "output_path": "/Users/xieyonggao/Documents/self/minipro/invoiceTool/code/test/piaoyihe_test/output.pdf",
   "rename_rule": "{发票类型}-{商品类型}-{开票日期}-{买方名字}-{销方名字}-{金额}"
 }

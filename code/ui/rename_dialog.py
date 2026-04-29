@@ -101,7 +101,7 @@ class RenameDialog(QDialog):
         # ========== 标题区域 ==========
         title_layout = QHBoxLayout()
         
-        title_label = QLabel("📋 请设置重命名【普通发票】文件的规则")
+        title_label = QLabel("📋 请设置重命名文件的规则")
         title_label.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {TEXT_PRIMARY};")
         title_layout.addWidget(title_label)
         title_layout.addStretch()
