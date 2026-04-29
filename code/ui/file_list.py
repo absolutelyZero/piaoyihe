@@ -3,17 +3,127 @@
 文件列表面板模块
 
 该模块提供文件列表面板组件，用于显示和管理发票PDF文件的列表
-支持拖放添加文件、文件排序、双击打开、列排序、拖拽调整顺序等功能
+支持拖放添加文件、文件排序、双击打开、列排序、拖拽调整顺序、预览浮窗等功能
 """
 
 import os
 import time
+import fitz  # PyMuPDF
 from PySide6.QtWidgets import (
     QWidget, QTableWidget, QVBoxLayout, QTableWidgetItem, 
-    QHeaderView, QAbstractItemView, QMenu
+    QHeaderView, QAbstractItemView, QMenu, QLabel, QFrame
 )
-from PySide6.QtCore import Qt, Signal, QUrl
-from PySide6.QtGui import QDesktopServices, QAction
+from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QPoint
+from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor
+
+
+class PreviewPopup(QFrame):
+    """
+    发票预览浮窗类
+    
+    功能描述:
+        显示PDF发票的预览图像，点击预览图标时显示
+    
+    参数:
+        parent: 父窗口部件
+    """
+    
+    def __init__(self, parent=None):
+        """
+        初始化预览浮窗
+        
+        参数:
+            parent: 父窗口部件，可选
+        """
+        super().__init__(parent)
+        self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        
+        # 设置样式
+        self.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border: 2px solid #2196F3;
+                border-radius: 8px;
+                padding: 4px;
+            }
+        """)
+        
+        # 创建布局
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(0)
+        
+        # 创建图片标签
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setStyleSheet("border: none; background: transparent;")
+        layout.addWidget(self.image_label)
+        
+        # 设置固定大小（增大尺寸以获得更清晰的预览）
+        self.setFixedSize(800, 1000)
+        
+        self.current_file = None
+    
+    def show_preview(self, file_path, global_pos):
+        """
+        显示指定文件的预览
+        
+        参数:
+            file_path: PDF文件路径
+            global_pos: 浮窗显示的全局位置
+        """
+        if not os.path.exists(file_path):
+            return
+        
+        self.current_file = file_path
+        
+        try:
+            # 使用PyMuPDF渲染PDF第一页
+            doc = fitz.open(file_path)
+            page = doc[0]
+            
+            # 设置渲染分辨率（DPI）- 使用更高缩放比例以获得更清晰的图像
+            mat = fitz.Matrix(8, 8)  # 4x缩放以获得更清晰的图像
+            pix = page.get_pixmap(matrix=mat)
+            
+            # 转换为QPixmap
+            img_data = pix.tobytes("png")
+            pixmap = QPixmap()
+            pixmap.loadFromData(img_data)
+            
+            doc.close()
+            
+            # 缩放图片以适应浮窗大小（保持宽高比）- 增大尺寸
+            scaled_pixmap = pixmap.scaled(
+                780, 980,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            
+            self.image_label.setPixmap(scaled_pixmap)
+            
+            # 调整浮窗大小以适应图片
+            self.setFixedSize(
+                max(scaled_pixmap.width() + 16, 400),
+                max(scaled_pixmap.height() + 16, 500)
+            )
+            
+        except Exception as e:
+            print(f"预览加载失败: {e}")
+            self.image_label.setText("预览加载失败")
+            self.setFixedSize(500, 400)
+        
+        self.move(global_pos)
+        self.show()
+        self.raise_()
+    
+    def hide_preview(self):
+        """
+        隐藏预览浮窗
+        """
+        self.hide()
 
 
 class FileListPanel(QWidget):
@@ -22,7 +132,7 @@ class FileListPanel(QWidget):
     
     功能描述:
         提供文件列表显示和管理的界面组件，支持文件添加、删除、排序、
-        双击打开、列排序、拖拽调整顺序等操作
+        双击打开、列排序、拖拽调整顺序、预览浮窗等操作
     
     信号:
         selection_changed: 当选中项发生变化时发出
@@ -49,6 +159,15 @@ class FileListPanel(QWidget):
         self.files = []
         self.on_file_added = on_file_added
         
+        # 预览浮窗
+        self.preview_popup = PreviewPopup(self)
+        self.preview_timer = QTimer(self)
+        self.preview_timer.setSingleShot(True)
+        self.preview_timer.timeout.connect(self._show_preview_popup)
+        
+        # 当前悬停的行
+        self.hover_row = -1
+        
         self._init_ui()
     
     def _init_ui(self):
@@ -63,8 +182,8 @@ class FileListPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["文件名", "金额", "开票日期", "路径", "修改日期", "大小"])
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(["", "文件名", "金额", "开票日期", "路径", "修改日期", "大小"])
         
         # 设置选择行为
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -89,12 +208,20 @@ class FileListPanel(QWidget):
         
         # 设置列宽调整模式
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # 预览图标列固定宽度
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        
+        # 设置预览图标列宽度
+        self.table.setColumnWidth(0, 40)
+        
+        # 启用鼠标跟踪（macOS需要）
+        self.table.setMouseTracking(True)
+        self.table.viewport().setMouseTracking(True)
         
         # 连接信号
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
@@ -103,7 +230,85 @@ class FileListPanel(QWidget):
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_context_menu)
         
+        # 安装事件过滤器以处理鼠标悬停
+        self.table.viewport().installEventFilter(self)
+        
         layout.addWidget(self.table)
+    
+    def eventFilter(self, obj, event):
+        """
+        事件过滤器，处理鼠标悬停事件
+        
+        参数:
+            obj: 事件对象
+            event: 事件
+            
+        返回值:
+            bool: 是否已处理事件
+        """
+        if obj == self.table.viewport():
+            if event.type() == event.Type.MouseMove:
+                self._handle_mouse_move(event)
+            elif event.type() == event.Type.Leave:
+                self._handle_mouse_leave()
+        
+        return super().eventFilter(obj, event)
+    
+    def _handle_mouse_move(self, event):
+        """
+        处理鼠标移动事件，检测是否悬停在预览图标上
+        
+        参数:
+            event: 鼠标事件
+        """
+        pos = event.position().toPoint()
+        row = self.table.rowAt(pos.y())
+        col = self.table.columnAt(pos.x())
+        
+        # 检查是否在预览图标列（第0列）且行有效
+        if row >= 0 and row < len(self.files) and col == 0:
+            if self.hover_row != row:
+                self.hover_row = row
+                # 立即显示预览，无需延迟
+                self.preview_timer.stop()
+                self._show_preview_popup()
+        else:
+            if self.hover_row != -1:
+                self.hover_row = -1
+                self.preview_timer.stop()
+                self.preview_popup.hide_preview()
+    
+    def _handle_mouse_leave(self):
+        """
+        处理鼠标离开表格区域事件
+        """
+        self.hover_row = -1
+        self.preview_timer.stop()
+        self.preview_popup.hide_preview()
+    
+    def _show_preview_popup(self):
+        """
+        显示预览浮窗
+        """
+        if self.hover_row >= 0 and self.hover_row < len(self.files):
+            file_path = self.files[self.hover_row]['path']
+            
+            # 计算浮窗位置（在鼠标右侧显示）
+            cursor_pos = QCursor.pos()
+            popup_pos = QPoint(cursor_pos.x() + 20, cursor_pos.y() - 300)
+            
+            # 确保浮窗不超出屏幕边界
+            screen = self.screen()
+            if screen:
+                screen_geo = screen.availableGeometry()
+                if popup_pos.x() + 800 > screen_geo.right():
+                    popup_pos.setX(cursor_pos.x() - 820)
+                if popup_pos.y() + 1000 > screen_geo.bottom():
+                    popup_pos.setY(screen_geo.bottom() - 1020)
+                if popup_pos.y() < screen_geo.top():
+                    popup_pos.setY(screen_geo.top() + 10)
+            
+            self.preview_popup.show_preview(file_path, popup_pos)
     
     def _on_selection_changed(self):
         """
@@ -130,7 +335,7 @@ class FileListPanel(QWidget):
             return
         
         # 获取该行的文件路径，用于找到对应的数据索引
-        path_item = self.table.item(visual_row, 3)  # 第3列是路径列
+        path_item = self.table.item(visual_row, 4)  # 第4列是路径列
         if not path_item:
             return
         
@@ -295,6 +500,11 @@ class FileListPanel(QWidget):
             row = self.table.rowCount()
             self.table.insertRow(row)
             
+            # 预览图标列
+            preview_item = QTableWidgetItem("👁")
+            preview_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            preview_item.setToolTip("悬停查看预览")
+            
             name_item = QTableWidgetItem(file_info['name'])
             
             amount_item = QTableWidgetItem()
@@ -308,12 +518,13 @@ class FileListPanel(QWidget):
             mod_item = QTableWidgetItem(file_info['mod_time'])
             size_item = QTableWidgetItem(file_info['size'])
             
-            self.table.setItem(row, 0, name_item)
-            self.table.setItem(row, 1, amount_item)
-            self.table.setItem(row, 2, date_item)
-            self.table.setItem(row, 3, path_item)
-            self.table.setItem(row, 4, mod_item)
-            self.table.setItem(row, 5, size_item)
+            self.table.setItem(row, 0, preview_item)
+            self.table.setItem(row, 1, name_item)
+            self.table.setItem(row, 2, amount_item)
+            self.table.setItem(row, 3, date_item)
+            self.table.setItem(row, 4, path_item)
+            self.table.setItem(row, 5, mod_item)
+            self.table.setItem(row, 6, size_item)
     
     def add_file(self, file_path):
         """
@@ -353,6 +564,11 @@ class FileListPanel(QWidget):
         row = self.table.rowCount()
         self.table.insertRow(row)
         
+        # 预览图标列
+        preview_item = QTableWidgetItem("👁")
+        preview_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        preview_item.setToolTip("悬停查看预览")
+        
         # 创建表格项并设置数据（用于排序）
         name_item = QTableWidgetItem(file_name)
         
@@ -367,12 +583,13 @@ class FileListPanel(QWidget):
         mod_item = QTableWidgetItem(mod_time_str)
         size_item = QTableWidgetItem(file_info['size'])
         
-        self.table.setItem(row, 0, name_item)
-        self.table.setItem(row, 1, amount_item)
-        self.table.setItem(row, 2, date_item)
-        self.table.setItem(row, 3, path_item)
-        self.table.setItem(row, 4, mod_item)
-        self.table.setItem(row, 5, size_item)
+        self.table.setItem(row, 0, preview_item)
+        self.table.setItem(row, 1, name_item)
+        self.table.setItem(row, 2, amount_item)
+        self.table.setItem(row, 3, date_item)
+        self.table.setItem(row, 4, path_item)
+        self.table.setItem(row, 5, mod_item)
+        self.table.setItem(row, 6, size_item)
         
         if is_first_file and self.on_file_added:
             self.on_file_added(file_path)
@@ -511,6 +728,11 @@ class FileListPanel(QWidget):
             row = self.table.rowCount()
             self.table.insertRow(row)
             
+            # 预览图标列
+            preview_item = QTableWidgetItem("👁")
+            preview_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            preview_item.setToolTip("悬停查看预览")
+            
             name_item = QTableWidgetItem(file_info['name'])
             
             amount_item = QTableWidgetItem()
@@ -524,12 +746,13 @@ class FileListPanel(QWidget):
             mod_item = QTableWidgetItem(file_info['mod_time'])
             size_item = QTableWidgetItem(file_info['size'])
             
-            self.table.setItem(row, 0, name_item)
-            self.table.setItem(row, 1, amount_item)
-            self.table.setItem(row, 2, date_item)
-            self.table.setItem(row, 3, path_item)
-            self.table.setItem(row, 4, mod_item)
-            self.table.setItem(row, 5, size_item)
+            self.table.setItem(row, 0, preview_item)
+            self.table.setItem(row, 1, name_item)
+            self.table.setItem(row, 2, amount_item)
+            self.table.setItem(row, 3, date_item)
+            self.table.setItem(row, 4, path_item)
+            self.table.setItem(row, 5, mod_item)
+            self.table.setItem(row, 6, size_item)
         
         # 恢复排序
         self.table.setSortingEnabled(True)
