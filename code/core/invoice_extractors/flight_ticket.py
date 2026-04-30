@@ -26,7 +26,7 @@ class FlightTicketExtractor(InvoiceExtractor):
         INVOICE_TYPE_KEYWORDS: 识别关键词
     """
 
-    INVOICE_TYPE_KEYWORDS = ['航空', '机票', '电子客票行程单', '行程单']
+    INVOICE_TYPE_KEYWORDS = ['航空', '机票', '电子客票行程单']
 
     def extract_amount(self) -> float:
         """
