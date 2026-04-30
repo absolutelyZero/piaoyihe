@@ -516,16 +516,17 @@ class MainWindow(QMainWindow):
         file_list_icon.setStyleSheet("font-size: 16px; background: transparent; border: none;")
         file_list_header.addWidget(file_list_icon)
         
-        file_list_label = QLabel("文件列表")
-        file_list_label.setObjectName("titleLabel")
-        file_list_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        file_list_header.addWidget(file_list_label)
+        self.file_list_label = QLabel("文件列表")
+        self.file_list_label.setObjectName("titleLabel")
+        self.file_list_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
+        file_list_header.addWidget(self.file_list_label)
         file_list_header.addStretch()
         file_list_layout.addLayout(file_list_header)
-        
+
         # 文件列表组件
         self.file_list = FileListPanel(self.pdf_handler, on_file_added=self._on_first_file_added)
         self.file_list.selection_changed.connect(self._on_list_selection_changed)
+        self.file_list.duplicate_count_changed.connect(self._on_duplicate_count_changed)
         self.file_list.setStyleSheet(f"background-color: {CARD_BG}; border: none;")
         file_list_layout.addWidget(self.file_list)
         
@@ -980,16 +981,17 @@ class MainWindow(QMainWindow):
         file_list_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
         file_list_header.addWidget(file_list_icon)
         
-        file_list_label = QLabel("文件列表")
-        file_list_label.setObjectName("titleLabel")
-        file_list_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        file_list_header.addWidget(file_list_label)
+        self.file_list_label = QLabel("文件列表")
+        self.file_list_label.setObjectName("titleLabel")
+        self.file_list_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
+        file_list_header.addWidget(self.file_list_label)
         file_list_header.addStretch()
         file_list_layout.addLayout(file_list_header)
-        
+
         # 文件列表组件
         self.file_list = FileListPanel(self.pdf_handler, on_file_added=self._on_first_file_added)
         self.file_list.selection_changed.connect(self._on_list_selection_changed)
+        self.file_list.duplicate_count_changed.connect(self._on_duplicate_count_changed)
         self.file_list.setStyleSheet(f"background-color: {CARD_BG}; border: none;")
         file_list_layout.addWidget(self.file_list)
         
@@ -1521,7 +1523,7 @@ class MainWindow(QMainWindow):
         功能描述:
             清空文件列表中的所有文件
         """
-        self.file_list.delete_all()
+        self.file_list.clear()
         self._update_stats()
         self._update_button_states()
         self._update_preview()
@@ -1852,12 +1854,35 @@ class MainWindow(QMainWindow):
     def _on_list_selection_changed(self):
         """
         列表选择改变时的处理
-        
+
         功能描述:
             当文件列表的选择状态改变时，更新按钮状态
         """
         self._update_button_states()
-    
+
+    def _on_duplicate_count_changed(self, count):
+        """
+        重复发票数量变化时的处理
+
+        功能描述:
+            当检测到重复发票数量变化时，更新文件列表标签显示
+
+        参数:
+            count: 重复发票号码的数量
+        """
+        if count > 0:
+            self.file_list_label.setText(f"文件列表  重复发票数量：{count}")
+            # 设置警告颜色（橙色）
+            self.file_list_label.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; color: #FF9800; background: transparent; border: none;"
+            )
+        else:
+            self.file_list_label.setText("文件列表")
+            # 恢复默认颜色
+            self.file_list_label.setStyleSheet(
+                f"font-size: 14px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;"
+            )
+
     def dragEnterEvent(self, event):
         """
         拖放进入事件
@@ -1945,7 +1970,7 @@ class MainWindow(QMainWindow):
         """
         files = self.file_list.get_all_files()
         has_files = len(files) > 0
-        has_selection = len(self.file_list.get_selected_files()) > 0
+        has_selection = self.file_list.get_selected_file() is not None
         
         # 更新按钮状态
         self.del_btn.setEnabled(has_selection)

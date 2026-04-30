@@ -20,7 +20,7 @@ class FixedAmountInvoiceExtractor(InvoiceExtractor):
     定额发票特点：
     - 金额是固定的（如10元、20元、50元、100元等）
     - 通常没有购买方/销售方信息
-    - 有发票代码和发票号码
+    - 有发票号码和发票号码
 
     Attributes:
         INVOICE_TYPE_KEYWORDS: 识别关键词
@@ -127,4 +127,37 @@ class FixedAmountInvoiceExtractor(InvoiceExtractor):
         Returns:
             str: 空字符串
         """
+        return ""
+
+    def extract_invoice_code(self) -> str:
+        """
+        提取发票号码
+
+        提取策略：
+        1. 匹配"发票号码:"字段
+        2. 匹配"代码:"字段
+        3. 匹配12位数字代码格式
+
+        Returns:
+            str: 发票号码，无则返回空字符串
+        """
+        # 策略1：匹配"发票号码:"字段
+        code_pattern = r'发票号码[:：]\s*(\d{10,12})'
+        match = re.search(code_pattern, self._text)
+        if match:
+            return match.group(1).strip()
+
+        # 策略2：匹配"代码:"字段
+        code_pattern = r'代码[:：]\s*(\d{10,12})'
+        match = re.search(code_pattern, self._text)
+        if match:
+            return match.group(1).strip()
+
+        # 策略3：匹配12位数字代码格式
+        code_pattern = r'\b(\d{12})\b'
+        matches = re.findall(code_pattern, self._text)
+        for code in matches:
+            if code.startswith(('0', '1')):
+                return code
+
         return ""

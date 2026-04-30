@@ -146,6 +146,16 @@ class InvoiceExtractor(ABC):
         """
         pass
 
+    @abstractmethod
+    def extract_invoice_code(self) -> str:
+        """
+        提取发票号码
+
+        Returns:
+            str: 发票号码，无则返回空字符串
+        """
+        pass
+
     def extract_all(self) -> Dict[str, Any]:
         """
         一次性提取所有字段
@@ -168,4 +178,5 @@ class InvoiceExtractor(ABC):
             'product_type': self.extract_product_type(),
             'buyer_name': self.extract_buyer_name(),
             'seller_name': self.extract_seller_name(),
+            'invoice_code': self.extract_invoice_code(),
         }

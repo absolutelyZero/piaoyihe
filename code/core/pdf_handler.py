@@ -482,6 +482,28 @@ class PDFHandler:
 
         return "销售方"
 
+    def extract_invoice_code(self, pdf_path):
+        """
+        从PDF中提取发票号码
+
+        通过工厂模式获取合适的提取器，调用其extract_invoice_code方法
+
+        Args:
+            pdf_path: PDF文件路径
+
+        Returns:
+            str: 提取的发票号码，失败返回空字符串
+        """
+        try:
+            extractor = InvoiceExtractorFactory.get_extractor(pdf_path)
+            if extractor:
+                with extractor:
+                    return extractor.extract_invoice_code()
+        except Exception as e:
+            print(f"提取发票号码失败: {str(e)}")
+
+        return ""
+
     def extract_all_invoice_info(self, pdf_path):
         """
         一次性提取所有发票信息
