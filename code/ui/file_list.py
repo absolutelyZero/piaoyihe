@@ -216,6 +216,9 @@ class FileListPanel(QWidget):
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
         
+        # 连接排序信号，当用户点击列标题排序时同步更新self.files列表
+        header.sortIndicatorChanged.connect(self._on_sort_changed)
+        
         # 设置预览图标列宽度
         self.table.setColumnWidth(0, 40)
         
@@ -318,6 +321,39 @@ class FileListPanel(QWidget):
             触发selection_changed信号
         """
         self.selection_changed.emit()
+    
+    def _on_sort_changed(self, logical_index, order):
+        """
+        表格排序变化事件处理
+        
+        功能描述:
+            当用户点击列标题排序时，同步更新self.files列表的顺序，
+            确保"列表顺序"打印时使用当前界面显示的顺序
+        
+        参数:
+            logical_index: 排序的列索引
+            order: 排序顺序（Qt.SortOrder.AscendingOrder 或 Qt.SortOrder.DescendingOrder）
+        """
+        # 定义列索引到排序字段的映射
+        # 列索引: 0-预览图标, 1-文件名, 2-金额, 3-开票日期, 4-路径, 5-修改日期, 6-大小
+        sort_key_map = {
+            1: lambda x: x['name'],       # 文件名
+            2: lambda x: x['amount'],     # 金额
+            3: lambda x: x['invoice_date'], # 开票日期
+            4: lambda x: x['path'],       # 路径
+            5: lambda x: x['mod_time'],   # 修改日期
+            6: lambda x: x['size']        # 大小
+        }
+        
+        if logical_index in sort_key_map:
+            # 根据列索引获取排序键函数
+            sort_key = sort_key_map[logical_index]
+            
+            # 对self.files列表进行排序
+            self.files.sort(key=sort_key, reverse=(order == Qt.SortOrder.DescendingOrder))
+            
+            # 触发顺序变更信号
+            self.order_changed.emit()
     
     def _show_context_menu(self, position):
         """

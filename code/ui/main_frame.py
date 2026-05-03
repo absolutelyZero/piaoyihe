@@ -1257,13 +1257,13 @@ class MainWindow(QMainWindow):
             根据排序下拉框的当前选项返回对应的排序字段
         
         返回值:
-            str: 排序字段（"name"、"date"、"size"）
+            str: 排序字段（"list"、"date"、"amount"）
         """
         sort_text = self.order_combo.currentText()
         sort_map = {
             "列表顺序": "list",
-            "开票日期(从先到后)": "date",
-            "开票金额(从小到大)": "amount"
+            "开票日期": "date",
+            "开票金额": "amount"
         }
         return sort_map.get(sort_text, "list")
     
@@ -1584,9 +1584,18 @@ class MainWindow(QMainWindow):
             self.merge_btn.setText("合并中...")
             QGuiApplication.processEvents()
             
+            # 获取排序方式
+            sort_by = self._get_current_sort_by()
+            
+            # 根据排序方式获取文件列表
+            if sort_by == 'list':
+                sorted_files = files
+            else:
+                sorted_files = self.file_list.get_sorted_files(sort_by)
+            
             # 执行合并
             result = self.pdf_handler.merge_pdfs(
-                files,
+                sorted_files,
                 output_path,
                 layout=layout_type,
                 mode=mode
@@ -1605,7 +1614,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "错误", f"合并失败: {str(e)}")
         finally:
             self.merge_btn.setEnabled(True)
-            self.merge_btn.setText("🔀 合并PDF")
+            self.merge_btn.setText("🔀 合并")
     
     def _update_progress(self, value):
         """
@@ -1647,7 +1656,7 @@ class MainWindow(QMainWindow):
         功能描述:
             打开系统打印对话框打印当前预览的PDF
         """
-        files = self.file_list.get_files()
+        files = self.file_list.get_all_files()
         if not files:
             QMessageBox.warning(self, "警告", "请先添加PDF文件")
             return
@@ -1660,11 +1669,17 @@ class MainWindow(QMainWindow):
             layout_type = self._get_current_layout()
             sort_by = self._get_current_sort_by()
             
+            # 根据排序方式获取文件列表
+            if sort_by == 'list':
+                sorted_files = files
+            else:
+                sorted_files = self.file_list.get_sorted_files(sort_by)
+            
             self.pdf_handler.merge_pdfs(
-                files,
+                sorted_files,
                 tmp_path,
                 layout=layout_type,
-                sort_by=sort_by
+                mode="普通"
             )
             
             # 使用系统默认程序打开打印对话框
