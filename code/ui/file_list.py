@@ -822,6 +822,22 @@ class FileListPanel(QWidget):
         
         return [file_info['path'] for file_info in files_to_sort]
     
+    def get_sorted_files(self, sort_by='list'):
+        """
+        获取排序后的文件路径列表
+        
+        功能描述:
+            根据指定排序方式返回文件路径列表，与get_all_files功能相同
+            用于兼容main_frame.py中的调用
+        
+        参数:
+            sort_by: 排序方式，可选值：'list'（列表顺序）, 'date'（开票日期）, 'amount'（开票金额）
+            
+        返回值:
+            list: 排序后的文件路径列表
+        """
+        return self.get_all_files(sort_by=sort_by, selected_only=False)
+    
     def move_up(self):
         """
         将选中的文件上移一位
