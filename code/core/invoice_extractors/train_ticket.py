@@ -167,25 +167,25 @@ class TrainTicketExtractor(InvoiceExtractor):
         提取策略：
         1. 匹配"发票号码:"字段
         2. 匹配"代码:"字段
-        3. 匹配12位数字代码格式
+        3. 匹配20位数字代码格式
 
         Returns:
             str: 发票号码，无则返回空字符串
         """
         # 策略1：匹配"发票号码:"字段
-        code_pattern = r'发票号码[:：]\s*(\d{10,12})'
+        code_pattern = r'发票号码[:：]\s*(\d{20})'
         match = re.search(code_pattern, self._text)
         if match:
             return match.group(1).strip()
 
         # 策略2：匹配"代码:"字段
-        code_pattern = r'代码[:：]\s*(\d{10,12})'
+        code_pattern = r'代码[:：]\s*(\d{20})'
         match = re.search(code_pattern, self._text)
         if match:
             return match.group(1).strip()
 
-        # 策略3：匹配12位数字代码格式
-        code_pattern = r'\b(\d{12})\b'
+        # 策略3：匹配20位数字代码格式
+        code_pattern = r'\b(\d{20})\b'
         matches = re.findall(code_pattern, self._text)
         for code in matches:
             if code.startswith(('0', '1')):
