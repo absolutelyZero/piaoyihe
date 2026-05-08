@@ -136,20 +136,49 @@ class PDFHandler:
 
                         # 显示页面到目标矩形
                         if mode == '图像':
-                            # 图像模式：使用矩阵变换
+                           # 图像模式：先转换为图片再插入
+                            src_page = doc[i]
+                            # 渲染页面为图片（高分辨率）
+                            pix = src_page.get_pixmap(dpi=150)
+                            
+                            # 如果需要旋转90度，创建旋转后的图片
                             if rotate == 90:
-                                # 创建旋转矩阵
-                                mat = fitz.Matrix(0, scale, -scale, 0, 0, 0)
-                            else:
-                                mat = fitz.Matrix(scale, 0, 0, scale, 0, 0)
-
-                            # 使用show_pdf_page替代，更可靠
-                            current_page.show_pdf_page(
-                                target_rect,
-                                doc,
-                                i,
-                                rotate=rotate
-                            )
+                                # 使用Pixmap的旋转方法（创建新的旋转后的pixmap）
+                                from PIL import Image
+                                import io
+                                
+                                # 将pixmap转换为PIL Image
+                                img_data = pix.tobytes("png")
+                                pil_img = Image.open(io.BytesIO(img_data))
+                                # 旋转90度（逆时针）
+                                pil_img = pil_img.rotate(90, expand=True)
+                                # 转换回bytes
+                                img_buffer = io.BytesIO()
+                                pil_img.save(img_buffer, format='PNG')
+                                img_buffer.seek(0)
+                                # 创建新的pixmap
+                                pix = fitz.Pixmap(img_buffer)
+                            
+                            img_width = pix.width
+                            img_height = pix.height
+                            
+                            scale_x = (cell_width - gap) / img_width
+                            scale_y = (cell_height - gap) / img_height
+                            scale = min(scale_x, scale_y)
+                            
+                            final_width = img_width * scale
+                            final_height = img_height * scale
+                            
+                            # 计算居中位置（与普通模式保持一致）
+                            # img_x = center_x + (scaled_width - final_width) / 2
+                            # img_y = center_y + (scaled_height - final_height) / 2
+                            
+                            # # 创建图像矩形
+                            # img_rect = fitz.Rect(img_x, img_y, img_x + final_width, img_y + final_height)
+                            
+                            # 插入图像
+                            current_page.insert_image(target_rect, pixmap=pix)
+                        
                         else:
                             # 普通模式：直接嵌入页面
                             current_page.show_pdf_page(
