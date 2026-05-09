@@ -188,62 +188,62 @@ class PDFHandler:
                                 rotate=rotate
                             )
 
-                        # 额外复制注释对象（包括监制章）
-                        src_page = doc[i]
-                        annotations = list(src_page.annots()) if src_page.annots() else []
-                        print(f"找到 {len(annotations)} 个注释对象")
-                        for annot_idx, annot in enumerate(annotations):
-                            try:
-                                print(f"  注释 {annot_idx + 1}: 类型={annot.type}, 位置={annot.rect}")
+                            # 额外复制注释对象（包括监制章）
+                            src_page = doc[i]
+                            annotations = list(src_page.annots()) if src_page.annots() else []
+                            print(f"找到 {len(annotations)} 个注释对象")
+                            for annot_idx, annot in enumerate(annotations):
+                                try:
+                                    print(f"  注释 {annot_idx + 1}: 类型={annot.type}, 位置={annot.rect}")
 
-                                # 只处理Stamp类型的注释（监制章）
-                                if annot.type[0] != 13:  # 13对应Stamp类型
-                                    print(f"  跳过非Stamp类型注释")
-                                    continue
+                                    # 只处理Stamp类型的注释（监制章）
+                                    if annot.type[0] != 13:  # 13对应Stamp类型
+                                        print(f"  跳过非Stamp类型注释")
+                                        continue
 
-                                # 方案B：将注释渲染为图片插入（最可靠）
-                                # 直接渲染注释区域为图片
-                                pix = src_page.get_pixmap(dpi=450, clip=annot.rect)
+                                    # 方案B：将注释渲染为图片插入（最可靠）
+                                    # 直接渲染注释区域为图片
+                                    pix = src_page.get_pixmap(dpi=450, clip=annot.rect)
 
-                                # 处理90度旋转
-                                if rotate == 90:
-                                    # 先旋转图片
-                                    from PIL import Image
-                                    import io
-                                    # 将pixmap转为PIL Image
-                                    img_data = pix.tobytes("png")
-                                    pil_img = Image.open(io.BytesIO(img_data))
-                                    # 旋转90度（逆时针）
-                                    pil_img = pil_img.rotate(90, expand=True)
-                                    # 转回bytes
-                                    img_buffer = io.BytesIO()
-                                    pil_img.save(img_buffer, format='PNG')
-                                    img_buffer.seek(0)
-                                    # 创建新的pixmap
-                                    pix = fitz.Pixmap(img_buffer)
+                                    # 处理90度旋转
+                                    if rotate == 90:
+                                        # 先旋转图片
+                                        from PIL import Image
+                                        import io
+                                        # 将pixmap转为PIL Image
+                                        img_data = pix.tobytes("png")
+                                        pil_img = Image.open(io.BytesIO(img_data))
+                                        # 旋转90度（逆时针）
+                                        pil_img = pil_img.rotate(90, expand=True)
+                                        # 转回bytes
+                                        img_buffer = io.BytesIO()
+                                        pil_img.save(img_buffer, format='PNG')
+                                        img_buffer.seek(0)
+                                        # 创建新的pixmap
+                                        pix = fitz.Pixmap(img_buffer)
 
-                                    # 计算旋转后的坐标（逆时针旋转90度）
-                                    # 原始坐标：(x0,y0) -> (y0, src_rect.width - x1)
-                                    new_x0 = x + offset_x + (annot.rect.y0) * scale
-                                    new_y0 = y + offset_y + (src_rect.width - annot.rect.x1) * scale
-                                    new_x1 = x + offset_x + (annot.rect.y1) * scale
-                                    new_y1 = y + offset_y + (src_rect.width - annot.rect.x0) * scale
-                                    new_rect = fitz.Rect(new_x0, new_y0, new_x1, new_y1)
-                                else:
-                                    # 调整注释位置以匹配缩放
-                                    new_x0 = x + offset_x + annot.rect.x0 * scale
-                                    new_y0 = y + offset_y + annot.rect.y0 * scale
-                                    new_x1 = x + offset_x + annot.rect.x1 * scale
-                                    new_y1 = y + offset_y + annot.rect.y1 * scale
-                                    new_rect = fitz.Rect(new_x0, new_y0, new_x1, new_y1)
+                                        # 计算旋转后的坐标（逆时针旋转90度）
+                                        # 原始坐标：(x0,y0) -> (y0, src_rect.width - x1)
+                                        new_x0 = x + offset_x + (annot.rect.y0) * scale
+                                        new_y0 = y + offset_y + (src_rect.width - annot.rect.x1) * scale
+                                        new_x1 = x + offset_x + (annot.rect.y1) * scale
+                                        new_y1 = y + offset_y + (src_rect.width - annot.rect.x0) * scale
+                                        new_rect = fitz.Rect(new_x0, new_y0, new_x1, new_y1)
+                                    else:
+                                        # 调整注释位置以匹配缩放
+                                        new_x0 = x + offset_x + annot.rect.x0 * scale
+                                        new_y0 = y + offset_y + annot.rect.y0 * scale
+                                        new_x1 = x + offset_x + annot.rect.x1 * scale
+                                        new_y1 = y + offset_y + annot.rect.y1 * scale
+                                        new_rect = fitz.Rect(new_x0, new_y0, new_x1, new_y1)
 
-                                print(f"  调整后位置: {new_rect}")
-                                # 插入渲染后的图片
-                                current_page.insert_image(new_rect, pixmap=pix)
-                                print(f"  成功将注释渲染为图片插入")
+                                    print(f"  调整后位置: {new_rect}")
+                                    # 插入渲染后的图片
+                                    current_page.insert_image(new_rect, pixmap=pix)
+                                    print(f"  成功将注释渲染为图片插入")
 
-                            except Exception as e:
-                                print(f"处理注释失败: {str(e)}")
+                                except Exception as e:
+                                    print(f"处理注释失败: {str(e)}")
 
                         page_count += 1
 
