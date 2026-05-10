@@ -6,3 +6,8 @@ code/ui/__pycache__/**
 gzh/**
 skills/wechat-editor/SKILL.md
 .gitignore
+code/core/__pycache__/pdf_handler.cpython-39.pyc
+code/core/__pycache__/update_checker.cpython-39.pyc
+code/config.json
+**/__pycache__/**
+code/ui/__pycache__/**
