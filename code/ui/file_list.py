@@ -440,13 +440,18 @@ class FileListPanel(QWidget):
         show_in_folder_action = QAction("📁 在文件夹中显示", self)
         show_in_folder_action.triggered.connect(lambda: self._show_in_folder(data_row))
         menu.addAction(show_in_folder_action)
-        
-        menu.addSeparator()
-        
+
         # 添加"删除"动作
         delete_action = QAction("🗑️ 删除", self)
         delete_action.triggered.connect(self.delete_selected)
         menu.addAction(delete_action)
+                
+        menu.addSeparator()
+
+        # 添加"导出"动作
+        export_action = QAction("📤 导出列表", self)
+        export_action.triggered.connect(lambda: self._export_file(data_row))
+        menu.addAction(export_action)
         
         # 显示菜单
         menu.exec(self.table.viewport().mapToGlobal(position))
@@ -996,7 +1001,7 @@ class FileListPanel(QWidget):
     def clear(self):
         """
         清空文件列表
-        
+
         功能描述:
             清空所有文件和表格内容
         """
@@ -1004,3 +1009,89 @@ class FileListPanel(QWidget):
         self.table.setRowCount(0)
         self._duplicate_codes = set()
         self.duplicate_count_changed.emit(0)
+
+    def _export_file(self, row):
+        """
+        导出文件列表到Excel
+
+        功能描述:
+            将文件列表导出为Excel文件，并标记重复的发票数据为黄色高亮
+
+        参数:
+            row: 触发导出的行索引（当前未使用，导出整个列表）
+        """
+        from openpyxl import Workbook
+        from openpyxl.styles import PatternFill
+        from PySide6.QtWidgets import QFileDialog
+
+        if not self.files:
+            return
+
+        # 生成默认文件名：发票列表-{日期}.xlsx
+        from datetime import datetime
+        today = datetime.now().strftime("%Y年%m月%d日")
+        default_filename = f"发票列表-{today}.xlsx"
+
+        # 选择保存路径
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "导出Excel文件",
+            default_filename,
+            "Excel文件 (*.xlsx)"
+        )
+
+        if not file_path:
+            return
+
+        try:
+            # 创建工作簿
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "发票列表"
+
+            # 设置表头（不包含预览列）
+            headers = ["发票代码", "文件名", "金额", "发票日期", "文件路径", "修改时间", "大小"]
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col, value=header)
+                cell.font = cell.font.copy(bold=True)
+
+            # 创建黄色填充样式
+            yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+
+            # 写入数据
+            for row_idx, file_info in enumerate(self.files, 2):
+                # 获取发票代码
+                invoice_code = file_info.get('invoice_code', '')
+
+                # 检查是否为重复数据
+                is_duplicate = invoice_code in self._duplicate_codes and invoice_code != ""
+
+                # 写入数据（列号从1开始，预览列已删除）
+                ws.cell(row=row_idx, column=1, value=invoice_code)
+                ws.cell(row=row_idx, column=2, value=file_info.get('name', ''))
+                ws.cell(row=row_idx, column=3, value=file_info.get('amount', ''))
+                ws.cell(row=row_idx, column=4, value=file_info.get('invoice_date', ''))
+                ws.cell(row=row_idx, column=5, value=file_info.get('path', ''))
+                ws.cell(row=row_idx, column=6, value=file_info.get('mod_time', ''))
+                ws.cell(row=row_idx, column=7, value=file_info.get('size', ''))
+
+                # 如果是重复数据，应用黄色高亮（1-7列）
+                if is_duplicate:
+                    for col in range(1, 8):
+                        ws.cell(row=row_idx, column=col).fill = yellow_fill
+
+            # 调整列宽（预览列已删除）
+            ws.column_dimensions['A'].width = 20
+            ws.column_dimensions['B'].width = 30
+            ws.column_dimensions['C'].width = 12
+            ws.column_dimensions['D'].width = 15
+            ws.column_dimensions['E'].width = 50
+            ws.column_dimensions['F'].width = 20
+            ws.column_dimensions['G'].width = 12
+
+            # 保存文件
+            wb.save(file_path)
+
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "导出失败", f"导出Excel文件时出错：\n{str(e)}")
