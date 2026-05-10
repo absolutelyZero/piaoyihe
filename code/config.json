@@ -1,11 +1,10 @@
 {
   "layout": "横向2x2",
   "mode": "普通",
-  "order": "列表顺序",
-  "print_checkbox": false,
+  "print_checkbox": true,
   "ignored_version": "0.1.3",
   "save_path": "",
   "sort_by": "list",
-  "output_path": "D:/minipro/piaoyihe/piaoyihe_test\\output.pdf",
+  "output_path": "/Users/xieyonggao/Documents/self/minipro/test/piaoyihe_test/output.pdf",
   "rename_rule": "{发票类型}-{商品类型}-{开票日期}-{买方名字}-{销方名字}-{金额}"
 }
