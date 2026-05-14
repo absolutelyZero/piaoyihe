@@ -1907,14 +1907,24 @@ class MainWindow(QMainWindow):
         参数:
             count: 重复发票号码的数量
         """
+        # 获取文件数量和总金额
+        file_count = self.file_list.table.rowCount()
+        total_amount = 0.0
+        for row in range(file_count):
+            amount_item = self.file_list.table.item(row, 3)
+            if amount_item:
+                amount = amount_item.data(Qt.ItemDataRole.UserRole)
+                if amount and isinstance(amount, (int, float)):
+                    total_amount += amount
+
         if count > 0:
-            self.file_list_label.setText(f"文件列表  重复发票数量：{count}")
+            self.file_list_label.setText(f"文件列表  文件数量:{file_count}  总金额:{total_amount:.2f}  重复发票数量:{count}")
             # 设置警告颜色（橙色）
             self.file_list_label.setStyleSheet(
                 f"font-size: 14px; font-weight: bold; color: #FF9800; background: transparent; border: none;"
             )
         else:
-            self.file_list_label.setText("文件列表")
+            self.file_list_label.setText(f"文件列表  文件数量:{file_count}  总金额:{total_amount:.2f}")
             # 恢复默认颜色
             self.file_list_label.setStyleSheet(
                 f"font-size: 14px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;"
