@@ -622,7 +622,7 @@ class MainWindow(QMainWindow):
         
         # 初始化预览相关变量
         self.preview_pixmaps = []  # 存储所有页面的pixmap
-        self.preview_scale = 1.0   # 当前缩放比例
+        self.preview_scale = 0.8   # 当前缩放比例
         self.preview_labels = []   # 存储所有预览标签
         
         # 启用鼠标滚轮事件
@@ -1163,7 +1163,7 @@ class MainWindow(QMainWindow):
         
         # 初始化预览相关变量
         self.preview_pixmaps = []
-        self.preview_scale = 1.0
+        self.preview_scale = 0.8
         self.preview_labels = []
         
         # 启用鼠标滚轮事件
@@ -1310,6 +1310,20 @@ class MainWindow(QMainWindow):
         QGuiApplication.processEvents()
         
         try:
+            # 先切换到预览页面，确保viewport宽度计算正确
+            self.preview_stack.setCurrentIndex(1)
+            QGuiApplication.processEvents()
+
+            # 使用viewport宽度计算预览尺寸（viewport是实际可显示区域，不包含滚动条）
+            # preview_container的宽度会随内容变化，导致预览尺寸越来越小
+            viewport_width = self.preview_scroll.viewport().width()
+            scroll_width = self.preview_scroll.width()
+            print(f"[调试] viewport_width: {viewport_width}, scroll_width: {scroll_width}")
+            # 如果viewport宽度为0或过大（初始化时窗口可能未布局完成），使用一个合理的默认值
+            if viewport_width <= 0 or viewport_width > 2000:
+                viewport_width = 600  # 使用一个合理的默认宽度
+                print(f"[调试] 使用默认宽度: {viewport_width}")
+
             # 清除旧的预览内容（包括页面容器和标签）
             while self.preview_layout.count() > 0:
                 item = self.preview_layout.takeAt(0)
@@ -1323,8 +1337,8 @@ class MainWindow(QMainWindow):
             # 重置缩放比例
             self._reset_preview_zoom()
             
-            # 生成所有页面的预览图像
-            pixmaps = self._generate_preview_images()
+            # 生成所有页面的预览图像（使用viewport宽度确保尺寸稳定）
+            pixmaps = self._generate_preview_images(viewport_width)
             
             if pixmaps:
                 self.preview_pixmaps = pixmaps
@@ -1374,14 +1388,18 @@ class MainWindow(QMainWindow):
         
         self.refresh_preview_btn.setEnabled(True)
     
-    def _generate_preview_images(self):
+    def _generate_preview_images(self, viewport_width=None):
         """
         生成所有页面的预览图像
-        
+
         功能描述:
             使用PDFHandler合并PDF文件，应用与实际合并相同的布局设置
             生成高清晰度的预览图像，确保与实际合并效果一致
-        
+
+        参数:
+            viewport_width: 可选，指定viewport宽度用于计算预览尺寸，
+                           如果不提供则使用 preview_scroll.viewport() 的当前宽度
+
         返回值:
             list: 所有页面的QPixmap列表，如果失败则返回空列表
         """
@@ -1428,12 +1446,14 @@ class MainWindow(QMainWindow):
                 
                 if len(doc) > 0:
                     # 预览区域可用大小（按宽度自适应）
-                    available_width = self.preview_container.width() - 40
-                    
+                    # 使用传入的viewport宽度计算，减去边距
+                    if viewport_width and viewport_width > 0:
+                        available_width = viewport_width - 40  # 减去边距
+                    else:
+                        available_width = self.preview_scroll.viewport().width() - 40
+
                     if available_width <= 0:
-                        available_width = self.preview_scroll.width() - 60
-                    if available_width <= 0:
-                        available_width = 500
+                        available_width = 560
                     
                     # 获取第一页的尺寸
                     first_page = doc[0]
@@ -1444,7 +1464,8 @@ class MainWindow(QMainWindow):
                     # 计算目标显示尺寸（按宽度自适应）
                     target_width = int(available_width * 0.95)
                     target_height = int(target_width * page_height_pt / page_width_pt)
-                    
+                    print(f"[调试] available_width: {available_width}, target_width: {target_width}")
+
                     # 限制最大高度
                     max_height = 800
                     if target_height > max_height:
@@ -1477,7 +1498,8 @@ class MainWindow(QMainWindow):
                             Qt.AspectRatioMode.KeepAspectRatio,
                             Qt.TransformationMode.SmoothTransformation
                         )
-                        
+                        print(f"[调试] 生成pixmap尺寸: {pixmap.width()}x{pixmap.height()}")
+
                         pixmaps.append(pixmap)
                     
                     doc.close()
@@ -1885,14 +1907,24 @@ class MainWindow(QMainWindow):
         参数:
             count: 重复发票号码的数量
         """
+        # 获取文件数量和总金额
+        file_count = self.file_list.table.rowCount()
+        total_amount = 0.0
+        for row in range(file_count):
+            amount_item = self.file_list.table.item(row, 3)
+            if amount_item:
+                amount = amount_item.data(Qt.ItemDataRole.UserRole)
+                if amount and isinstance(amount, (int, float)):
+                    total_amount += amount
+
         if count > 0:
-            self.file_list_label.setText(f"文件列表  重复发票数量：{count}")
+            self.file_list_label.setText(f"文件列表  文件数量:{file_count}  总金额:{total_amount:.2f}  重复发票数量:{count}")
             # 设置警告颜色（橙色）
             self.file_list_label.setStyleSheet(
                 f"font-size: 14px; font-weight: bold; color: #FF9800; background: transparent; border: none;"
             )
         else:
-            self.file_list_label.setText("文件列表")
+            self.file_list_label.setText(f"文件列表  文件数量:{file_count}  总金额:{total_amount:.2f}")
             # 恢复默认颜色
             self.file_list_label.setStyleSheet(
                 f"font-size: 14px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;"
@@ -1997,7 +2029,7 @@ class MainWindow(QMainWindow):
     def _load_config(self):
         """
         加载配置
-        
+
         功能描述:
             从配置文件加载用户设置
         """
@@ -2005,9 +2037,9 @@ class MainWindow(QMainWindow):
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                
+
                 # 加载布局设置
-                layout = config.get('layout', '竖向1x2')
+                layout = config.get('layout', '横向2x2')
                 if layout == '竖向1x2':
                     self.radio_1x2.setChecked(True)
                 elif layout == '竖向1x3':
@@ -2016,28 +2048,51 @@ class MainWindow(QMainWindow):
                     self.radio_2x4.setChecked(True)
                 else:
                     self.radio_2x2.setChecked(True)
-                
-                # 加载排序设置
-                sort_by = config.get('order', 0)
-                if 0 <= sort_by < self.order_combo.count():
-                    self.order_combo.setCurrentIndex(sort_by)
-                
+
+                # 加载模式设置
+                mode = config.get('mode', '普通')
+                mode_index = self.mode_combo.findText(mode)
+                if mode_index >= 0:
+                    self.mode_combo.setCurrentIndex(mode_index)
+
+                # 加载排序设置 - 支持字符串值和旧版的索引值
+                sort_by = config.get('sort_by', 'list')
+                # 兼容旧版配置（使用索引）
+                if isinstance(sort_by, int):
+                    if 0 <= sort_by < self.order_combo.count():
+                        self.order_combo.setCurrentIndex(sort_by)
+                else:
+                    # 新版使用字符串值
+                    sort_map_reverse = {
+                        'list': '列表顺序',
+                        'date': '开票日期',
+                        'amount': '开票金额'
+                    }
+                    sort_text = sort_map_reverse.get(sort_by, '列表顺序')
+                    sort_index = self.order_combo.findText(sort_text)
+                    if sort_index >= 0:
+                        self.order_combo.setCurrentIndex(sort_index)
+
+                # 加载合并后打印设置
+                print_checkbox = config.get('print_checkbox', False)
+                self.print_checkbox.setChecked(print_checkbox)
+
                 # 加载输出路径
                 output_path = config.get('output_path', '')
                 if output_path:
                     self.path_edit.setText(output_path)
-                
+
                 # 版本号从 version.json 读取，不在 config.json 中存储
                 # 避免覆盖 _get_version() 获取的正确版本号
                 pass
-                
+
         except Exception as e:
             print(f"加载配置失败: {e}")
     
     def _save_config(self):
         """
         保存配置
-        
+
         功能描述:
             将当前用户设置保存到配置文件（增量更新，保留ignored_version）
         """
@@ -2047,21 +2102,23 @@ class MainWindow(QMainWindow):
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-            
+
             # 更新配置
             config['layout'] = self._get_current_layout()
+            config['mode'] = self.mode_combo.currentText()
             config['sort_by'] = self._get_current_sort_by()
+            config['print_checkbox'] = self.print_checkbox.isChecked()
             config['output_path'] = self.path_edit.text().strip()
-            
+
             # 确保配置目录存在
             config_dir = os.path.dirname(CONFIG_FILE)
             if config_dir and not os.path.exists(config_dir):
                 os.makedirs(config_dir)
-            
+
             # 保存配置
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
-                
+
         except Exception as e:
             print(f"保存配置失败: {e}")
     
@@ -2167,8 +2224,12 @@ class MainWindow(QMainWindow):
         if not self.preview_pixmaps:
             return
         
+        print("缩放因子:" , factor)
+        
         # 计算新的缩放比例
         new_scale = self.preview_scale * factor
+        
+        print("新的缩放比例:" , new_scale)
         
         # 限制缩放范围（0.1到5倍）
         if new_scale < 0.1:
@@ -2199,7 +2260,9 @@ class MainWindow(QMainWindow):
         """
         重置预览缩放比例
         """
-        self.preview_scale = 1.0
+        print("重置预览缩放比例:" , self.preview_scale)
+
+        self.preview_scale = 0.8
     
     def closeEvent(self, event):
         """

@@ -52,9 +52,9 @@
 - Windows 打包：`package_win.bat`
 - macOS 打包：`package_macos.sh`
 
-#### 安装包获取
+#### 联系我们
 
-关注公众号，私信“票易合”自动回复下载地址。
+如果有问题，欢迎关注公众号并私信
 
 ![公众号二维码](code/res/qrcode.jpg)
 
