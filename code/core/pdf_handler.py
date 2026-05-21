@@ -360,11 +360,24 @@ class PDFHandler:
         解析布局配置
 
         Args:
-            layout: 布局类型字符串
+            layout: 布局类型字符串或字典
 
         Returns:
             dict: 布局配置
         """
+        # 如果传入的是字典，直接使用
+        if isinstance(layout, dict):
+            # 确保必要的键存在
+            default_config = {
+                'orientation': 'portrait',
+                'rows': 2,
+                'cols': 2,
+                'rotate': 0
+            }
+            default_config.update(layout)
+            return default_config
+        
+        # 字符串格式的布局配置（兼容旧版）
         layout_map = {
             # 新格式（不带空格）
             # 横向布局：A4纸横向，发票保持横向不旋转
