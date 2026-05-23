@@ -947,30 +947,20 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(rename_ops_layout)
         
-        # 添加分隔线（重命名与合并之间）
+        # 添加分隔线（重命名与一式两份之间）
         separator3 = QFrame()
         separator3.setFrameShape(QFrame.Shape.VLine)
         separator3.setStyleSheet(f"background-color: {BORDER_COLOR};")
         separator3.setFixedWidth(1)
         layout.addWidget(separator3)
         
-        # ========== 主要操作组（合并、打印）==========
-        main_ops_layout = QHBoxLayout()
-        main_ops_layout.setSpacing(10)
+        # ========== 一式两份配置 ==========
+        self.duplicate_copy_checkbox = QCheckBox("📄 一式两份")
+        self.duplicate_copy_checkbox.setToolTip("合并时生成两份相同的文件")
+        self.duplicate_copy_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
+        self.duplicate_copy_checkbox.stateChanged.connect(self._on_duplicate_copy_changed)
+        layout.addWidget(self.duplicate_copy_checkbox)
         
-        self.merge_btn = QPushButton("🔀 合并")
-        self.merge_btn.setObjectName("primaryButton")
-        self.merge_btn.setToolTip("合并所有文件并保存")
-        self.merge_btn.setMinimumWidth(100)
-        self.merge_btn.clicked.connect(self._on_merge_all)
-        main_ops_layout.addWidget(self.merge_btn)
-        
-        self.print_checkbox = QCheckBox("🖨️ 合并后打印")
-        self.print_checkbox.setToolTip("合并后自动打印")
-        self.print_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
-        main_ops_layout.addWidget(self.print_checkbox)
-        
-        layout.addLayout(main_ops_layout)
         layout.addStretch()
         
         return card
@@ -1108,6 +1098,27 @@ class MainWindow(QMainWindow):
         self.select_path_btn.clicked.connect(self._on_select_path)
         path_input_layout.addWidget(self.select_path_btn)
         
+        # 添加分隔线（浏览与合并之间）
+        separator_merge = QFrame()
+        separator_merge.setFrameShape(QFrame.Shape.VLine)
+        separator_merge.setStyleSheet(f"background-color: {BORDER_COLOR};")
+        separator_merge.setFixedWidth(1)
+        path_input_layout.addWidget(separator_merge)
+        
+        # 合并按钮
+        self.merge_btn = QPushButton("🔀 合并")
+        self.merge_btn.setObjectName("primaryButton")
+        self.merge_btn.setToolTip("合并所有文件并保存")
+        self.merge_btn.setMinimumWidth(100)
+        self.merge_btn.clicked.connect(self._on_merge_all)
+        path_input_layout.addWidget(self.merge_btn)
+        
+        # 合并后打印复选框
+        self.print_checkbox = QCheckBox("🖨️ 合并后打印")
+        self.print_checkbox.setToolTip("合并后自动打印")
+        self.print_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
+        path_input_layout.addWidget(self.print_checkbox)
+        
         bottom_layout.addLayout(path_input_layout)
         
         # 版本号（底部）
@@ -1169,32 +1180,32 @@ class MainWindow(QMainWindow):
         preview_header.addStretch()
         
         # 预览开关
-        self.preview_checkbox = QCheckBox("启用预览")
-        self.preview_checkbox.setToolTip("关闭后不再渲染预览，提升性能")
-        self.preview_checkbox.setChecked(True)
-        self.preview_checkbox.stateChanged.connect(self._on_preview_checkbox_changed)
-        self.preview_checkbox.setStyleSheet(f"""
-            QCheckBox {{
-                font-size: 12px;
-                color: {TEXT_PRIMARY};
-                spacing: 4px;
-            }}
-            QCheckBox::indicator {{
-                width: 14px;
-                height: 14px;
-                border-radius: 3px;
-                border: 2px solid {TEXT_MUTED};
-                background-color: {CARD_BG};
-            }}
-            QCheckBox::indicator:checked {{
-                border-color: {PRIMARY_COLOR};
-                background-color: {PRIMARY_COLOR};
-            }}
-            QCheckBox::indicator:hover {{
-                border-color: {PRIMARY_COLOR};
-            }}
-        """)
-        preview_header.addWidget(self.preview_checkbox)
+        # self.preview_checkbox = QCheckBox("启用预览")
+        # self.preview_checkbox.setToolTip("关闭后不再渲染预览，提升性能")
+        # self.preview_checkbox.setChecked(True)
+        # self.preview_checkbox.stateChanged.connect(self._on_preview_checkbox_changed)
+        # self.preview_checkbox.setStyleSheet(f"""
+        #     QCheckBox {{
+        #         font-size: 12px;
+        #         color: {TEXT_PRIMARY};
+        #         spacing: 4px;
+        #     }}
+        #     QCheckBox::indicator {{
+        #         width: 14px;
+        #         height: 14px;
+        #         border-radius: 3px;
+        #         border: 2px solid {TEXT_MUTED};
+        #         background-color: {CARD_BG};
+        #     }}
+        #     QCheckBox::indicator:checked {{
+        #         border-color: {PRIMARY_COLOR};
+        #         background-color: {PRIMARY_COLOR};
+        #     }}
+        #     QCheckBox::indicator:hover {{
+        #         border-color: {PRIMARY_COLOR};
+        #     }}
+        # """)
+        # preview_header.addWidget(self.preview_checkbox)
         
         # 刷新预览按钮
         self.refresh_preview_btn = QPushButton("🔄 刷新")
@@ -1424,6 +1435,22 @@ class MainWindow(QMainWindow):
         
         # 保存配置
         self._save_config()
+
+    def _on_duplicate_copy_changed(self, state):
+        """
+        一式两份选项状态改变时的处理
+        
+        功能描述:
+            当用户切换一式两份选项时，保存配置并刷新预览
+        
+        参数:
+            state: 复选框状态
+        """
+        # 保存配置
+        self._save_config()
+        
+        # 刷新预览
+        self._update_preview()
     
     def _update_preview(self):
         """
@@ -1570,6 +1597,10 @@ class MainWindow(QMainWindow):
                 files_to_preview = files
             else:
                 files_to_preview = self.file_list.get_sorted_files(sort_by)
+            
+            # 如果勾选了一式两份，将每个文件复制一份
+            if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
+                files_to_preview = [f for f in files_to_preview for _ in range(2)]
             
             # 创建临时文件
             import tempfile
@@ -1770,6 +1801,10 @@ class MainWindow(QMainWindow):
             else:
                 sorted_files = self.file_list.get_sorted_files(sort_by)
             
+            # 如果勾选了一式两份，将每个文件复制一份
+            if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
+                sorted_files = [f for f in sorted_files for _ in range(2)]
+            
             # 执行合并
             result = self.pdf_handler.merge_pdfs(
                 sorted_files,
@@ -1851,6 +1886,10 @@ class MainWindow(QMainWindow):
                 sorted_files = files
             else:
                 sorted_files = self.file_list.get_sorted_files(sort_by)
+            
+            # 如果勾选了一式两份，将每个文件复制一份
+            if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
+                sorted_files = [f for f in sorted_files for _ in range(2)]
             
             self.pdf_handler.merge_pdfs(
                 sorted_files,
@@ -2262,6 +2301,11 @@ class MainWindow(QMainWindow):
                 print_checkbox = config.get('print_checkbox', False)
                 self.print_checkbox.setChecked(print_checkbox)
 
+                # 加载一式两份设置
+                duplicate_copy = config.get('duplicate_copy', False)
+                if hasattr(self, 'duplicate_copy_checkbox'):
+                    self.duplicate_copy_checkbox.setChecked(duplicate_copy)
+
                 # 加载输出路径
                 output_path = config.get('output_path', '')
                 if output_path:
@@ -2301,6 +2345,7 @@ class MainWindow(QMainWindow):
             config['mode'] = self.mode_combo.currentText()
             config['sort_by'] = self._get_current_sort_by()
             config['print_checkbox'] = self.print_checkbox.isChecked()
+            config['duplicate_copy'] = self.duplicate_copy_checkbox.isChecked()
             config['output_path'] = self.path_edit.text().strip()
             
             # 保存预览开关设置
