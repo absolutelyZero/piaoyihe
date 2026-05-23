@@ -1106,7 +1106,7 @@ class MainWindow(QMainWindow):
         self.duplicate_copy_checkbox.setToolTip("合并时生成两份相同的文件")
         self.duplicate_copy_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
         self.duplicate_copy_checkbox.stateChanged.connect(self._on_duplicate_copy_changed)
-        self.duplicate_copy_checkbox.setMinimumWidth(90)
+        self.duplicate_copy_checkbox.setMinimumWidth(80)
         path_input_layout.addWidget(self.duplicate_copy_checkbox)
         
         # 合并后打印复选框
