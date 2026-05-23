@@ -947,20 +947,6 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(rename_ops_layout)
         
-        # 添加分隔线（重命名与一式两份之间）
-        separator3 = QFrame()
-        separator3.setFrameShape(QFrame.Shape.VLine)
-        separator3.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator3.setFixedWidth(1)
-        layout.addWidget(separator3)
-        
-        # ========== 一式两份配置 ==========
-        self.duplicate_copy_checkbox = QCheckBox("📄 一式两份")
-        self.duplicate_copy_checkbox.setToolTip("合并时生成两份相同的文件")
-        self.duplicate_copy_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
-        self.duplicate_copy_checkbox.stateChanged.connect(self._on_duplicate_copy_changed)
-        layout.addWidget(self.duplicate_copy_checkbox)
-        
         layout.addStretch()
         
         return card
@@ -995,11 +981,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(path_label)
         
         # 保存路径输入框
-        self.path_edit = QLineEdit()
-        self.path_edit.setObjectName("pathInput")
-        self.path_edit.setPlaceholderText("选择合并后的PDF保存位置...")
-        self.path_edit.setMinimumWidth(400)
-        layout.addWidget(self.path_edit, 1)
+        # self.path_edit = QLineEdit()
+        # self.path_edit.setObjectName("pathInput")
+        # self.path_edit.setPlaceholderText("选择合并后的PDF保存位置...")
+        # self.path_edit.setMinimumWidth(200)
+        # layout.addWidget(self.path_edit, 1)
         
         # 选择路径按钮
         self.select_path_btn = QPushButton("📂 浏览...")
@@ -1106,16 +1092,24 @@ class MainWindow(QMainWindow):
         path_input_layout.addWidget(separator_merge)
         
         # 合并按钮
-        self.merge_btn = QPushButton("🔀 合并")
+        self.merge_btn = QPushButton("合并")
         self.merge_btn.setObjectName("primaryButton")
         self.merge_btn.setToolTip("合并所有文件并保存")
         self.merge_btn.setMinimumWidth(100)
         self.merge_btn.clicked.connect(self._on_merge_all)
         path_input_layout.addWidget(self.merge_btn)
+
+                # ========== 一式两份配置 ==========
+        self.duplicate_copy_checkbox = QCheckBox("一式两份")
+        self.duplicate_copy_checkbox.setToolTip("合并时生成两份相同的文件")
+        self.duplicate_copy_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
+        self.duplicate_copy_checkbox.stateChanged.connect(self._on_duplicate_copy_changed)
+        self.duplicate_copy_checkbox.setMinimumWidth(90)
+        path_input_layout.addWidget(self.duplicate_copy_checkbox)
         
         # 合并后打印复选框
-        self.print_checkbox = QCheckBox("🖨️ 合并后打印")
-        self.print_checkbox.setToolTip("合并后自动打印")
+        self.print_checkbox = QCheckBox("合并后打印")
+        self.print_checkbox.setToolTip("合并后打开文件")
         self.print_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
         path_input_layout.addWidget(self.print_checkbox)
         
