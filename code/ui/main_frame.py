@@ -340,6 +340,7 @@ class MainWindow(QMainWindow):
             QRadioButton::indicator:checked {{
                 border-color: {PRIMARY_COLOR};
                 background-color: {PRIMARY_COLOR};
+                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIiBmaWxsPSJ3aGl0ZSI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjMiLz48L3N2Zz4=);
             }}
             
             QRadioButton::indicator:hover {{
@@ -364,6 +365,7 @@ class MainWindow(QMainWindow):
             QCheckBox::indicator:checked {{
                 border-color: {PRIMARY_COLOR};
                 background-color: {PRIMARY_COLOR};
+                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0yIDVsMiAyIDQtNCIvPjwvc3ZnPg==);
             }}
             
             QCheckBox::indicator:hover {{
