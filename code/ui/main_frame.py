@@ -949,6 +949,25 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(rename_ops_layout)
         
+        # 添加分隔线（重命名与导出列表之间）
+        separator_export = QFrame()
+        separator_export.setFrameShape(QFrame.Shape.VLine)
+        separator_export.setStyleSheet(f"background-color: {BORDER_COLOR};")
+        separator_export.setFixedWidth(1)
+        layout.addWidget(separator_export)
+        
+        # ========== 导出列表操作组 ==========
+        export_ops_layout = QHBoxLayout()
+        export_ops_layout.setSpacing(6)
+        
+        self.export_list_btn = QPushButton("📤 导出列表")
+        self.export_list_btn.setObjectName("iconButton")
+        self.export_list_btn.setToolTip("导出文件列表到Excel")
+        self.export_list_btn.clicked.connect(self._on_export_list)
+        export_ops_layout.addWidget(self.export_list_btn)
+        
+        layout.addLayout(export_ops_layout)
+        
         layout.addStretch()
         
         return card
@@ -1938,7 +1957,22 @@ class MainWindow(QMainWindow):
         dialog = RenameDialog(self, config_file=CONFIG_FILE)
         dialog.rename_executed.connect(self._perform_batch_rename)
         dialog.exec()
-    
+
+    def _on_export_list(self):
+        """
+        导出列表按钮点击处理
+
+        功能描述:
+            调用文件列表的导出方法，将文件列表导出到Excel
+        """
+        files = self.file_list.get_all_files()
+        if not files:
+            QMessageBox.warning(self, "警告", "请先添加PDF文件")
+            return
+
+        # 调用file_list的_export_file方法，传入-1表示导出整个列表
+        self.file_list._export_file()
+
     def _perform_batch_rename(self, rule):
         """
         执行批量重命名

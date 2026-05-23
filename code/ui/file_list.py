@@ -450,7 +450,7 @@ class FileListPanel(QWidget):
 
         # 添加"导出"动作
         export_action = QAction("📤 导出列表", self)
-        export_action.triggered.connect(lambda: self._export_file(data_row))
+        export_action.triggered.connect(lambda: self._export_file())
         menu.addAction(export_action)
         
         # 显示菜单
@@ -1010,7 +1010,7 @@ class FileListPanel(QWidget):
         self._duplicate_codes = set()
         self.duplicate_count_changed.emit(0)
 
-    def _export_file(self, row):
+    def _export_file(self):
         """
         导出文件列表到Excel
 
@@ -1091,6 +1091,10 @@ class FileListPanel(QWidget):
 
             # 保存文件
             wb.save(file_path)
+
+            # 导出成功提示
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "导出成功", f"文件列表已成功导出到：\n{file_path}")
 
         except Exception as e:
             from PySide6.QtWidgets import QMessageBox
