@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                 QComboBox, QGroupBox, QRadioButton, QButtonGroup,
                                 QFileDialog, QMessageBox, QDialog, QScrollArea,
                                 QSizePolicy, QFrame, QProgressBar, QSplitter,
-                                QTextEdit, QStackedWidget, QGridLayout)
+                                QTextEdit, QStackedWidget, QGridLayout, QSpinBox)
 from PySide6.QtCore import Qt, QUrl, QTimer, QSize
 from PySide6.QtGui import QGuiApplication, QDesktopServices, QCursor, QPixmap, QPainter, QImage, QIcon
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -340,6 +340,7 @@ class MainWindow(QMainWindow):
             QRadioButton::indicator:checked {{
                 border-color: {PRIMARY_COLOR};
                 background-color: {PRIMARY_COLOR};
+                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIiBmaWxsPSJ3aGl0ZSI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjMiLz48L3N2Zz4=);
             }}
             
             QRadioButton::indicator:hover {{
@@ -364,6 +365,7 @@ class MainWindow(QMainWindow):
             QCheckBox::indicator:checked {{
                 border-color: {PRIMARY_COLOR};
                 background-color: {PRIMARY_COLOR};
+                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0yIDVsMiAyIDQtNCIvPjwvc3ZnPg==);
             }}
             
             QCheckBox::indicator:hover {{
@@ -660,77 +662,146 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(12)
         
-        # ========== 布局选择区域 ==========
-        layout_container = QHBoxLayout()
-        layout_container.setSpacing(8)
+        # ========== 方向选择区域 ==========
+        orientation_container = QHBoxLayout()
+        orientation_container.setSpacing(8)
         
-        layout_icon = QLabel("🎨")
-        layout_icon.setStyleSheet("font-size: 13px; background: transparent; border: none;")
-        layout_container.addWidget(layout_icon)
+        orientation_icon = QLabel("🧭")
+        orientation_icon.setStyleSheet("font-size: 13px; background: transparent; border: none;")
+        orientation_container.addWidget(orientation_icon)
         
-        layout_title = QLabel("布局:")
-        layout_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        layout_container.addWidget(layout_title)
+        orientation_title = QLabel("布局:")
+        orientation_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
+        orientation_container.addWidget(orientation_title)
         
-        # 布局按钮组
-        self.layout_button_group = QButtonGroup(self)
+        # 方向按钮组
+        self.orientation_button_group = QButtonGroup(self)
         
-        layout_options = [
-            ("竖向1x2", "竖向1x2"),
-            ("竖向1x3", "竖向1x3"),
-            ("竖向2x4", "竖向2x4"),
-            ("横向2x2", "横向2x2")
-        ]
+        self.radio_portrait = QRadioButton("竖向")
+        self.radio_portrait.setToolTip("A4纸竖向排列")
+        self.radio_portrait.setMinimumWidth(50)
+        self.radio_portrait.setStyleSheet(f"""
+            QRadioButton {{
+                font-size: 11px;
+                font-weight: 500;
+                spacing: 3px;
+            }}
+            QRadioButton::indicator {{
+                width: 12px;
+                height: 12px;
+                border-radius: 6px;
+                border: 2px solid {TEXT_MUTED};
+                background-color: {CARD_BG};
+            }}
+            QRadioButton::indicator:checked {{
+                border-color: {PRIMARY_COLOR};
+                background-color: {PRIMARY_COLOR};
+            }}
+            QRadioButton::indicator:hover {{
+                border-color: {PRIMARY_COLOR};
+            }}
+            QRadioButton:checked {{
+                color: {PRIMARY_COLOR};
+                font-weight: bold;
+            }}
+        """)
+        self.orientation_button_group.addButton(self.radio_portrait)
+        orientation_container.addWidget(self.radio_portrait)
         
-        for i, (full_name, display_name) in enumerate(layout_options):
-            radio = QRadioButton(display_name)
-            radio.setToolTip(full_name)
-            radio.setMinimumWidth(65)
-            radio.setStyleSheet(f"""
-                QRadioButton {{
-                    font-size: 11px;
-                    font-weight: 500;
-                    spacing: 3px;
-                }}
-                QRadioButton::indicator {{
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 6px;
-                    border: 2px solid {TEXT_MUTED};
-                    background-color: {CARD_BG};
-                }}
-                QRadioButton::indicator:checked {{
-                    border-color: {PRIMARY_COLOR};
-                    background-color: {PRIMARY_COLOR};
-                }}
-                QRadioButton::indicator:hover {{
-                    border-color: {PRIMARY_COLOR};
-                }}
-                QRadioButton:checked {{
-                    color: {PRIMARY_COLOR};
-                    font-weight: bold;
-                }}
-            """)
-            self.layout_button_group.addButton(radio)
-            layout_container.addWidget(radio)
-            
-            if i == 0:
-                self.radio_1x2 = radio
-            elif i == 1:
-                self.radio_1x3 = radio
-            elif i == 2:
-                self.radio_2x4 = radio
-            else:
-                self.radio_2x2 = radio
+        self.radio_landscape = QRadioButton("横向")
+        self.radio_landscape.setToolTip("A4纸横向排列")
+        self.radio_landscape.setMinimumWidth(50)
+        self.radio_landscape.setStyleSheet(f"""
+            QRadioButton {{
+                font-size: 11px;
+                font-weight: 500;
+                spacing: 3px;
+            }}
+            QRadioButton::indicator {{
+                width: 12px;
+                height: 12px;
+                border-radius: 6px;
+                border: 2px solid {TEXT_MUTED};
+                background-color: {CARD_BG};
+            }}
+            QRadioButton::indicator:checked {{
+                border-color: {PRIMARY_COLOR};
+                background-color: {PRIMARY_COLOR};
+            }}
+            QRadioButton::indicator:hover {{
+                border-color: {PRIMARY_COLOR};
+            }}
+            QRadioButton:checked {{
+                color: {PRIMARY_COLOR};
+                font-weight: bold;
+            }}
+        """)
+        self.orientation_button_group.addButton(self.radio_landscape)
+        orientation_container.addWidget(self.radio_landscape)
         
-        self.radio_2x2.setChecked(True)
+        # 默认选中竖向
+        self.radio_portrait.setChecked(True)
         
-        self.radio_1x2.toggled.connect(lambda checked: checked and self._on_config_changed())
-        self.radio_1x3.toggled.connect(lambda checked: checked and self._on_config_changed())
-        self.radio_2x4.toggled.connect(lambda checked: checked and self._on_config_changed())
-        self.radio_2x2.toggled.connect(lambda checked: checked and self._on_config_changed())
+        self.radio_portrait.toggled.connect(lambda checked: checked and self._on_config_changed())
+        self.radio_landscape.toggled.connect(lambda checked: checked and self._on_config_changed())
         
-        layout.addLayout(layout_container)
+        layout.addLayout(orientation_container)
+        
+        # ========== 行列设置区域 ==========
+        grid_container = QHBoxLayout()
+        grid_container.setSpacing(8)
+        
+        # 行数输入框
+        row_label = QLabel("行")
+        row_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        grid_container.addWidget(row_label)
+        
+        self.row_spinbox = QSpinBox()
+        self.row_spinbox.setRange(1, 10)
+        self.row_spinbox.setValue(2)
+        self.row_spinbox.setFixedWidth(45)
+        self.row_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.row_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.row_spinbox.valueChanged.connect(self._on_config_changed)
+        grid_container.addWidget(self.row_spinbox)
+        
+        # 列数输入框
+        col_label = QLabel("列")
+        col_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        grid_container.addWidget(col_label)
+        
+        self.col_spinbox = QSpinBox()
+        self.col_spinbox.setRange(1, 10)
+        self.col_spinbox.setValue(2)
+        self.col_spinbox.setFixedWidth(45)
+        self.col_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.col_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.col_spinbox.valueChanged.connect(self._on_config_changed)
+        grid_container.addWidget(self.col_spinbox)
+        
+        layout.addLayout(grid_container)
         
         # 添加分隔线
         separator1 = QFrame()
@@ -878,30 +949,25 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(rename_ops_layout)
         
-        # 添加分隔线（重命名与合并之间）
-        separator3 = QFrame()
-        separator3.setFrameShape(QFrame.Shape.VLine)
-        separator3.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator3.setFixedWidth(1)
-        layout.addWidget(separator3)
+        # 添加分隔线（重命名与导出列表之间）
+        separator_export = QFrame()
+        separator_export.setFrameShape(QFrame.Shape.VLine)
+        separator_export.setStyleSheet(f"background-color: {BORDER_COLOR};")
+        separator_export.setFixedWidth(1)
+        layout.addWidget(separator_export)
         
-        # ========== 主要操作组（合并、打印）==========
-        main_ops_layout = QHBoxLayout()
-        main_ops_layout.setSpacing(10)
+        # ========== 导出列表操作组 ==========
+        export_ops_layout = QHBoxLayout()
+        export_ops_layout.setSpacing(6)
         
-        self.merge_btn = QPushButton("🔀 合并")
-        self.merge_btn.setObjectName("primaryButton")
-        self.merge_btn.setToolTip("合并所有文件并保存")
-        self.merge_btn.setMinimumWidth(100)
-        self.merge_btn.clicked.connect(self._on_merge_all)
-        main_ops_layout.addWidget(self.merge_btn)
+        self.export_list_btn = QPushButton("📤 导出列表")
+        self.export_list_btn.setObjectName("iconButton")
+        self.export_list_btn.setToolTip("导出文件列表到Excel")
+        self.export_list_btn.clicked.connect(self._on_export_list)
+        export_ops_layout.addWidget(self.export_list_btn)
         
-        self.print_checkbox = QCheckBox("🖨️ 合并后打印")
-        self.print_checkbox.setToolTip("合并后自动打印")
-        self.print_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
-        main_ops_layout.addWidget(self.print_checkbox)
+        layout.addLayout(export_ops_layout)
         
-        layout.addLayout(main_ops_layout)
         layout.addStretch()
         
         return card
@@ -936,11 +1002,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(path_label)
         
         # 保存路径输入框
-        self.path_edit = QLineEdit()
-        self.path_edit.setObjectName("pathInput")
-        self.path_edit.setPlaceholderText("选择合并后的PDF保存位置...")
-        self.path_edit.setMinimumWidth(400)
-        layout.addWidget(self.path_edit, 1)
+        # self.path_edit = QLineEdit()
+        # self.path_edit.setObjectName("pathInput")
+        # self.path_edit.setPlaceholderText("选择合并后的PDF保存位置...")
+        # self.path_edit.setMinimumWidth(200)
+        # layout.addWidget(self.path_edit, 1)
         
         # 选择路径按钮
         self.select_path_btn = QPushButton("📂 浏览...")
@@ -1039,6 +1105,35 @@ class MainWindow(QMainWindow):
         self.select_path_btn.clicked.connect(self._on_select_path)
         path_input_layout.addWidget(self.select_path_btn)
         
+        # 添加分隔线（浏览与合并之间）
+        separator_merge = QFrame()
+        separator_merge.setFrameShape(QFrame.Shape.VLine)
+        separator_merge.setStyleSheet(f"background-color: {BORDER_COLOR};")
+        separator_merge.setFixedWidth(1)
+        path_input_layout.addWidget(separator_merge)
+        
+        # 合并按钮
+        self.merge_btn = QPushButton("合并")
+        self.merge_btn.setObjectName("primaryButton")
+        self.merge_btn.setToolTip("合并所有文件并保存")
+        self.merge_btn.setMinimumWidth(100)
+        self.merge_btn.clicked.connect(self._on_merge_all)
+        path_input_layout.addWidget(self.merge_btn)
+
+                # ========== 一式两份配置 ==========
+        self.duplicate_copy_checkbox = QCheckBox("一式两份")
+        self.duplicate_copy_checkbox.setToolTip("合并时生成两份相同的文件")
+        self.duplicate_copy_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
+        self.duplicate_copy_checkbox.stateChanged.connect(self._on_duplicate_copy_changed)
+        self.duplicate_copy_checkbox.setMinimumWidth(80)
+        path_input_layout.addWidget(self.duplicate_copy_checkbox)
+        
+        # 合并后打印复选框
+        self.print_checkbox = QCheckBox("合并后打印")
+        self.print_checkbox.setToolTip("合并后打开文件")
+        self.print_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
+        path_input_layout.addWidget(self.print_checkbox)
+        
         bottom_layout.addLayout(path_input_layout)
         
         # 版本号（底部）
@@ -1069,7 +1164,7 @@ class MainWindow(QMainWindow):
         创建右侧预览区
         
         功能描述:
-            创建右侧预览区域，占据整列显示预览内容
+            创建右侧预览区域，占据整列显示预览内容，包含预览开关
         
         返回值:
             QWidget: 右侧预览区控件
@@ -1098,6 +1193,34 @@ class MainWindow(QMainWindow):
         self.preview_status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent; border: none;")
         preview_header.addWidget(self.preview_status_label)
         preview_header.addStretch()
+        
+        # 预览开关
+        # self.preview_checkbox = QCheckBox("启用预览")
+        # self.preview_checkbox.setToolTip("关闭后不再渲染预览，提升性能")
+        # self.preview_checkbox.setChecked(True)
+        # self.preview_checkbox.stateChanged.connect(self._on_preview_checkbox_changed)
+        # self.preview_checkbox.setStyleSheet(f"""
+        #     QCheckBox {{
+        #         font-size: 12px;
+        #         color: {TEXT_PRIMARY};
+        #         spacing: 4px;
+        #     }}
+        #     QCheckBox::indicator {{
+        #         width: 14px;
+        #         height: 14px;
+        #         border-radius: 3px;
+        #         border: 2px solid {TEXT_MUTED};
+        #         background-color: {CARD_BG};
+        #     }}
+        #     QCheckBox::indicator:checked {{
+        #         border-color: {PRIMARY_COLOR};
+        #         background-color: {PRIMARY_COLOR};
+        #     }}
+        #     QCheckBox::indicator:hover {{
+        #         border-color: {PRIMARY_COLOR};
+        #     }}
+        # """)
+        # preview_header.addWidget(self.preview_checkbox)
         
         # 刷新预览按钮
         self.refresh_preview_btn = QPushButton("🔄 刷新")
@@ -1189,19 +1312,36 @@ class MainWindow(QMainWindow):
         获取当前选中的布局类型
         
         功能描述:
-            根据单选按钮的状态返回对应的布局字符串
+            根据方向选择和行列设置返回布局配置字典
         
         返回值:
-            str: 布局类型字符串（"竖向1x2"、"竖向1x3"、"竖向2x4"、"横向2x2"）
+            dict: 布局配置字典，包含orientation、rows、cols
         """
-        if self.radio_1x2.isChecked():
-            return "竖向1x2"
-        elif self.radio_1x3.isChecked():
-            return "竖向1x3"
-        elif self.radio_2x4.isChecked():
-            return "竖向2x4"
-        else:
-            return "横向2x2"
+        orientation = 'portrait' if self.radio_portrait.isChecked() else 'landscape'
+        rows = self.row_spinbox.value()
+        cols = self.col_spinbox.value()
+        
+        return {
+            'orientation': orientation,
+            'rows': rows,
+            'cols': cols,
+            'rotate': 0
+        }
+    
+    def _get_layout_display_name(self):
+        """
+        获取布局的显示名称
+        
+        功能描述:
+            根据当前配置生成布局显示名称
+        
+        返回值:
+            str: 布局显示名称（如"竖向2x2"）
+        """
+        orientation_text = "竖向" if self.radio_portrait.isChecked() else "横向"
+        rows = self.row_spinbox.value()
+        cols = self.col_spinbox.value()
+        return f"{orientation_text}{rows}x{cols}"
     
     def _get_version(self):
         """
@@ -1287,14 +1427,60 @@ class MainWindow(QMainWindow):
         # 保存配置
         self._save_config()
     
+    def _on_preview_checkbox_changed(self, state):
+        """
+        预览开关状态改变时的处理
+        
+        功能描述:
+            当用户切换预览开关时，更新预览状态并保存配置
+        
+        参数:
+            state: 复选框状态
+        """
+        is_enabled = state == Qt.CheckState.Checked.value
+        
+        if is_enabled:
+            # 开启预览，立即更新
+            self._update_preview()
+        else:
+            # 关闭预览，显示占位符
+            self.preview_stack.setCurrentIndex(0)
+            self.preview_status_label.setText("(预览已关闭)")
+            self.preview_placeholder.setText("📄\n\n预览功能已关闭\n\n如需查看预览，请勾选「启用预览」开关")
+        
+        # 保存配置
+        self._save_config()
+
+    def _on_duplicate_copy_changed(self, state):
+        """
+        一式两份选项状态改变时的处理
+        
+        功能描述:
+            当用户切换一式两份选项时，保存配置并刷新预览
+        
+        参数:
+            state: 复选框状态
+        """
+        # 保存配置
+        self._save_config()
+        
+        # 刷新预览
+        self._update_preview()
+    
     def _update_preview(self):
         """
         更新预览图像
         
         功能描述:
             生成并显示合并后的PDF预览图像，使用临时文件进行预览，不影响正式合并
-            预览显示所有页面，支持鼠标滚轮缩放
+            仅预览第一页，避免发票过多时预览窗卡死
         """
+        # 检查预览开关状态
+        if hasattr(self, 'preview_checkbox') and not self.preview_checkbox.isChecked():
+            self.preview_stack.setCurrentIndex(0)
+            self.preview_status_label.setText("(预览已关闭)")
+            return
+        
         files = self.file_list.get_all_files()
         
         if not files:
@@ -1315,7 +1501,6 @@ class MainWindow(QMainWindow):
             QGuiApplication.processEvents()
 
             # 使用viewport宽度计算预览尺寸（viewport是实际可显示区域，不包含滚动条）
-            # preview_container的宽度会随内容变化，导致预览尺寸越来越小
             viewport_width = self.preview_scroll.viewport().width()
             scroll_width = self.preview_scroll.width()
             print(f"[调试] viewport_width: {viewport_width}, scroll_width: {scroll_width}")
@@ -1337,13 +1522,14 @@ class MainWindow(QMainWindow):
             # 重置缩放比例
             self._reset_preview_zoom()
             
-            # 生成所有页面的预览图像（使用viewport宽度确保尺寸稳定）
-            pixmaps = self._generate_preview_images(viewport_width)
+            # 生成第一页的预览图像（使用viewport宽度确保尺寸稳定）
+            # 只生成第一页，避免发票过多时预览窗卡死
+            pixmaps = self._generate_preview_images(viewport_width, max_pages=1)
             
             if pixmaps:
                 self.preview_pixmaps = pixmaps
                 
-                # 为每个页面创建标签
+                # 只为第一页创建标签
                 for i, pixmap in enumerate(pixmaps):
                     # 创建页面容器
                     page_container = QFrame()
@@ -1375,8 +1561,11 @@ class MainWindow(QMainWindow):
                     self.preview_layout.addWidget(page_container)
                 
                 self.preview_stack.setCurrentIndex(1)
-                page_count = len(pixmaps)
-                self.preview_status_label.setText(f"(预览全部 {page_count} 页，共{len(files)}个文件，Ctrl+滚轮缩放)")
+                # 计算总页数
+                layout_config = self._get_current_layout()
+                items_per_page = layout_config['rows'] * layout_config['cols']
+                total_pages = (len(files) + items_per_page - 1) // items_per_page
+                self.preview_status_label.setText(f"(预览第1页/共{total_pages}页，{len(files)}个文件，Ctrl+滚轮缩放)")
             else:
                 self.preview_status_label.setText("(预览生成失败)")
                 
@@ -1388,9 +1577,9 @@ class MainWindow(QMainWindow):
         
         self.refresh_preview_btn.setEnabled(True)
     
-    def _generate_preview_images(self, viewport_width=None):
+    def _generate_preview_images(self, viewport_width=None, max_pages=None):
         """
-        生成所有页面的预览图像
+        生成预览图像
 
         功能描述:
             使用PDFHandler合并PDF文件，应用与实际合并相同的布局设置
@@ -1399,9 +1588,10 @@ class MainWindow(QMainWindow):
         参数:
             viewport_width: 可选，指定viewport宽度用于计算预览尺寸，
                            如果不提供则使用 preview_scroll.viewport() 的当前宽度
+            max_pages: 可选，限制生成的最大页面数，用于性能优化
 
         返回值:
-            list: 所有页面的QPixmap列表，如果失败则返回空列表
+            list: 页面的QPixmap列表，如果失败则返回空列表
         """
         files = self.file_list.get_all_files()
         if not files:
@@ -1413,7 +1603,7 @@ class MainWindow(QMainWindow):
         
         try:
             # 获取当前配置
-            layout = self._get_current_layout()
+            layout_config = self._get_current_layout()
             mode = self.mode_combo.currentText()
             sort_by = self._get_current_sort_by()
             
@@ -1422,6 +1612,10 @@ class MainWindow(QMainWindow):
                 files_to_preview = files
             else:
                 files_to_preview = self.file_list.get_sorted_files(sort_by)
+            
+            # 如果勾选了一式两份，将每个文件复制一份
+            if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
+                files_to_preview = [f for f in files_to_preview for _ in range(2)]
             
             # 创建临时文件
             import tempfile
@@ -1433,7 +1627,7 @@ class MainWindow(QMainWindow):
             result = self.pdf_handler.merge_pdfs(
                 files_to_preview, 
                 temp_path, 
-                layout, 
+                layout_config, 
                 mode_str
             )
             
@@ -1481,8 +1675,13 @@ class MainWindow(QMainWindow):
                     scale_y = render_height / page_height_pt
                     scale = min(scale_x, scale_y)
                     
-                    # 生成所有页面的预览图像
-                    for page_num in range(len(doc)):
+                    # 确定要生成的页面数
+                    pages_to_render = len(doc)
+                    if max_pages is not None and max_pages > 0:
+                        pages_to_render = min(pages_to_render, max_pages)
+                    
+                    # 生成预览图像
+                    for page_num in range(pages_to_render):
                         page = doc[page_num]
                         
                         mat = fitz.Matrix(scale, scale)
@@ -1599,7 +1798,7 @@ class MainWindow(QMainWindow):
                 return
         
         # 获取布局配置
-        layout_type = self._get_current_layout()
+        layout_config = self._get_current_layout()
         mode = self.mode_combo.currentText()
         
         try:
@@ -1617,11 +1816,15 @@ class MainWindow(QMainWindow):
             else:
                 sorted_files = self.file_list.get_sorted_files(sort_by)
             
+            # 如果勾选了一式两份，将每个文件复制一份
+            if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
+                sorted_files = [f for f in sorted_files for _ in range(2)]
+            
             # 执行合并
             result = self.pdf_handler.merge_pdfs(
                 sorted_files,
                 output_path,
-                layout=layout_type,
+                layout=layout_config,
                 mode=mode
             )
             
@@ -1690,7 +1893,7 @@ class MainWindow(QMainWindow):
             with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
                 tmp_path = tmp.name
             
-            layout_type = self._get_current_layout()
+            layout_config = self._get_current_layout()
             sort_by = self._get_current_sort_by()
             
             # 根据排序方式获取文件列表
@@ -1699,10 +1902,14 @@ class MainWindow(QMainWindow):
             else:
                 sorted_files = self.file_list.get_sorted_files(sort_by)
             
+            # 如果勾选了一式两份，将每个文件复制一份
+            if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
+                sorted_files = [f for f in sorted_files for _ in range(2)]
+            
             self.pdf_handler.merge_pdfs(
                 sorted_files,
                 tmp_path,
-                layout=layout_type,
+                layout=layout_config,
                 mode="普通"
             )
             
@@ -1750,7 +1957,22 @@ class MainWindow(QMainWindow):
         dialog = RenameDialog(self, config_file=CONFIG_FILE)
         dialog.rename_executed.connect(self._perform_batch_rename)
         dialog.exec()
-    
+
+    def _on_export_list(self):
+        """
+        导出列表按钮点击处理
+
+        功能描述:
+            调用文件列表的导出方法，将文件列表导出到Excel
+        """
+        files = self.file_list.get_all_files()
+        if not files:
+            QMessageBox.warning(self, "警告", "请先添加PDF文件")
+            return
+
+        # 调用file_list的_export_file方法，传入-1表示导出整个列表
+        self.file_list._export_file()
+
     def _perform_batch_rename(self, rule):
         """
         执行批量重命名
@@ -2038,16 +2260,48 @@ class MainWindow(QMainWindow):
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config = json.load(f)
 
-                # 加载布局设置
-                layout = config.get('layout', '横向2x2')
-                if layout == '竖向1x2':
-                    self.radio_1x2.setChecked(True)
-                elif layout == '竖向1x3':
-                    self.radio_1x3.setChecked(True)
-                elif layout == '横向2x4':
-                    self.radio_2x4.setChecked(True)
+                # 加载布局设置 - 新版配置
+                layout_config = config.get('layout_config')
+                if layout_config:
+                    # 新版配置格式
+                    orientation = layout_config.get('orientation', 'portrait')
+                    if orientation == 'portrait':
+                        self.radio_portrait.setChecked(True)
+                    else:
+                        self.radio_landscape.setChecked(True)
+                    
+                    rows = layout_config.get('rows', 2)
+                    cols = layout_config.get('cols', 2)
+                    self.row_spinbox.setValue(rows)
+                    self.col_spinbox.setValue(cols)
                 else:
-                    self.radio_2x2.setChecked(True)
+                    # 兼容旧版配置
+                    layout = config.get('layout', '横向2x2')
+                    if layout == '竖向1x2':
+                        self.radio_portrait.setChecked(True)
+                        self.row_spinbox.setValue(2)
+                        self.col_spinbox.setValue(1)
+                    elif layout == '竖向1x3':
+                        self.radio_portrait.setChecked(True)
+                        self.row_spinbox.setValue(3)
+                        self.col_spinbox.setValue(1)
+                    elif layout == '竖向2x4':
+                        self.radio_portrait.setChecked(True)
+                        self.row_spinbox.setValue(4)
+                        self.col_spinbox.setValue(2)
+                    elif layout == '横向2x2':
+                        self.radio_landscape.setChecked(True)
+                        self.row_spinbox.setValue(2)
+                        self.col_spinbox.setValue(2)
+                    elif layout == '横向2x4':
+                        self.radio_landscape.setChecked(True)
+                        self.row_spinbox.setValue(2)
+                        self.col_spinbox.setValue(4)
+                    else:
+                        # 默认配置
+                        self.radio_portrait.setChecked(True)
+                        self.row_spinbox.setValue(2)
+                        self.col_spinbox.setValue(2)
 
                 # 加载模式设置
                 mode = config.get('mode', '普通')
@@ -2077,10 +2331,20 @@ class MainWindow(QMainWindow):
                 print_checkbox = config.get('print_checkbox', False)
                 self.print_checkbox.setChecked(print_checkbox)
 
+                # 加载一式两份设置
+                duplicate_copy = config.get('duplicate_copy', False)
+                if hasattr(self, 'duplicate_copy_checkbox'):
+                    self.duplicate_copy_checkbox.setChecked(duplicate_copy)
+
                 # 加载输出路径
                 output_path = config.get('output_path', '')
                 if output_path:
                     self.path_edit.setText(output_path)
+                
+                # 加载预览开关设置
+                preview_enabled = config.get('preview_enabled', True)
+                if hasattr(self, 'preview_checkbox'):
+                    self.preview_checkbox.setChecked(preview_enabled)
 
                 # 版本号从 version.json 读取，不在 config.json 中存储
                 # 避免覆盖 _get_version() 获取的正确版本号
@@ -2103,12 +2367,20 @@ class MainWindow(QMainWindow):
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config = json.load(f)
 
-            # 更新配置
-            config['layout'] = self._get_current_layout()
+            # 更新配置 - 新版布局配置
+            layout_config = self._get_current_layout()
+            config['layout_config'] = layout_config
+            # 保留旧版配置以兼容旧版本
+            config['layout'] = self._get_layout_display_name()
             config['mode'] = self.mode_combo.currentText()
             config['sort_by'] = self._get_current_sort_by()
             config['print_checkbox'] = self.print_checkbox.isChecked()
+            config['duplicate_copy'] = self.duplicate_copy_checkbox.isChecked()
             config['output_path'] = self.path_edit.text().strip()
+            
+            # 保存预览开关设置
+            if hasattr(self, 'preview_checkbox'):
+                config['preview_enabled'] = self.preview_checkbox.isChecked()
 
             # 确保配置目录存在
             config_dir = os.path.dirname(CONFIG_FILE)
@@ -2334,17 +2606,16 @@ class FeedbackDialog(QDialog):
 <li><b>添加文件</b>：点击"添加"按钮或直接将PDF文件拖入列表</li>
 <li><b>选择布局</b>：选择合并布局（竖向1x2、竖向1x3、横向2x2等）</li>
 <li><b>调整顺序</b>：使用"上移"/"下移"按钮</li>
-<li><b>合并保存</b>：选择保存路径，点击"合并PDF"按钮</li>
+<li><b>合并保存</b>：选择保存路径，点击"合并"按钮</li>
 </ol>
 
 <h3>📋 功能说明</h3>
 <ul>
 <li><b>布局选择</b>：
   <ul>
-    <li>竖向1x2：每页A4纸竖向排列2张发票</li>
-    <li>竖向1x3：每页A4纸竖向排列3张发票</li>
-    <li>竖向2x4：每页A4纸竖向排列8张发票</li>
-    <li>横向2x2：每页A4纸横向排列4张发票</li>
+    <li>方向：选择A4纸的排列方向（竖向/横向）</li>
+    <li>行列：设置每页排列的发票数量（行数 x 列数）</li>
+    <li>常用组合：竖向2x2=4张/页，横向2x2=4张/页，竖向2x4=8张/页</li>
   </ul>
 </li>
 <li><b>处理模式</b>：
@@ -2354,6 +2625,8 @@ class FeedbackDialog(QDialog):
   </ul>
 </li>
 <li><b>排序方式</b>：支持按列表顺序、开票日期、开票金额排序</li>
+<li><b>一式两份</b>：勾选后每张发票会合并两份到输出文件中</li>
+<li><b>合并后打印</b>：勾选后合并完成自动打开文件</li>
 </ul>
 
 <h3>💡 使用技巧</h3>
@@ -2361,7 +2634,8 @@ class FeedbackDialog(QDialog):
 <li>双击列表中的文件可直接打开查看</li>
 <li>支持批量拖拽添加多个文件</li>
 <li>合并前可在右侧预览效果</li>
-<li>勾选"合并后打印"可自动调用系统打印</li>
+<li>使用"重命名"功能可批量修改文件名</li>
+<li>勾选"一式两份"可快速生成双份发票</li>
 </ul>
 
 <h3>❓ 常见问题</h3>
@@ -2369,6 +2643,7 @@ class FeedbackDialog(QDialog):
 <li><b>Q: 支持哪些文件格式？</b><br>A: 目前仅支持PDF格式文件</li>
 <li><b>Q: 合并后的文件在哪里？</b><br>A: 默认保存在第一个PDF文件的目录下，可手动选择保存位置</li>
 <li><b>Q: 如何调整文件顺序？</b><br>A: 选中文件后点击"上移"/"下移"按钮</li>
+<li><b>Q: 一式两份是什么意思？</b><br>A: 勾选后每张发票会在合并后的PDF中出现两次，方便打印双份</li>
 </ul>"""
         
         help_text.setHtml(help_content)
