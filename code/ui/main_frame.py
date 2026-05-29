@@ -1545,10 +1545,10 @@ class MainWindow(QMainWindow):
                     page_layout.setContentsMargins(8, 8, 8, 8)
                     
                     # 页面编号标签
-                    page_num_label = QLabel(f"第 {i + 1} 页")
-                    page_num_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    page_num_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px;")
-                    page_layout.addWidget(page_num_label)
+                    # page_num_label = QLabel(f"第 {i + 1} 页")
+                    # page_num_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    # page_num_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px;")
+                    # page_layout.addWidget(page_num_label)
                     
                     # 图像标签
                     label = QLabel()
@@ -1565,7 +1565,7 @@ class MainWindow(QMainWindow):
                 layout_config = self._get_current_layout()
                 items_per_page = layout_config['rows'] * layout_config['cols']
                 total_pages = (len(files) + items_per_page - 1) // items_per_page
-                self.preview_status_label.setText(f"(预览第1页/共{total_pages}页，{len(files)}个文件，Ctrl+滚轮缩放)")
+                self.preview_status_label.setText(f"(仅预览第1页/共{total_pages}页，{len(files)}个文件，Ctrl+滚轮缩放)")
             else:
                 self.preview_status_label.setText("(预览生成失败)")
                 

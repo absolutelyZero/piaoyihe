@@ -1,15 +1,15 @@
 {
-  "layout": "横向4x2",
+  "layout": "横向2x2",
   "mode": "普通",
   "print_checkbox": true,
   "ignored_version": "0.1.4",
   "save_path": "",
   "sort_by": "date",
-  "output_path": "D:/minipro/piaoyihe/piaoyihe_test\\output.pdf",
+  "output_path": "/Users/xieyonggao/Documents/self/minipro/test/piaoyihe_test/output.pdf",
   "rename_rule": "{发票类型}-{商品类型}-{开票日期}-{买方名字}-{销方名字}-{金额}",
   "layout_config": {
     "orientation": "landscape",
-    "rows": 4,
+    "rows": 2,
     "cols": 2,
     "rotate": 0
   },
