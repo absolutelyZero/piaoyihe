@@ -264,3 +264,65 @@ class FlightTicketExtractor(InvoiceExtractor):
                 return seller[:30]
 
         return ""
+
+    def extract_tax_amount(self) -> float:
+        """
+        提取税额
+
+        提取策略（按优先级）：
+        1. 匹配税率+税额相邻格式（如 9% 44.62）
+        2. 匹配合计行中的税额
+        3. 匹配"税 额"关键词附近的金额
+        4. 返回0.0
+
+        Returns:
+            float: 提取的税额，无则返回0.0
+        """
+        total_amount = self.extract_amount()
+
+        # 策略1：匹配合计行中的税额（最可靠，优先使用）
+        total_pattern = r'合\s*计.*?[¥￥]\s*(?:-?\d+(?:,\d{3})*(?:\.\d+)?).*?[¥￥]\s*(-?\d+(?:,\d{3})*(?:\.\d+)?)'
+        match = re.search(total_pattern, self._text, re.DOTALL)
+        if match:
+            try:
+                return float(match.group(1).replace(',', ''))
+            except ValueError:
+                pass
+
+        # 策略2：匹配税率+税额相邻格式（表格行中的税额）
+        # 支持 13% 20.59 或 9% CNY 58.62 等格式
+        tax_rate_patterns = [
+            r'(?:-?\d+(?:,\d{3})*(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(?:CNY\s+)?[¥￥]?\s*(-?\d+(?:,\d{3})*(?:\.\d+)?)',
+            r'(\d+(?:\.\d+)?)%\s+(?:CNY\s+)?[¥￥]?\s*(-?\d+(?:,\d{3})*(?:\.\d+)?)',
+        ]
+        tax_values = set()
+        for tax_rate_pattern in tax_rate_patterns:
+            matches = re.findall(tax_rate_pattern, self._text)
+            for rate_str, tax_str in matches:
+                try:
+                    tax = float(tax_str.replace(',', ''))
+                    if total_amount > 0 and abs(tax) < total_amount:
+                        tax_values.add(tax)
+                    elif total_amount == 0:
+                        tax_values.add(tax)
+                except ValueError:
+                    pass
+        if tax_values:
+            # 返回所有税额的合计（支持多行发票和折扣行自动抵消）
+            return sum(tax_values)
+
+        # 策略3：匹配"税 额"关键词附近的金额（支持空格）
+        if re.search(r'税\s*额', self._text):
+            pattern = r'税\s*额[:：]?\s*[¥￥]?\s*(-?\d+(?:,\d{3})*(?:\.\d+)?)'
+            matches = re.findall(pattern, self._text)
+            for match in matches:
+                try:
+                    amount = float(match.replace(',', ''))
+                    if total_amount > 0 and abs(amount) < total_amount * 0.5:
+                        return amount
+                    elif total_amount == 0:
+                        return amount
+                except ValueError:
+                    pass
+
+        return 0.0

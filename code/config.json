@@ -14,5 +14,5 @@
     "rotate": 0
   },
   "preview_enabled": true,
-  "duplicate_copy": true
+  "duplicate_copy": false
 }
