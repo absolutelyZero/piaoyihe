@@ -149,18 +149,18 @@ class FileListPanel(QWidget):
     duplicate_count_changed = Signal(int)
     _duplicate_check_result = Signal(set)  # 内部信号，传递重复代码集合
     
-    def __init__(self, pdf_handler, on_file_added=None, parent=None):
+    def __init__(self, uni_handler, on_file_added=None, parent=None):
         """
         初始化文件列表面板
         
         参数:
-            pdf_handler: PDF处理器实例，用于提取文件信息
+            uni_handler: 统一处理器实例，用于提取文件信息（支持PDF和OFD）
             on_file_added: 文件添加回调函数，可选
             parent: 父窗口部件，可选
         """
         super().__init__(parent)
         
-        self.pdf_handler = pdf_handler
+        self.uni_handler = uni_handler
         self.files = []
         self.on_file_added = on_file_added
         
@@ -710,10 +710,10 @@ class FileListPanel(QWidget):
         mod_time = os.path.getmtime(file_path)
         mod_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mod_time))
         
-        amount = self.pdf_handler.extract_amount(file_path)
-        invoice_date = self.pdf_handler.extract_invoice_date(file_path)
-        invoice_code = self.pdf_handler.extract_invoice_code(file_path)
-        tax_amount = self.pdf_handler.extract_tax_amount(file_path)
+        amount = self.uni_handler.extract_amount(file_path)
+        invoice_date = self.uni_handler.extract_invoice_date(file_path)
+        invoice_code = self.uni_handler.extract_invoice_code(file_path)
+        tax_amount = self.uni_handler.extract_tax_amount(file_path)
 
         file_info = {
             'name': file_name,
@@ -1003,10 +1003,10 @@ class FileListPanel(QWidget):
                 if os.path.exists(file_path):
                     # 更新文件信息
                     file_info['name'] = os.path.basename(file_path)
-                    file_info['amount'] = self.pdf_handler.extract_amount(file_path)
-                    file_info['invoice_date'] = self.pdf_handler.extract_invoice_date(file_path)
-                    file_info['invoice_code'] = self.pdf_handler.extract_invoice_code(file_path)
-                    file_info['tax_amount'] = self.pdf_handler.extract_tax_amount(file_path)
+                    file_info['amount'] = self.uni_handler.extract_amount(file_path)
+                    file_info['invoice_date'] = self.uni_handler.extract_invoice_date(file_path)
+                    file_info['invoice_code'] = self.uni_handler.extract_invoice_code(file_path)
+                    file_info['tax_amount'] = self.uni_handler.extract_tax_amount(file_path)
 
                     # 更新文件大小和修改时间
                     file_size = os.path.getsize(file_path) / 1024

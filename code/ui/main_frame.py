@@ -21,7 +21,7 @@ from PySide6.QtGui import QGuiApplication, QDesktopServices, QCursor, QPixmap, Q
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from ui.file_list import FileListPanel
 from ui.rename_dialog import RenameDialog
-from core.pdf_handler import PDFHandler
+from core.uni_handler import UniHandler
 from core.update_checker import UpdateChecker, show_update_dialog
 
 
@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
         """
         super().__init__()
         
-        self.pdf_handler = PDFHandler()
+        self.uni_handler = UniHandler()
         self.remote_version = None
         self.preview_pixmap = None
         self.preview_timer = None  # 用于延迟更新预览的定时器
@@ -526,7 +526,7 @@ class MainWindow(QMainWindow):
         file_list_layout.addLayout(file_list_header)
 
         # 文件列表组件
-        self.file_list = FileListPanel(self.pdf_handler, on_file_added=self._on_first_file_added)
+        self.file_list = FileListPanel(self.uni_handler, on_file_added=self._on_first_file_added)
         self.file_list.selection_changed.connect(self._on_list_selection_changed)
         self.file_list.duplicate_count_changed.connect(self._on_duplicate_count_changed)
         self.file_list.setStyleSheet(f"background-color: {CARD_BG}; border: none;")
@@ -1055,7 +1055,7 @@ class MainWindow(QMainWindow):
         file_list_layout.addLayout(file_list_header)
 
         # 文件列表组件
-        self.file_list = FileListPanel(self.pdf_handler, on_file_added=self._on_first_file_added)
+        self.file_list = FileListPanel(self.uni_handler, on_file_added=self._on_first_file_added)
         self.file_list.selection_changed.connect(self._on_list_selection_changed)
         self.file_list.duplicate_count_changed.connect(self._on_duplicate_count_changed)
         self.file_list.setStyleSheet(f"background-color: {CARD_BG}; border: none;")
@@ -1622,9 +1622,9 @@ class MainWindow(QMainWindow):
             temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
             os.close(temp_fd)
             
-            # 调用PDFHandler合并PDF（使用与实际合并相同的参数）
+            # 调用UniHandler合并文档（支持PDF和OFD混合，使用与实际合并相同的参数）
             mode_str = "图像" if mode == 1 else "普通"
-            result = self.pdf_handler.merge_pdfs(
+            result = self.uni_handler.merge_documents(
                 files_to_preview, 
                 temp_path, 
                 layout_config, 
@@ -1759,9 +1759,9 @@ class MainWindow(QMainWindow):
         """
         files, _ = QFileDialog.getOpenFileNames(
             self,
-            "选择PDF文件",
+            "选择发票文件",
             "",
-            "PDF文件 (*.pdf)"
+            self.uni_handler.get_file_filter()
         )
         
         if files:
@@ -1998,8 +1998,8 @@ class MainWindow(QMainWindow):
 
             for file_path in files:
                 try:
-                    # 提取文件信息
-                    file_info = self.pdf_handler.extract_all_invoice_info(file_path)
+                    # 提取文件信息（支持PDF和OFD）
+                    file_info = self.uni_handler.extract_all_invoice_info(file_path)
 
                     # 如果无法识别该文件（可能是图片），记录并跳过
                     if file_info is None:
@@ -2187,14 +2187,15 @@ class MainWindow(QMainWindow):
         
         for url in urls:
             file_path = url.toLocalFile()
-            if file_path.lower().endswith('.pdf'):
+            if self.uni_handler.is_supported_file(file_path):
                 files.append(file_path)
             elif os.path.isdir(file_path):
-                # 如果是目录，递归查找PDF文件
+                # 如果是目录，递归查找PDF和OFD文件
                 for root, dirs, filenames in os.walk(file_path):
                     for filename in filenames:
-                        if filename.lower().endswith('.pdf'):
-                            files.append(os.path.join(root, filename))
+                        full_path = os.path.join(root, filename)
+                        if self.uni_handler.is_supported_file(full_path):
+                            files.append(full_path)
         
         if files:
             for file_path in files:

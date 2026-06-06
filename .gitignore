@@ -11,3 +11,7 @@ code/core/__pycache__/update_checker.cpython-39.pyc
 code/config.json
 **/__pycache__/**
 code/ui/__pycache__/**
+req/newui.pen
+req/newui2.pen
+.trae/documents/**
+temp_ofd_parse/**
