@@ -135,6 +135,7 @@ class OFDExtractor(ABC):
             if self._ofd and hasattr(self._ofd, 'data'):
                 data = self._ofd.data
                 print(f"[OFDExtractor] data类型: {type(data)}")
+                # print(f"[OFDExtractor] data: {data}")  # 打印前100个字符
 
                 if isinstance(data, dict):
                     print(f"[OFDExtractor] data键: {list(data.keys())[:10]}")  # 打印前10个键

@@ -1821,7 +1821,7 @@ class MainWindow(QMainWindow):
                 sorted_files = [f for f in sorted_files for _ in range(2)]
             
             # 执行合并
-            result = self.pdf_handler.merge_pdfs(
+            result = self.uni_handler.merge_documents(
                 sorted_files,
                 output_path,
                 layout=layout_config,
@@ -1906,7 +1906,7 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
                 sorted_files = [f for f in sorted_files for _ in range(2)]
             
-            self.pdf_handler.merge_pdfs(
+            self.uni_handler.merge_documents(
                 sorted_files,
                 tmp_path,
                 layout=layout_config,

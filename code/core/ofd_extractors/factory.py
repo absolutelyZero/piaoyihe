@@ -109,6 +109,8 @@ class OFDExtractorFactory:
                 texts = []
                 if hasattr(ofd, 'data') and isinstance(ofd.data, dict):
                     data = ofd.data
+                    # 打印data
+                    print(f"[OFDExtractorFactory] OFD数据结构: {data}")
                     if 'pages' in data:
                         for page in data['pages']:
                             if isinstance(page, dict) and 'texts' in page:
