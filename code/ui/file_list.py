@@ -7,15 +7,16 @@
 """
 
 import os
+import sys
 import time
 import fitz  # PyMuPDF
 from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtWidgets import (
-    QWidget, QTableWidget, QVBoxLayout, QTableWidgetItem, 
+    QWidget, QTableWidget, QVBoxLayout, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QMenu, QLabel, QFrame
 )
-from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QPoint
-from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor
+from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QPoint, QSize
+from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor, QIcon
 
 
 class PreviewPopup(QFrame):
@@ -159,20 +160,27 @@ class FileListPanel(QWidget):
             parent: 父窗口部件，可选
         """
         super().__init__(parent)
-        
+
         self.pdf_handler = pdf_handler
         self.files = []
         self.on_file_added = on_file_added
-        
+
+        # 设置图标目录
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(os.path.dirname(__file__))
+        self.icon_dir = os.path.join(base_path, 'res', 'icons')
+
         # 预览浮窗
         self.preview_popup = PreviewPopup(self)
         self.preview_timer = QTimer(self)
         self.preview_timer.setSingleShot(True)
         self.preview_timer.timeout.connect(self._show_preview_popup)
-        
+
         # 当前悬停的行
         self.hover_row = -1
-        
+
         # 重复发票检查相关
         self._duplicate_check_timer = QTimer(self)
         self._duplicate_check_timer.setSingleShot(True)
@@ -184,6 +192,35 @@ class FileListPanel(QWidget):
         self._duplicate_check_result.connect(self._update_duplicate_display)
 
         self._init_ui()
+
+    def _icon_path(self, filename):
+        """
+        获取图标文件完整路径
+
+        参数:
+            filename: 图标文件名
+
+        返回值:
+            str: 图标文件完整路径
+        """
+        return os.path.join(self.icon_dir, filename)
+
+    def _action_icon(self, text, filename, parent=None):
+        """
+        创建带SVG图标的QAction
+
+        参数:
+            text: 动作文本
+            filename: 图标文件名
+            parent: 父对象
+
+        返回值:
+            QAction: 带有图标的动作
+        """
+        action = QAction(text, parent or self)
+        icon = QIcon(self._icon_path(filename))
+        action.setIcon(icon)
+        return action
     
     def _init_ui(self):
         """
@@ -435,24 +472,24 @@ class FileListPanel(QWidget):
         """)
         
         # 添加"打开文件"动作
-        open_action = QAction("📄 打开文件", self)
+        open_action = self._action_icon("打开文件", "文件夹-开_folder-open.svg")
         open_action.triggered.connect(lambda: self._open_file_at_row(data_row))
         menu.addAction(open_action)
-        
+
         # 添加"在文件夹中显示"动作
-        show_in_folder_action = QAction("📁 在文件夹中显示", self)
+        show_in_folder_action = self._action_icon("在文件夹中显示", "文件夹-开_folder-open.svg")
         show_in_folder_action.triggered.connect(lambda: self._show_in_folder(data_row))
         menu.addAction(show_in_folder_action)
 
         # 添加"删除"动作
-        delete_action = QAction("🗑️ 删除", self)
+        delete_action = self._action_icon("删除", "关闭_close.svg")
         delete_action.triggered.connect(self.delete_selected)
         menu.addAction(delete_action)
-                
+
         menu.addSeparator()
 
         # 添加"导出"动作
-        export_action = QAction("📤 导出列表", self)
+        export_action = self._action_icon("导出列表", "保存硬盘_save-one.svg")
         export_action.triggered.connect(lambda: self._export_file())
         menu.addAction(export_action)
         
@@ -656,7 +693,8 @@ class FileListPanel(QWidget):
             self.table.insertRow(row)
 
             # 预览图标列
-            preview_item = QTableWidgetItem("👁")
+            preview_item = QTableWidgetItem()
+            preview_item.setIcon(QIcon(self._icon_path("预览-打开_preview-open.svg")))
             preview_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             preview_item.setToolTip("悬停查看预览")
 
@@ -734,7 +772,8 @@ class FileListPanel(QWidget):
         self.table.insertRow(row)
 
         # 预览图标列
-        preview_item = QTableWidgetItem("👁")
+        preview_item = QTableWidgetItem()
+        preview_item.setIcon(QIcon(self._icon_path("预览-打开_preview-open.svg")))
         preview_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         preview_item.setToolTip("悬停查看预览")
 
@@ -925,7 +964,8 @@ class FileListPanel(QWidget):
             self.table.insertRow(row)
 
             # 预览图标列
-            preview_item = QTableWidgetItem("👁")
+            preview_item = QTableWidgetItem()
+            preview_item.setIcon(QIcon(self._icon_path("预览-打开_preview-open.svg")))
             preview_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             preview_item.setToolTip("悬停查看预览")
 
