@@ -2500,7 +2500,7 @@ class MainWindow(QMainWindow):
             # 创建更新检查器，传入必需的参数
             checker = UpdateChecker(
                 local_version_file=VERSION_FILE,
-                remote_version_url="https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/version.json",
+                remote_version_url="https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/version.json",
                 config_file=CONFIG_FILE
             )
             
@@ -2509,7 +2509,7 @@ class MainWindow(QMainWindow):
             
             if has_update:
                 # 显示更新对话框
-                qrcode_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/updatelog.png"
+                qrcode_url = "https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/updatelog.png"
                 show_update_dialog(self, qrcode_url, CONFIG_FILE, remote_version)
             else:
                 if force_check:

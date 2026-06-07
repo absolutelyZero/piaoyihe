@@ -28,7 +28,7 @@ def test_ignore_version():
     
     try:
         # 创建更新检查器
-        checker = UpdateChecker(version_file, "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/version.json", config_file)
+        checker = UpdateChecker(version_file, "https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/version.json", config_file)
         
         # 检查更新
         has_update, remote_version = checker.check_for_updates()
