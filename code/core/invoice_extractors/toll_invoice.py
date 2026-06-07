@@ -196,3 +196,31 @@ class TollInvoiceExtractor(InvoiceExtractor):
                     return seller[:30]
 
         return ""
+
+    def extract_tax_amount(self) -> float:
+        """
+        提取税额
+
+        提取策略：
+        1. 匹配"税额"字段
+        2. 匹配"税率"字段并计算
+        3. 返回0.0
+
+        Returns:
+            float: 提取的税额，无则返回0.0
+        """
+        # 策略1：匹配"税额"字段
+        tax_patterns = [
+            r'税\s*额[:：]\s*[¥￥]?\s*(\d+(?:\.\d+)?)',
+            r'合\s*计\s*税\s*额[:：]\s*[¥￥]?\s*(\d+(?:\.\d+)?)',
+        ]
+
+        for pattern in tax_patterns:
+            match = re.search(pattern, self._text)
+            if match:
+                try:
+                    return float(match.group(1))
+                except ValueError:
+                    pass
+
+        return 0.0

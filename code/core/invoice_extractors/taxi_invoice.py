@@ -162,3 +162,12 @@ class TaxiInvoiceExtractor(InvoiceExtractor):
                 return code
 
         return ""
+
+    def extract_tax_amount(self) -> float:
+        """
+        出租车发票没有税额
+
+        Returns:
+            float: 0.0
+        """
+        return 0.0

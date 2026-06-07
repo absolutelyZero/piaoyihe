@@ -156,6 +156,16 @@ class InvoiceExtractor(ABC):
         """
         pass
 
+    @abstractmethod
+    def extract_tax_amount(self) -> float:
+        """
+        提取税额
+
+        Returns:
+            float: 提取的税额，无则返回0.0
+        """
+        pass
+
     def extract_all(self) -> Dict[str, Any]:
         """
         一次性提取所有字段
@@ -179,4 +189,5 @@ class InvoiceExtractor(ABC):
             'buyer_name': self.extract_buyer_name(),
             'seller_name': self.extract_seller_name(),
             'invoice_code': self.extract_invoice_code(),
+            'tax_amount': self.extract_tax_amount(),
         }

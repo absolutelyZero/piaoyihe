@@ -104,6 +104,9 @@ class MainWindow(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
+        # 设置图标目录
+        self.icon_dir = os.path.join(base_path, 'res', 'icons')
+        
         # 设置全局样式表
         self._setup_stylesheet()
         
@@ -426,6 +429,78 @@ class MainWindow(QMainWindow):
             }}
         """)
     
+    def _icon_path(self, filename):
+        """
+        获取图标文件完整路径
+
+        功能描述:
+            根据图标文件名返回完整路径
+
+        参数:
+            filename: 图标文件名
+
+        返回值:
+            str: 图标文件完整路径
+        """
+        return os.path.join(self.icon_dir, filename)
+
+    def _icon_pixmap(self, filename, size=16):
+        """
+        加载SVG图标为QPixmap
+
+        功能描述:
+            加载指定SVG图标并缩放到指定尺寸
+
+        参数:
+            filename: 图标文件名
+            size: 图标尺寸（像素），默认16
+
+        返回值:
+            QPixmap: 图标像素图，加载失败则返回空QPixmap
+        """
+        pixmap = QPixmap(self._icon_path(filename))
+        if not pixmap.isNull():
+            pixmap = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        return pixmap
+
+    def _icon_label(self, filename, size=16):
+        """
+        创建带SVG图标的QLabel
+
+        功能描述:
+            创建QLabel并设置SVG图标
+
+        参数:
+            filename: 图标文件名
+            size: 图标尺寸（像素），默认16
+
+        返回值:
+            QLabel: 带有图标的标签
+        """
+        label = QLabel()
+        pixmap = self._icon_pixmap(filename, size)
+        if not pixmap.isNull():
+            label.setPixmap(pixmap)
+        return label
+
+    def _set_btn_icon(self, button, filename, text, icon_size=16):
+        """
+        为QPushButton设置SVG图标
+
+        功能描述:
+            设置按钮的图标和文本（去掉emoji）
+
+        参数:
+            button: QPushButton实例
+            filename: 图标文件名
+            text: 按钮文本（不含emoji）
+            icon_size: 图标尺寸（像素），默认16
+        """
+        icon = QIcon(self._icon_path(filename))
+        button.setIcon(icon)
+        button.setIconSize(QSize(icon_size, icon_size))
+        button.setText(text)
+
     def _create_top_widget(self):
         """
         创建顶部区域控件
@@ -446,8 +521,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(12)
         
         # 图标标签
-        icon_label = QLabel("📄")
-        icon_label.setStyleSheet("font-size: 20px; background: transparent; border: none;")
+        icon_label = self._icon_label("笔记_notes.svg", 20)
         layout.addWidget(icon_label)
         
         # 主提示文本
@@ -514,8 +588,7 @@ class MainWindow(QMainWindow):
         
         # 文件列表标题
         file_list_header = QHBoxLayout()
-        file_list_icon = QLabel("📁")
-        file_list_icon.setStyleSheet("font-size: 16px; background: transparent; border: none;")
+        file_list_icon = self._icon_label("文件夹-开_folder-open.svg", 16)
         file_list_header.addWidget(file_list_icon)
         
         self.file_list_label = QLabel("文件列表")
@@ -545,8 +618,7 @@ class MainWindow(QMainWindow):
         
         # 预览区域标题栏
         preview_header = QHBoxLayout()
-        preview_icon = QLabel("👁")
-        preview_icon.setStyleSheet("font-size: 16px; background: transparent; border: none;")
+        preview_icon = self._icon_label("预览-打开_preview-open.svg", 16)
         preview_header.addWidget(preview_icon)
         
         preview_label = QLabel("合并预览")
@@ -561,11 +633,12 @@ class MainWindow(QMainWindow):
         preview_header.addStretch()
         
         # 刷新预览按钮
-        self.refresh_preview_btn = QPushButton("🔄 刷新")
+        self.refresh_preview_btn = QPushButton("刷新")
         self.refresh_preview_btn.setObjectName("iconButton")
         self.refresh_preview_btn.setToolTip("手动刷新预览")
         self.refresh_preview_btn.clicked.connect(self._update_preview)
         self.refresh_preview_btn.setEnabled(False)
+        self._set_btn_icon(self.refresh_preview_btn, "刷新_refresh.svg", "刷新")
         preview_header.addWidget(self.refresh_preview_btn)
         
         preview_layout.addLayout(preview_header)
@@ -588,8 +661,14 @@ class MainWindow(QMainWindow):
         """)
         
         placeholder_layout = QVBoxLayout(placeholder_container)
-        
-        self.preview_placeholder = QLabel("📄\n\n添加PDF文件后，此处将显示合并后的预览效果\n\n支持实时预览，调整选项后自动更新")
+        placeholder_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder_layout.setSpacing(12)
+
+        self.preview_placeholder_icon = self._icon_label("笔记_notes.svg", 48)
+        self.preview_placeholder_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder_layout.addWidget(self.preview_placeholder_icon)
+
+        self.preview_placeholder = QLabel("添加PDF文件后，此处将显示合并后的预览效果\n\n支持实时预览，调整选项后自动更新")
         self.preview_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_placeholder.setStyleSheet(f"""
             color: {TEXT_SECONDARY};
@@ -666,9 +745,8 @@ class MainWindow(QMainWindow):
         orientation_container = QHBoxLayout()
         orientation_container.setSpacing(8)
         
-        orientation_icon = QLabel("🧭")
-        orientation_icon.setStyleSheet("font-size: 13px; background: transparent; border: none;")
-        orientation_container.addWidget(orientation_icon)
+        # orientation_icon = self._icon_label("布局2_layout-two.svg", 14)
+        # orientation_container.addWidget(orientation_icon)
         
         orientation_title = QLabel("布局:")
         orientation_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
@@ -814,9 +892,8 @@ class MainWindow(QMainWindow):
         mode_container = QHBoxLayout()
         mode_container.setSpacing(8)
         
-        mode_icon = QLabel("⚙")
-        mode_icon.setStyleSheet("font-size: 13px; background: transparent; border: none;")
-        mode_container.addWidget(mode_icon)
+        # mode_icon = self._icon_label("扫描设置_scan-setting.svg", 14)
+        # mode_container.addWidget(mode_icon)
         
         mode_title = QLabel("模式:")
         mode_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
@@ -842,9 +919,8 @@ class MainWindow(QMainWindow):
         order_container = QHBoxLayout()
         order_container.setSpacing(8)
         
-        order_icon = QLabel("📋")
-        order_icon.setStyleSheet("font-size: 13px; background: transparent; border: none;")
-        order_container.addWidget(order_icon)
+        # order_icon = self._icon_label("排序2_sort-two.svg", 14)
+        # order_container.addWidget(order_icon)
         
         order_title = QLabel("打印顺序:")
         order_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
@@ -885,22 +961,25 @@ class MainWindow(QMainWindow):
         file_ops_layout = QHBoxLayout()
         file_ops_layout.setSpacing(6)
         
-        self.add_file_btn = QPushButton("➕ 添加")
+        self.add_file_btn = QPushButton("添加")
         self.add_file_btn.setObjectName("iconButton")
         self.add_file_btn.setToolTip("添加PDF文件到列表")
         self.add_file_btn.clicked.connect(self._on_add_file)
+        self._set_btn_icon(self.add_file_btn, "加_plus.svg", "添加")
         file_ops_layout.addWidget(self.add_file_btn)
-        
-        self.del_btn = QPushButton("🗑️ 删除")
+
+        self.del_btn = QPushButton("删除")
         self.del_btn.setObjectName("iconButton")
         self.del_btn.setToolTip("删除选中的文件")
         self.del_btn.clicked.connect(self._on_del)
+        self._set_btn_icon(self.del_btn, "减_minus.svg", "删除")
         file_ops_layout.addWidget(self.del_btn)
-        
-        self.del_all_btn = QPushButton("❌ 清空")
-        self.del_all_btn.setObjectName("dangerButton")
+
+        self.del_all_btn = QPushButton("清空")
+        self.del_all_btn.setObjectName("iconButton")
         self.del_all_btn.setToolTip("清空所有文件")
         self.del_all_btn.clicked.connect(self._on_del_all)
+        self._set_btn_icon(self.del_all_btn, "关闭_close.svg", "清空")
         file_ops_layout.addWidget(self.del_all_btn)
         
         layout.addLayout(file_ops_layout)
@@ -916,16 +995,18 @@ class MainWindow(QMainWindow):
         sort_ops_layout = QHBoxLayout()
         sort_ops_layout.setSpacing(6)
         
-        self.move_up_btn = QPushButton("⬆️ 上移")
+        self.move_up_btn = QPushButton("上移")
         self.move_up_btn.setObjectName("iconButton")
         self.move_up_btn.setToolTip("将选中的文件上移一位")
         self.move_up_btn.clicked.connect(self._on_move_up)
+        self._set_btn_icon(self.move_up_btn, "箭头上_arrow-up.svg", "上移")
         sort_ops_layout.addWidget(self.move_up_btn)
-        
-        self.move_down_btn = QPushButton("⬇️ 下移")
+
+        self.move_down_btn = QPushButton("下移")
         self.move_down_btn.setObjectName("iconButton")
         self.move_down_btn.setToolTip("将选中的文件下移一位")
         self.move_down_btn.clicked.connect(self._on_move_down)
+        self._set_btn_icon(self.move_down_btn, "箭头下_arrow-down.svg", "下移")
         sort_ops_layout.addWidget(self.move_down_btn)
         
         layout.addLayout(sort_ops_layout)
@@ -941,10 +1022,11 @@ class MainWindow(QMainWindow):
         rename_ops_layout = QHBoxLayout()
         rename_ops_layout.setSpacing(6)
         
-        self.rename_btn = QPushButton("✏️ 重命名")
+        self.rename_btn = QPushButton("重命名")
         self.rename_btn.setObjectName("iconButton")
         self.rename_btn.setToolTip("批量重命名文件")
         self.rename_btn.clicked.connect(self._on_rename)
+        self._set_btn_icon(self.rename_btn, "铅笔_pencil.svg", "重命名")
         rename_ops_layout.addWidget(self.rename_btn)
         
         layout.addLayout(rename_ops_layout)
@@ -960,10 +1042,11 @@ class MainWindow(QMainWindow):
         export_ops_layout = QHBoxLayout()
         export_ops_layout.setSpacing(6)
         
-        self.export_list_btn = QPushButton("📤 导出列表")
+        self.export_list_btn = QPushButton("导出列表")
         self.export_list_btn.setObjectName("iconButton")
         self.export_list_btn.setToolTip("导出文件列表到Excel")
         self.export_list_btn.clicked.connect(self._on_export_list)
+        self._set_btn_icon(self.export_list_btn, "下载_download-four.svg", "导出列表")
         export_ops_layout.addWidget(self.export_list_btn)
         
         layout.addLayout(export_ops_layout)
@@ -992,14 +1075,14 @@ class MainWindow(QMainWindow):
         layout.setSpacing(12)
         
         # 保存路径标签
-        path_icon = QLabel("💾")
-        path_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
-        layout.addWidget(path_icon)
+        # path_icon = QLabel("💾")
+        # path_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
+        # layout.addWidget(path_icon)
         
-        path_label = QLabel("保存路径:")
-        path_label.setObjectName("titleLabel")
-        path_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        layout.addWidget(path_label)
+        # path_label = QLabel("保存路径:")
+        # path_label.setObjectName("titleLabel")
+        # path_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
+        # layout.addWidget(path_label)
         
         # 保存路径输入框
         # self.path_edit = QLineEdit()
@@ -1009,10 +1092,11 @@ class MainWindow(QMainWindow):
         # layout.addWidget(self.path_edit, 1)
         
         # 选择路径按钮
-        self.select_path_btn = QPushButton("📂 浏览...")
+        self.select_path_btn = QPushButton("浏览...")
         self.select_path_btn.setObjectName("iconButton")
         self.select_path_btn.setToolTip("选择保存位置")
         self.select_path_btn.clicked.connect(self._on_select_path)
+        self._set_btn_icon(self.select_path_btn, "文件夹-开_folder-open.svg", "浏览...")
         layout.addWidget(self.select_path_btn)
         
         return card
@@ -1043,9 +1127,8 @@ class MainWindow(QMainWindow):
         
         # 文件列表标题
         file_list_header = QHBoxLayout()
-        file_list_icon = QLabel("📁")
-        file_list_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
-        file_list_header.addWidget(file_list_icon)
+        # file_list_icon = self._icon_label("文件夹-开_folder-open.svg", 14)
+        # file_list_header.addWidget(file_list_icon)
         
         self.file_list_label = QLabel("文件列表")
         self.file_list_label.setObjectName("titleLabel")
@@ -1081,27 +1164,28 @@ class MainWindow(QMainWindow):
         bottom_layout.setSpacing(8)
         
         # 保存路径
-        path_header = QHBoxLayout()
-        path_icon = QLabel("💾")
-        path_icon.setStyleSheet("font-size: 12px; background: transparent; border: none;")
-        path_header.addWidget(path_icon)
-        path_label = QLabel("保存路径")
-        path_label.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY};")
-        path_header.addWidget(path_label)
-        path_header.addStretch()
-        bottom_layout.addLayout(path_header)
-        
+        # path_header = QHBoxLayout()
+        # path_icon = QLabel("💾")
+        # path_icon.setStyleSheet("font-size: 12px; background: transparent; border: none;")
+        # path_header.addWidget(path_icon)
+        # path_label = QLabel("保存路径")
+        # path_label.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY};")
+        # path_header.addWidget(path_label)
+        # path_header.addStretch()
+        # bottom_layout.addLayout(path_header)
+
         path_input_layout = QHBoxLayout()
         path_input_layout.setSpacing(6)
-        
+
         self.path_edit = QLineEdit()
         self.path_edit.setObjectName("pathInput")
         self.path_edit.setPlaceholderText("选择保存位置...")
         path_input_layout.addWidget(self.path_edit, 1)
-        
-        self.select_path_btn = QPushButton("📂 浏览")
+
+        self.select_path_btn = QPushButton("浏览")
         self.select_path_btn.setObjectName("iconButton")
         self.select_path_btn.setToolTip("选择保存位置")
+        self._set_btn_icon(self.select_path_btn, "文件夹-开_folder-open.svg", "浏览")
         self.select_path_btn.clicked.connect(self._on_select_path)
         path_input_layout.addWidget(self.select_path_btn)
         
@@ -1118,6 +1202,7 @@ class MainWindow(QMainWindow):
         self.merge_btn.setToolTip("合并所有文件并保存")
         self.merge_btn.setMinimumWidth(100)
         self.merge_btn.clicked.connect(self._on_merge_all)
+        # self._set_btn_icon(self.merge_btn, "合并单元格_merge-cells.svg", "合并")
         path_input_layout.addWidget(self.merge_btn)
 
                 # ========== 一式两份配置 ==========
@@ -1179,8 +1264,7 @@ class MainWindow(QMainWindow):
         
         # 预览区域标题栏
         preview_header = QHBoxLayout()
-        preview_icon = QLabel("👁")
-        preview_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
+        preview_icon = self._icon_label("预览-打开_preview-open.svg", 14)
         preview_header.addWidget(preview_icon)
         
         preview_label = QLabel("合并预览")
@@ -1223,11 +1307,12 @@ class MainWindow(QMainWindow):
         # preview_header.addWidget(self.preview_checkbox)
         
         # 刷新预览按钮
-        self.refresh_preview_btn = QPushButton("🔄 刷新")
+        self.refresh_preview_btn = QPushButton("刷新")
         self.refresh_preview_btn.setObjectName("iconButton")
         self.refresh_preview_btn.setToolTip("手动刷新预览")
         self.refresh_preview_btn.clicked.connect(self._update_preview)
         self.refresh_preview_btn.setEnabled(False)
+        self._set_btn_icon(self.refresh_preview_btn, "刷新_refresh.svg", "刷新")
         preview_header.addWidget(self.refresh_preview_btn)
         
         preview_layout.addLayout(preview_header)
@@ -1250,8 +1335,14 @@ class MainWindow(QMainWindow):
         """)
         
         placeholder_layout = QVBoxLayout(placeholder_container)
-        
-        self.preview_placeholder = QLabel("📄\n\n添加PDF文件后，此处将显示合并后的预览效果\n\n支持实时预览，调整选项后自动更新")
+        placeholder_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder_layout.setSpacing(12)
+
+        self.preview_placeholder_icon = self._icon_label("笔记_notes.svg", 48)
+        self.preview_placeholder_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder_layout.addWidget(self.preview_placeholder_icon)
+
+        self.preview_placeholder = QLabel("添加PDF文件后，此处将显示合并后的预览效果\n\n支持实时预览，调整选项后自动更新")
         self.preview_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_placeholder.setStyleSheet(f"""
             color: {TEXT_SECONDARY};
@@ -1446,7 +1537,7 @@ class MainWindow(QMainWindow):
             # 关闭预览，显示占位符
             self.preview_stack.setCurrentIndex(0)
             self.preview_status_label.setText("(预览已关闭)")
-            self.preview_placeholder.setText("📄\n\n预览功能已关闭\n\n如需查看预览，请勾选「启用预览」开关")
+            self.preview_placeholder.setText("预览功能已关闭\n\n如需查看预览，请勾选「启用预览」开关")
         
         # 保存配置
         self._save_config()
@@ -1545,10 +1636,10 @@ class MainWindow(QMainWindow):
                     page_layout.setContentsMargins(8, 8, 8, 8)
                     
                     # 页面编号标签
-                    page_num_label = QLabel(f"第 {i + 1} 页")
-                    page_num_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    page_num_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px;")
-                    page_layout.addWidget(page_num_label)
+                    # page_num_label = QLabel(f"第 {i + 1} 页")
+                    # page_num_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    # page_num_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px;")
+                    # page_layout.addWidget(page_num_label)
                     
                     # 图像标签
                     label = QLabel()
@@ -1565,7 +1656,7 @@ class MainWindow(QMainWindow):
                 layout_config = self._get_current_layout()
                 items_per_page = layout_config['rows'] * layout_config['cols']
                 total_pages = (len(files) + items_per_page - 1) // items_per_page
-                self.preview_status_label.setText(f"(预览第1页/共{total_pages}页，{len(files)}个文件，Ctrl+滚轮缩放)")
+                self.preview_status_label.setText(f"(仅预览第1页/共{total_pages}页，{len(files)}个文件，Ctrl+滚轮缩放)")
             else:
                 self.preview_status_label.setText("(预览生成失败)")
                 
@@ -1841,7 +1932,8 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "错误", f"合并失败: {str(e)}")
         finally:
             self.merge_btn.setEnabled(True)
-            self.merge_btn.setText("🔀 合并")
+            self.merge_btn.setText("合并")
+            # self._set_btn_icon(self.merge_btn, "合并选择_union-selection.svg", "合并")
     
     def _update_progress(self, value):
         """
@@ -2408,7 +2500,7 @@ class MainWindow(QMainWindow):
             # 创建更新检查器，传入必需的参数
             checker = UpdateChecker(
                 local_version_file=VERSION_FILE,
-                remote_version_url="https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/version.json",
+                remote_version_url="https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/version.json",
                 config_file=CONFIG_FILE
             )
             
@@ -2417,7 +2509,7 @@ class MainWindow(QMainWindow):
             
             if has_update:
                 # 显示更新对话框
-                qrcode_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/updatelog.png"
+                qrcode_url = "https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/updatelog.png"
                 show_update_dialog(self, qrcode_url, CONFIG_FILE, remote_version)
             else:
                 if force_check:
@@ -2601,7 +2693,7 @@ class FeedbackDialog(QDialog):
             }
         """)
         
-        help_content = """<h3>🚀 快速开始</h3>
+        help_content = """<h3>快速开始</h3>
 <ol>
 <li><b>添加文件</b>：点击"添加"按钮或直接将PDF文件拖入列表</li>
 <li><b>选择布局</b>：选择合并布局（竖向1x2、竖向1x3、横向2x2等）</li>
@@ -2609,7 +2701,7 @@ class FeedbackDialog(QDialog):
 <li><b>合并保存</b>：选择保存路径，点击"合并"按钮</li>
 </ol>
 
-<h3>📋 功能说明</h3>
+<h3>功能说明</h3>
 <ul>
 <li><b>布局选择</b>：
   <ul>
@@ -2629,7 +2721,7 @@ class FeedbackDialog(QDialog):
 <li><b>合并后打印</b>：勾选后合并完成自动打开文件</li>
 </ul>
 
-<h3>💡 使用技巧</h3>
+<h3>使用技巧</h3>
 <ul>
 <li>双击列表中的文件可直接打开查看</li>
 <li>支持批量拖拽添加多个文件</li>
@@ -2638,7 +2730,7 @@ class FeedbackDialog(QDialog):
 <li>勾选"一式两份"可快速生成双份发票</li>
 </ul>
 
-<h3>❓ 常见问题</h3>
+<h3>常见问题</h3>
 <ul>
 <li><b>Q: 支持哪些文件格式？</b><br>A: 目前仅支持PDF格式文件</li>
 <li><b>Q: 合并后的文件在哪里？</b><br>A: 默认保存在第一个PDF文件的目录下，可手动选择保存位置</li>

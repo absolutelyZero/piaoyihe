@@ -155,19 +155,19 @@ class RenameDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(8)
         
-        self.save_btn = QPushButton("💾 保存")
+        self.save_btn = QPushButton("保存")
         self.save_btn.setObjectName("saveButton")
         self.save_btn.clicked.connect(self._on_save)
         btn_layout.addWidget(self.save_btn)
         
-        self.clear_btn = QPushButton("🗑️ 清空")
+        self.clear_btn = QPushButton("清空")
         self.clear_btn.setObjectName("clearButton")
         self.clear_btn.clicked.connect(self._on_clear)
         btn_layout.addWidget(self.clear_btn)
         
         btn_layout.addStretch()
         
-        self.execute_btn = QPushButton("▶️ 执行重命名")
+        self.execute_btn = QPushButton("▶ 执行重命名")
         self.execute_btn.setObjectName("executeButton")
         self.execute_btn.clicked.connect(self._on_execute)
         btn_layout.addWidget(self.execute_btn)

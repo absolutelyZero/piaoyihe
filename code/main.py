@@ -51,8 +51,8 @@ def main():
     def delayed_check_update():
         local_version_file = os.path.join(os.path.dirname(__file__), 'version.json')
         config_file = os.path.join(os.path.dirname(__file__), 'config.json')
-        remote_version_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/version.json"
-        qrcode_url = "https://static-mp-3141b5af-f962-41dd-a6cd-4a4a7aecff39.next.bspapp.com/pyh/updatelog.png"
+        remote_version_url = "https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/version.json"
+        qrcode_url = "https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/updatelog.png"
         check_updates_on_start(window, local_version_file, remote_version_url, qrcode_url, config_file)
     
     # 延迟500毫秒后检查更新，确保主窗口已完全显示

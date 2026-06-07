@@ -466,6 +466,7 @@ class PDFHandler:
                     return extractor.extract_amount()
         except Exception as e:
             print(f"提取金额失败: {str(e)}")
+            return 0.0
 
         return 0.0
 
@@ -490,8 +491,11 @@ class PDFHandler:
             print(f"提取开票日期失败: {str(e)}")
 
         # 返回文件修改日期作为备选
-        mod_time = os.path.getmtime(pdf_path)
-        return time.strftime('%Y-%m-%d', time.localtime(mod_time))
+        try:
+            mod_time = os.path.getmtime(pdf_path)
+            return time.strftime('%Y-%m-%d', time.localtime(mod_time))
+        except Exception:
+            return time.strftime('%Y-%m-%d', time.localtime())
 
     def extract_invoice_type(self, pdf_path):
         """
@@ -534,6 +538,7 @@ class PDFHandler:
                     return extractor.extract_product_type()
         except Exception as e:
             print(f"提取商品类型失败: {str(e)}")
+            return "商品"
 
         return "商品"
 
@@ -556,6 +561,7 @@ class PDFHandler:
                     return extractor.extract_buyer_name()
         except Exception as e:
             print(f"提取买方名称失败: {str(e)}")
+            return "购买方"
 
         return "购买方"
 
@@ -578,6 +584,7 @@ class PDFHandler:
                     return extractor.extract_seller_name()
         except Exception as e:
             print(f"提取销方名称失败: {str(e)}")
+            return "销售方"
 
         return "销售方"
 
@@ -600,8 +607,32 @@ class PDFHandler:
                     return extractor.extract_invoice_code()
         except Exception as e:
             print(f"提取发票号码失败: {str(e)}")
+            return ""
 
         return ""
+
+    def extract_tax_amount(self, pdf_path):
+        """
+        从PDF中提取税额
+
+        通过工厂模式获取合适的提取器，调用其extract_tax_amount方法
+
+        Args:
+            pdf_path: PDF文件路径
+
+        Returns:
+            float: 提取的税额，失败返回0.0
+        """
+        try:
+            extractor = InvoiceExtractorFactory.get_extractor(pdf_path)
+            if extractor:
+                with extractor:
+                    return extractor.extract_tax_amount()
+        except Exception as e:
+            print(f"提取税额失败: {str(e)}")
+            return 0.0
+
+        return 0.0
 
     def extract_all_invoice_info(self, pdf_path):
         """

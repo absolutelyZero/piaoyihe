@@ -7,15 +7,16 @@
 """
 
 import os
+import sys
 import time
 import fitz  # PyMuPDF
 from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtWidgets import (
-    QWidget, QTableWidget, QVBoxLayout, QTableWidgetItem, 
+    QWidget, QTableWidget, QVBoxLayout, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QMenu, QLabel, QFrame
 )
-from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QPoint
-from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor
+from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QPoint, QSize
+from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor, QIcon
 
 
 class PreviewPopup(QFrame):
@@ -159,20 +160,27 @@ class FileListPanel(QWidget):
             parent: 父窗口部件，可选
         """
         super().__init__(parent)
-        
+
         self.pdf_handler = pdf_handler
         self.files = []
         self.on_file_added = on_file_added
-        
+
+        # 设置图标目录
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(os.path.dirname(__file__))
+        self.icon_dir = os.path.join(base_path, 'res', 'icons')
+
         # 预览浮窗
         self.preview_popup = PreviewPopup(self)
         self.preview_timer = QTimer(self)
         self.preview_timer.setSingleShot(True)
         self.preview_timer.timeout.connect(self._show_preview_popup)
-        
+
         # 当前悬停的行
         self.hover_row = -1
-        
+
         # 重复发票检查相关
         self._duplicate_check_timer = QTimer(self)
         self._duplicate_check_timer.setSingleShot(True)
@@ -184,6 +192,35 @@ class FileListPanel(QWidget):
         self._duplicate_check_result.connect(self._update_duplicate_display)
 
         self._init_ui()
+
+    def _icon_path(self, filename):
+        """
+        获取图标文件完整路径
+
+        参数:
+            filename: 图标文件名
+
+        返回值:
+            str: 图标文件完整路径
+        """
+        return os.path.join(self.icon_dir, filename)
+
+    def _action_icon(self, text, filename, parent=None):
+        """
+        创建带SVG图标的QAction
+
+        参数:
+            text: 动作文本
+            filename: 图标文件名
+            parent: 父对象
+
+        返回值:
+            QAction: 带有图标的动作
+        """
+        action = QAction(text, parent or self)
+        icon = QIcon(self._icon_path(filename))
+        action.setIcon(icon)
+        return action
     
     def _init_ui(self):
         """
@@ -197,9 +234,9 @@ class FileListPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         
         self.table = QTableWidget()
-        # 增加列数到8，新增发票号码列（放在文件名列前面）
-        self.table.setColumnCount(8)
-        self.table.setHorizontalHeaderLabels(["", "发票号码", "文件名", "金额", "开票日期", "路径", "修改日期", "大小"])
+        # 增加列数到9，新增发票号码列（放在文件名列前面）和税额列（放在金额列后面）
+        self.table.setColumnCount(9)
+        self.table.setHorizontalHeaderLabels(["", "发票号码", "文件名", "金额", "税额", "开票日期", "路径", "修改日期", "大小"])
 
         # 设置选择行为
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -227,11 +264,12 @@ class FileListPanel(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # 预览图标列固定宽度
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # 发票号码列
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # 文件名列
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # 金额列
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # 税额列
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # 开票日期列
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # 路径列
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # 修改日期列
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)  # 大小列
         
         # 连接排序信号，当用户点击列标题排序时同步更新self.files列表
         header.sortIndicatorChanged.connect(self._on_sort_changed)
@@ -352,14 +390,16 @@ class FileListPanel(QWidget):
             order: 排序顺序（Qt.SortOrder.AscendingOrder 或 Qt.SortOrder.DescendingOrder）
         """
         # 定义列索引到排序字段的映射
-        # 列索引: 0-预览图标, 1-文件名, 2-金额, 3-开票日期, 4-路径, 5-修改日期, 6-大小
+        # 列索引: 0-预览图标, 1-发票号码, 2-文件名, 3-金额, 4-税额, 5-开票日期, 6-路径, 7-修改日期, 8-大小
         sort_key_map = {
-            1: lambda x: x['name'],       # 文件名
-            2: lambda x: x['amount'],     # 金额
-            3: lambda x: x['invoice_date'], # 开票日期
-            4: lambda x: x['path'],       # 路径
-            5: lambda x: x['mod_time'],   # 修改日期
-            6: lambda x: x['size']        # 大小
+            1: lambda x: x.get('invoice_code', ''),  # 发票号码
+            2: lambda x: x['name'],       # 文件名
+            3: lambda x: x['amount'],     # 金额
+            4: lambda x: x.get('tax_amount', 0.0),  # 税额
+            5: lambda x: x['invoice_date'], # 开票日期
+            6: lambda x: x['path'],       # 路径
+            7: lambda x: x['mod_time'],   # 修改日期
+            8: lambda x: x['size']        # 大小
         }
         
         if logical_index in sort_key_map:
@@ -388,7 +428,7 @@ class FileListPanel(QWidget):
             return
         
         # 获取该行的文件路径，用于找到对应的数据索引
-        path_item = self.table.item(visual_row, 5)  # 第5列是路径列（列号已改变）
+        path_item = self.table.item(visual_row, 6)  # 第6列是路径列
         if not path_item:
             return
         
@@ -432,24 +472,24 @@ class FileListPanel(QWidget):
         """)
         
         # 添加"打开文件"动作
-        open_action = QAction("📄 打开文件", self)
+        open_action = self._action_icon("打开文件", "文件夹-开_folder-open.svg")
         open_action.triggered.connect(lambda: self._open_file_at_row(data_row))
         menu.addAction(open_action)
-        
+
         # 添加"在文件夹中显示"动作
-        show_in_folder_action = QAction("📁 在文件夹中显示", self)
+        show_in_folder_action = self._action_icon("在文件夹中显示", "文件夹-开_folder-open.svg")
         show_in_folder_action.triggered.connect(lambda: self._show_in_folder(data_row))
         menu.addAction(show_in_folder_action)
 
         # 添加"删除"动作
-        delete_action = QAction("🗑️ 删除", self)
+        delete_action = self._action_icon("删除", "关闭_close.svg")
         delete_action.triggered.connect(self.delete_selected)
         menu.addAction(delete_action)
-                
+
         menu.addSeparator()
 
         # 添加"导出"动作
-        export_action = QAction("📤 导出列表", self)
+        export_action = self._action_icon("导出列表", "保存硬盘_save-one.svg")
         export_action.triggered.connect(lambda: self._export_file())
         menu.addAction(export_action)
         
@@ -653,7 +693,8 @@ class FileListPanel(QWidget):
             self.table.insertRow(row)
 
             # 预览图标列
-            preview_item = QTableWidgetItem("👁")
+            preview_item = QTableWidgetItem()
+            preview_item.setIcon(QIcon(self._icon_path("预览-打开_preview-open.svg")))
             preview_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             preview_item.setToolTip("悬停查看预览")
 
@@ -667,6 +708,10 @@ class FileListPanel(QWidget):
             amount_item.setData(Qt.ItemDataRole.DisplayRole, file_info['amount'])
             amount_item.setData(Qt.ItemDataRole.UserRole, file_info['amount'])
 
+            tax_item = QTableWidgetItem()
+            tax_item.setData(Qt.ItemDataRole.DisplayRole, file_info.get('tax_amount', 0.0))
+            tax_item.setData(Qt.ItemDataRole.UserRole, file_info.get('tax_amount', 0.0))
+
             date_item = QTableWidgetItem(file_info['invoice_date'])
             date_item.setData(Qt.ItemDataRole.UserRole, file_info['invoice_date'])
 
@@ -678,10 +723,11 @@ class FileListPanel(QWidget):
             self.table.setItem(row, 1, code_item)
             self.table.setItem(row, 2, name_item)
             self.table.setItem(row, 3, amount_item)
-            self.table.setItem(row, 4, date_item)
-            self.table.setItem(row, 5, path_item)
-            self.table.setItem(row, 6, mod_item)
-            self.table.setItem(row, 7, size_item)
+            self.table.setItem(row, 4, tax_item)
+            self.table.setItem(row, 5, date_item)
+            self.table.setItem(row, 6, path_item)
+            self.table.setItem(row, 7, mod_item)
+            self.table.setItem(row, 8, size_item)
 
     def add_file(self, file_path):
         """
@@ -705,12 +751,14 @@ class FileListPanel(QWidget):
         amount = self.pdf_handler.extract_amount(file_path)
         invoice_date = self.pdf_handler.extract_invoice_date(file_path)
         invoice_code = self.pdf_handler.extract_invoice_code(file_path)
-        
+        tax_amount = self.pdf_handler.extract_tax_amount(file_path)
+
         file_info = {
             'name': file_name,
             'amount': amount,
             'invoice_date': invoice_date,
             'invoice_code': invoice_code,
+            'tax_amount': tax_amount,
             'path': file_path,
             'mod_time': mod_time_str,
             'size': f"{file_size:.2f} KB"
@@ -724,7 +772,8 @@ class FileListPanel(QWidget):
         self.table.insertRow(row)
 
         # 预览图标列
-        preview_item = QTableWidgetItem("👁")
+        preview_item = QTableWidgetItem()
+        preview_item.setIcon(QIcon(self._icon_path("预览-打开_preview-open.svg")))
         preview_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         preview_item.setToolTip("悬停查看预览")
 
@@ -739,6 +788,10 @@ class FileListPanel(QWidget):
         amount_item.setData(Qt.ItemDataRole.DisplayRole, amount)
         amount_item.setData(Qt.ItemDataRole.UserRole, amount)
 
+        tax_item = QTableWidgetItem()
+        tax_item.setData(Qt.ItemDataRole.DisplayRole, tax_amount)
+        tax_item.setData(Qt.ItemDataRole.UserRole, tax_amount)
+
         date_item = QTableWidgetItem(invoice_date)
         date_item.setData(Qt.ItemDataRole.UserRole, invoice_date)
 
@@ -750,11 +803,12 @@ class FileListPanel(QWidget):
         self.table.setItem(row, 1, code_item)
         self.table.setItem(row, 2, name_item)
         self.table.setItem(row, 3, amount_item)
-        self.table.setItem(row, 4, date_item)
-        self.table.setItem(row, 5, path_item)
-        self.table.setItem(row, 6, mod_item)
-        self.table.setItem(row, 7, size_item)
-        
+        self.table.setItem(row, 4, tax_item)
+        self.table.setItem(row, 5, date_item)
+        self.table.setItem(row, 6, path_item)
+        self.table.setItem(row, 7, mod_item)
+        self.table.setItem(row, 8, size_item)
+
         # 触发重复发票检查
         self._trigger_duplicate_check()
         
@@ -910,7 +964,8 @@ class FileListPanel(QWidget):
             self.table.insertRow(row)
 
             # 预览图标列
-            preview_item = QTableWidgetItem("👁")
+            preview_item = QTableWidgetItem()
+            preview_item.setIcon(QIcon(self._icon_path("预览-打开_preview-open.svg")))
             preview_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             preview_item.setToolTip("悬停查看预览")
 
@@ -924,6 +979,10 @@ class FileListPanel(QWidget):
             amount_item.setData(Qt.ItemDataRole.DisplayRole, file_info['amount'])
             amount_item.setData(Qt.ItemDataRole.UserRole, file_info['amount'])
 
+            tax_item = QTableWidgetItem()
+            tax_item.setData(Qt.ItemDataRole.DisplayRole, file_info.get('tax_amount', 0.0))
+            tax_item.setData(Qt.ItemDataRole.UserRole, file_info.get('tax_amount', 0.0))
+
             date_item = QTableWidgetItem(file_info['invoice_date'])
             date_item.setData(Qt.ItemDataRole.UserRole, file_info['invoice_date'])
 
@@ -935,10 +994,11 @@ class FileListPanel(QWidget):
             self.table.setItem(row, 1, code_item)
             self.table.setItem(row, 2, name_item)
             self.table.setItem(row, 3, amount_item)
-            self.table.setItem(row, 4, date_item)
-            self.table.setItem(row, 5, path_item)
-            self.table.setItem(row, 6, mod_item)
-            self.table.setItem(row, 7, size_item)
+            self.table.setItem(row, 4, tax_item)
+            self.table.setItem(row, 5, date_item)
+            self.table.setItem(row, 6, path_item)
+            self.table.setItem(row, 7, mod_item)
+            self.table.setItem(row, 8, size_item)
 
         # 恢复排序
         self.table.setSortingEnabled(True)
@@ -986,7 +1046,8 @@ class FileListPanel(QWidget):
                     file_info['amount'] = self.pdf_handler.extract_amount(file_path)
                     file_info['invoice_date'] = self.pdf_handler.extract_invoice_date(file_path)
                     file_info['invoice_code'] = self.pdf_handler.extract_invoice_code(file_path)
-                    
+                    file_info['tax_amount'] = self.pdf_handler.extract_tax_amount(file_path)
+
                     # 更新文件大小和修改时间
                     file_size = os.path.getsize(file_path) / 1024
                     mod_time = os.path.getmtime(file_path)
@@ -1050,7 +1111,7 @@ class FileListPanel(QWidget):
             ws.title = "发票列表"
 
             # 设置表头（不包含预览列）
-            headers = ["发票代码", "文件名", "金额", "发票日期", "文件路径", "修改时间", "大小"]
+            headers = ["发票代码", "文件名", "金额", "税额", "发票日期", "文件路径", "修改时间", "大小"]
             for col, header in enumerate(headers, 1):
                 cell = ws.cell(row=1, column=col, value=header)
                 cell.font = cell.font.copy(bold=True)
@@ -1059,9 +1120,19 @@ class FileListPanel(QWidget):
             yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
             # 写入数据
+            total_amount = 0.0
+            total_tax = 0.0
             for row_idx, file_info in enumerate(self.files, 2):
                 # 获取发票代码
                 invoice_code = file_info.get('invoice_code', '')
+                amount = file_info.get('amount', 0.0)
+                tax_amount = file_info.get('tax_amount', 0.0)
+
+                # 累加总计
+                if isinstance(amount, (int, float)):
+                    total_amount += amount
+                if isinstance(tax_amount, (int, float)):
+                    total_tax += tax_amount
 
                 # 检查是否为重复数据
                 is_duplicate = invoice_code in self._duplicate_codes and invoice_code != ""
@@ -1069,25 +1140,41 @@ class FileListPanel(QWidget):
                 # 写入数据（列号从1开始，预览列已删除）
                 ws.cell(row=row_idx, column=1, value=invoice_code)
                 ws.cell(row=row_idx, column=2, value=file_info.get('name', ''))
-                ws.cell(row=row_idx, column=3, value=file_info.get('amount', ''))
-                ws.cell(row=row_idx, column=4, value=file_info.get('invoice_date', ''))
-                ws.cell(row=row_idx, column=5, value=file_info.get('path', ''))
-                ws.cell(row=row_idx, column=6, value=file_info.get('mod_time', ''))
-                ws.cell(row=row_idx, column=7, value=file_info.get('size', ''))
+                ws.cell(row=row_idx, column=3, value=amount)
+                ws.cell(row=row_idx, column=4, value=tax_amount)
+                ws.cell(row=row_idx, column=5, value=file_info.get('invoice_date', ''))
+                ws.cell(row=row_idx, column=6, value=file_info.get('path', ''))
+                ws.cell(row=row_idx, column=7, value=file_info.get('mod_time', ''))
+                ws.cell(row=row_idx, column=8, value=file_info.get('size', ''))
 
-                # 如果是重复数据，应用黄色高亮（1-7列）
+                # 如果是重复数据，应用黄色高亮（1-8列）
                 if is_duplicate:
-                    for col in range(1, 8):
+                    for col in range(1, 9):
                         ws.cell(row=row_idx, column=col).fill = yellow_fill
+
+            # 添加总计行
+            total_row = len(self.files) + 2
+            ws.cell(row=total_row, column=1, value="")
+            ws.cell(row=total_row, column=2, value="总计")
+            ws.cell(row=total_row, column=3, value=total_amount)
+            ws.cell(row=total_row, column=4, value=total_tax)
+            ws.cell(row=total_row, column=5, value="")
+            ws.cell(row=total_row, column=6, value="")
+            ws.cell(row=total_row, column=7, value="")
+            ws.cell(row=total_row, column=8, value="")
+            # 设置总计行字体加粗
+            for col in range(1, 9):
+                ws.cell(row=total_row, column=col).font = ws.cell(row=total_row, column=col).font.copy(bold=True)
 
             # 调整列宽（预览列已删除）
             ws.column_dimensions['A'].width = 20
             ws.column_dimensions['B'].width = 30
             ws.column_dimensions['C'].width = 12
-            ws.column_dimensions['D'].width = 15
-            ws.column_dimensions['E'].width = 50
-            ws.column_dimensions['F'].width = 20
-            ws.column_dimensions['G'].width = 12
+            ws.column_dimensions['D'].width = 12
+            ws.column_dimensions['E'].width = 15
+            ws.column_dimensions['F'].width = 50
+            ws.column_dimensions['G'].width = 20
+            ws.column_dimensions['H'].width = 12
 
             # 保存文件
             wb.save(file_path)

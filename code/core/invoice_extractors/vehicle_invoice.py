@@ -200,3 +200,30 @@ class VehicleInvoiceExtractor(InvoiceExtractor):
                 return code
 
         return ""
+
+    def extract_tax_amount(self) -> float:
+        """
+        提取税额
+
+        提取策略：
+        1. 匹配"增值税额"或"税额"字段
+        2. 返回0.0
+
+        Returns:
+            float: 提取的税额，无则返回0.0
+        """
+        tax_patterns = [
+            r'增\s*值\s*税\s*额[:：]\s*[¥￥]?\s*(\d+(?:,\d{3})*(?:\.\d+)?)',
+            r'税\s*额[:：]\s*[¥￥]?\s*(\d+(?:,\d{3})*(?:\.\d+)?)',
+        ]
+
+        for pattern in tax_patterns:
+            match = re.search(pattern, self._text)
+            if match:
+                try:
+                    amount_str = match.group(1).replace(',', '')
+                    return float(amount_str)
+                except ValueError:
+                    pass
+
+        return 0.0
