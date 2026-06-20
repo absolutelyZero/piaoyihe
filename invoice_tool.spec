@@ -12,6 +12,8 @@ a = Analysis(
         ('code/version.json', 'code'),
         ('code/config.json', 'code'),
         ('code/res/icons/刷新_refresh.svg', 'res/icons'),
+        ('code/res/icons/笔记_notes.svg', 'res/icons'),
+        ('code/res/icons/加_plus.svg', 'res/icons'),
         ('code/res/icons/减_minus.svg', 'res/icons'),
         ('code/res/icons/关闭_close.svg', 'res/icons'),
         ('code/res/icons/箭头上_arrow-up.svg', 'res/icons'),
