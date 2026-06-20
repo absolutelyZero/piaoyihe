@@ -1652,11 +1652,15 @@ class MainWindow(QMainWindow):
                     self.preview_layout.addWidget(page_container)
                 
                 self.preview_stack.setCurrentIndex(1)
-                # 计算总页数
+                # 计算总页数（考虑一式两份）
                 layout_config = self._get_current_layout()
                 items_per_page = layout_config['rows'] * layout_config['cols']
-                total_pages = (len(files) + items_per_page - 1) // items_per_page
-                self.preview_status_label.setText(f"(仅预览第1页/共{total_pages}页，{len(files)}个文件，Ctrl+滚轮缩放)")
+                file_count = len(files)
+                if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
+                    total_pages = (file_count * 2 + items_per_page - 1) // items_per_page
+                else:
+                    total_pages = (file_count + items_per_page - 1) // items_per_page
+                self.preview_status_label.setText(f"(仅预览第1页/共{total_pages}页，{file_count}个文件，Ctrl+滚轮缩放)")
             else:
                 self.preview_status_label.setText("(预览生成失败)")
                 
