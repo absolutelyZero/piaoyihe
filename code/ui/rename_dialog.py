@@ -56,6 +56,7 @@ class RenameDialog(QDialog):
         ("发票类型", "发票类型"),
         ("商品类型", "商品类型"),
         ("开票日期", "开票日期"),
+        ("发票号码", "发票号码"),
         ("买方名字", "买方名字"),
         ("销方名字", "销方名字"),
         ("金额", "金额"),
@@ -438,6 +439,7 @@ class RenameDialog(QDialog):
             "• {发票类型} - 发票类型（普票、专票等）\n"
             "• {商品类型} - 商品或服务名称\n"
             "• {开票日期} - 开票日期（YYYY-MM-DD）\n"
+            "• {发票号码} - 发票号码\n"
             "• {买方名字} - 购买方名称\n"
             "• {销方名字} - 销售方名称\n"
             "• {金额} - 发票金额\n\n"
@@ -515,6 +517,7 @@ class RenameDialog(QDialog):
             '发票类型': 'invoice_type',
             '商品类型': 'product_type',
             '开票日期': 'invoice_date',
+            '发票号码': 'invoice_code',
             '买方名字': 'buyer_name',
             '销方名字': 'seller_name',
             '金额': 'amount',
