@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
         
         # 主要内容区域 - 使用水平分割器分为左右两列
         content_splitter = QSplitter(Qt.Orientation.Horizontal)
-        content_splitter.setHandleWidth(2)
+        content_splitter.setHandleWidth(8)
         
         # 左侧：功能区（垂直排列所有控件）
         left_widget = self._create_left_functional_area()
@@ -404,7 +404,13 @@ class MainWindow(QMainWindow):
             
             /* 分割器样式 */
             QSplitter::handle {{
-                background-color: {BORDER_COLOR};
+                background-color: {BG_COLOR};
+                border: none;
+            }}
+            
+            QSplitter::handle:disabled {{
+                background-color: {BG_COLOR};
+                border: none;
             }}
             
             QSplitter::handle:horizontal {{
@@ -1214,7 +1220,7 @@ class MainWindow(QMainWindow):
         path_input_layout.addWidget(self.duplicate_copy_checkbox)
         
         # 合并后打印复选框
-        self.print_checkbox = QCheckBox("合并后打印")
+        self.print_checkbox = QCheckBox("合并后打开")
         self.print_checkbox.setToolTip("合并后打开文件")
         self.print_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
         path_input_layout.addWidget(self.print_checkbox)
