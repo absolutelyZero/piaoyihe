@@ -14,4 +14,14 @@ echo 开始打包...
 echo.
 echo 打包完成！
 echo 输出目录: dist\票易合\票易合.exe
+
+:: 读取版本号
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "(Get-Content code\version.json | ConvertFrom-Json).version"`) do set VERSION=%%i
+echo 版本号: %VERSION%
+
+:: 压缩为 zip
+echo 开始压缩...
+powershell -NoProfile -Command "Compress-Archive -Path 'dist\票易合' -DestinationPath '票易合_win_%VERSION%.zip' -Force"
+echo 压缩完成: 票易合_win_%VERSION%.zip
+
 pause
