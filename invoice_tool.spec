@@ -11,6 +11,16 @@ a = Analysis(
         ('code/res/qrcode.jpg', 'res'),
         ('code/version.json', 'code'),
         ('code/config.json', 'code'),
+        ('code/res/icons/刷新_refresh.svg', 'res/icons'),
+        ('code/res/icons/笔记_notes.svg', 'res/icons'),
+        ('code/res/icons/加_plus.svg', 'res/icons'),
+        ('code/res/icons/减_minus.svg', 'res/icons'),
+        ('code/res/icons/关闭_close.svg', 'res/icons'),
+        ('code/res/icons/箭头上_arrow-up.svg', 'res/icons'),
+        ('code/res/icons/箭头下_arrow-down.svg', 'res/icons'),
+        ('code/res/icons/铅笔_pencil.svg', 'res/icons'),        
+        ('code/res/icons/下载_download-four.svg', 'res/icons'),        
+        ('code/res/icons/预览-打开_preview-open.svg', 'res/icons')
     ],
     hiddenimports=[
         # PySide6 核心模块

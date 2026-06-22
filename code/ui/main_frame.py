@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
         
         # 主要内容区域 - 使用水平分割器分为左右两列
         content_splitter = QSplitter(Qt.Orientation.Horizontal)
-        content_splitter.setHandleWidth(2)
+        content_splitter.setHandleWidth(8)
         
         # 左侧：功能区（垂直排列所有控件）
         left_widget = self._create_left_functional_area()
@@ -404,7 +404,13 @@ class MainWindow(QMainWindow):
             
             /* 分割器样式 */
             QSplitter::handle {{
-                background-color: {BORDER_COLOR};
+                background-color: {BG_COLOR};
+                border: none;
+            }}
+            
+            QSplitter::handle:disabled {{
+                background-color: {BG_COLOR};
+                border: none;
             }}
             
             QSplitter::handle:horizontal {{
@@ -1214,7 +1220,7 @@ class MainWindow(QMainWindow):
         path_input_layout.addWidget(self.duplicate_copy_checkbox)
         
         # 合并后打印复选框
-        self.print_checkbox = QCheckBox("合并后打印")
+        self.print_checkbox = QCheckBox("合并后打开")
         self.print_checkbox.setToolTip("合并后打开文件")
         self.print_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
         path_input_layout.addWidget(self.print_checkbox)
@@ -1652,11 +1658,15 @@ class MainWindow(QMainWindow):
                     self.preview_layout.addWidget(page_container)
                 
                 self.preview_stack.setCurrentIndex(1)
-                # 计算总页数
+                # 计算总页数（考虑一式两份）
                 layout_config = self._get_current_layout()
                 items_per_page = layout_config['rows'] * layout_config['cols']
-                total_pages = (len(files) + items_per_page - 1) // items_per_page
-                self.preview_status_label.setText(f"(仅预览第1页/共{total_pages}页，{len(files)}个文件，Ctrl+滚轮缩放)")
+                file_count = len(files)
+                if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
+                    total_pages = (file_count * 2 + items_per_page - 1) // items_per_page
+                else:
+                    total_pages = (file_count + items_per_page - 1) // items_per_page
+                self.preview_status_label.setText(f"(仅预览第1页/共{total_pages}页，{file_count}个文件，Ctrl+滚轮缩放)")
             else:
                 self.preview_status_label.setText("(预览生成失败)")
                 
