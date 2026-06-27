@@ -20,7 +20,7 @@ PiaoYiHe (票易合) is a cross-platform desktop application built with Python +
 - File list display: File name, amount, invoice date, path, modification date, size
 - **File Management**: Support move up/down to adjust order, context menu (open file, show in folder)
 - Support delete selected and delete all operations
-- **Batch Rename**: Support custom rules for batch renaming based on invoice fields (invoice type, product type, invoice date, buyer name, seller name, amount)
+- **Batch Rename**: Support custom rules for batch renaming based on invoice fields (invoice type, invoice number, product type, invoice date, buyer name, seller name, amount)
 - Support direct printing after merging
 - **Auto Update Check**: Automatically check for new versions on startup, supports version update notifications
 
