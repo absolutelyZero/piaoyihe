@@ -236,19 +236,95 @@ class CommonInvoiceExtractor(InvoiceExtractor):
 
         return "购买方"
 
+    def _extract_name_by_layout(self, is_seller: bool) -> str:
+        """
+        基于 fitz 词坐标按页面分栏提取买方或卖方名称
+
+        某些 PDF 发票的文本绘制顺序与视觉阅读顺序不一致，导致
+        get_text("block") 提取的左右分栏内容顺序错乱。本方法使用
+        page.get_text("words") 获取每个词的坐标，按 x 坐标将页面
+        分为左右两栏，再分别提取买卖双方名称。
+
+        Args:
+            is_seller: True 表示提取销售方名称，False 表示提取购买方名称
+
+        Returns:
+            str: 提取到的名称，失败返回空字符串
+        """
+        if not hasattr(self, '_words') or not self._words:
+            self._words = [page.get_text("words") for page in self._pages]
+
+        seller_labels = ['销', '售方', '销售方']
+        buyer_labels = ['购', '买方', '购买方']
+        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+
+        for words in self._words:
+            if not words:
+                continue
+
+            # 计算页面左右分栏的中线
+            xs = [w[0] for w in words] + [w[2] for w in words]
+            min_x, max_x = min(xs), max(xs)
+            mid_x = (min_x + max_x) / 2
+
+            # 按 x 坐标分为左右两栏，并按视觉顺序（从上到下、从左到右）重建文本
+            left_words = [w for w in words if w[2] < mid_x]
+            right_words = [w for w in words if w[0] > mid_x]
+            left_text = ' '.join([w[4] for w in sorted(left_words, key=lambda w: (w[1], w[0]))])
+            right_text = ' '.join([w[4] for w in sorted(right_words, key=lambda w: (w[1], w[0]))])
+
+            # 根据标签判断哪边是销售方、哪边是购买方
+            seller_in_left = any(label in left_text for label in seller_labels)
+            seller_in_right = any(label in right_text for label in seller_labels)
+            buyer_in_left = any(label in left_text for label in buyer_labels)
+            buyer_in_right = any(label in right_text for label in buyer_labels)
+
+            if seller_in_left and not seller_in_right:
+                seller_text, buyer_text = left_text, right_text
+            elif seller_in_right and not seller_in_left:
+                seller_text, buyer_text = right_text, left_text
+            elif buyer_in_left and not buyer_in_right:
+                seller_text, buyer_text = right_text, left_text
+            elif buyer_in_right and not buyer_in_left:
+                seller_text, buyer_text = left_text, right_text
+            else:
+                # 标签在两边都存在或都不存在，默认左侧为销售方
+                seller_text, buyer_text = left_text, right_text
+
+            target_text = seller_text if is_seller else buyer_text
+
+            # 在目标栏中提取公司名称
+            matches = re.findall(company_pattern, target_text)
+            for match in matches:
+                company = match.strip().replace(' ', '').replace('\n', '')
+                if len(company) > 4:
+                    return company[:30]
+
+        return ""
+
     def extract_seller_name(self) -> str:
         """
         提取销售方名称
 
         提取策略（按优先级）：
-        1. 匹配"销售方信息"区域内的"名称:"
-        2. 查找第二个"名称:"（第一个是购买方）
-        3. 查找最后一个公司名称
+        1. 基于 fitz 坐标按页面分栏提取
+        2. 匹配"销售方信息"区域内的"名称:"
+        3. 查找第二个"名称:"（第一个是购买方）
+        4. 查找最后一个公司名称
 
         Returns:
             str: 销售方名称
         """
-        # 策略1：匹配"销售方信息"区域
+        # 打印原始文本
+        print("原始文本:")
+        print(self._text)
+
+        # 策略1：基于 fitz 词坐标按页面分栏提取
+        seller = self._extract_name_by_layout(is_seller=True)
+        if seller:
+            return seller
+
+        # 策略2：匹配"销售方信息"区域
         seller_pattern = r'销[售\n]*方[\n\s]*信[\n\s]*息[\n\s]*.*?名[\n\s]*称[：:]\s*([\u4e00-\u9fa5a-zA-Z0-9（）()]+)'
         match = re.search(seller_pattern, self._text, re.DOTALL)
         if match:
