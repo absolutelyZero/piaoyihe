@@ -705,11 +705,11 @@ class FileListPanel(QWidget):
             name_item = QTableWidgetItem(file_info['name'])
 
             amount_item = QTableWidgetItem()
-            amount_item.setData(Qt.ItemDataRole.DisplayRole, file_info['amount'])
+            amount_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info['amount']:.2f}")
             amount_item.setData(Qt.ItemDataRole.UserRole, file_info['amount'])
 
             tax_item = QTableWidgetItem()
-            tax_item.setData(Qt.ItemDataRole.DisplayRole, file_info.get('tax_amount', 0.0))
+            tax_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info.get('tax_amount', 0.0):.2f}")
             tax_item.setData(Qt.ItemDataRole.UserRole, file_info.get('tax_amount', 0.0))
 
             date_item = QTableWidgetItem(file_info['invoice_date'])
@@ -785,11 +785,11 @@ class FileListPanel(QWidget):
         name_item = QTableWidgetItem(file_name)
 
         amount_item = QTableWidgetItem()
-        amount_item.setData(Qt.ItemDataRole.DisplayRole, amount)
+        amount_item.setData(Qt.ItemDataRole.DisplayRole, f"{amount:.2f}")
         amount_item.setData(Qt.ItemDataRole.UserRole, amount)
 
         tax_item = QTableWidgetItem()
-        tax_item.setData(Qt.ItemDataRole.DisplayRole, tax_amount)
+        tax_item.setData(Qt.ItemDataRole.DisplayRole, f"{tax_amount:.2f}")
         tax_item.setData(Qt.ItemDataRole.UserRole, tax_amount)
 
         date_item = QTableWidgetItem(invoice_date)
@@ -976,11 +976,11 @@ class FileListPanel(QWidget):
             name_item = QTableWidgetItem(file_info['name'])
 
             amount_item = QTableWidgetItem()
-            amount_item.setData(Qt.ItemDataRole.DisplayRole, file_info['amount'])
+            amount_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info['amount']:.2f}")
             amount_item.setData(Qt.ItemDataRole.UserRole, file_info['amount'])
 
             tax_item = QTableWidgetItem()
-            tax_item.setData(Qt.ItemDataRole.DisplayRole, file_info.get('tax_amount', 0.0))
+            tax_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info.get('tax_amount', 0.0):.2f}")
             tax_item.setData(Qt.ItemDataRole.UserRole, file_info.get('tax_amount', 0.0))
 
             date_item = QTableWidgetItem(file_info['invoice_date'])
