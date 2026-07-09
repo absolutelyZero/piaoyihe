@@ -1718,6 +1718,11 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
                 files_to_preview = [f for f in files_to_preview for _ in range(2)]
             
+            # 预览只需生成第一页，限制参与合并的文件数量以提升性能
+            # 第一页最多只需要 rows * cols 个源页面
+            pages_per_sheet = layout_config['rows'] * layout_config['cols']
+            files_to_preview = files_to_preview[:pages_per_sheet]
+            
             # 创建临时文件
             import tempfile
             temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
