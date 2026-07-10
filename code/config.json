@@ -5,7 +5,7 @@
   "ignored_version": "0.1.5",
   "save_path": "",
   "sort_by": "date",
-  "output_path": "D:/minipro/piaoyihe/piaoyihe_batch\\output.pdf",
+  "output_path": "",
   "rename_rule": "{发票类型}-{商品类型}-{开票日期}-{买方名字}-{销方名字}-{金额}-{发票号码}",
   "layout_config": {
     "orientation": "landscape",

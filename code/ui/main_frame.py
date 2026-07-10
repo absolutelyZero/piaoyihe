@@ -21,6 +21,7 @@ from PySide6.QtGui import QGuiApplication, QDesktopServices, QCursor, QPixmap, Q
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from ui.file_list import FileListPanel
 from ui.rename_dialog import RenameDialog
+from ui.merge_worker import MergeWorker
 from core.pdf_handler import PDFHandler
 from core.update_checker import UpdateChecker, show_update_dialog
 
@@ -69,6 +70,7 @@ class MainWindow(QMainWindow):
         self.remote_version = None
         self.preview_pixmap = None
         self.preview_timer = None  # 用于延迟更新预览的定时器
+        self.worker = None  # 后台合并工作线程
         
         self._init_ui()
         self._init_drag_drop()
@@ -138,6 +140,16 @@ class MainWindow(QMainWindow):
         content_splitter.setSizes([840, 560])
         
         main_layout.addWidget(content_splitter, 1)
+        
+        # 底部进度条，用于显示合并等耗时任务进度
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setObjectName("progressBar")
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("%p%")
+        self.progress_bar.setVisible(False)
+        main_layout.addWidget(self.progress_bar)
     
     def _setup_stylesheet(self):
         """
@@ -1907,58 +1919,89 @@ class MainWindow(QMainWindow):
         layout_config = self._get_current_layout()
         mode = self.mode_combo.currentText()
         
-        try:
-            # 显示进度
-            self.merge_btn.setEnabled(False)
-            self.merge_btn.setText("合并中...")
-            QGuiApplication.processEvents()
-            
-            # 获取排序方式
-            sort_by = self._get_current_sort_by()
-            
-            # 根据排序方式获取文件列表
-            if sort_by == 'list':
-                sorted_files = files
-            else:
-                sorted_files = self.file_list.get_sorted_files(sort_by)
-            
-            # 如果勾选了一式两份，将每个文件复制一份
-            if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
-                sorted_files = [f for f in sorted_files for _ in range(2)]
-            
-            # 执行合并
-            result = self.pdf_handler.merge_pdfs(
-                sorted_files,
-                output_path,
-                layout=layout_config,
-                mode=mode
-            )
-            
-            if result:
-                QMessageBox.information(self, "成功", f"PDF合并完成！\n保存至: {output_path}")
-                
-                # 如果勾选了打印选项，则打开打印
-                if self.print_checkbox.isChecked():
-                    self._on_print()
-            else:
-                QMessageBox.warning(self, "警告", "合并失败，请检查文件")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"合并失败: {str(e)}")
-        finally:
-            self.merge_btn.setEnabled(True)
-            self.merge_btn.setText("合并")
-            # self._set_btn_icon(self.merge_btn, "合并选择_union-selection.svg", "合并")
-    
-    def _update_progress(self, value):
+        # 防止重复启动合并任务
+        if self.worker is not None and self.worker.isRunning():
+            QMessageBox.warning(self, "警告", "合并任务正在进行中，请稍候")
+            return
+
+        # 获取排序方式
+        sort_by = self._get_current_sort_by()
+
+        # 根据排序方式获取文件列表
+        if sort_by == 'list':
+            sorted_files = files
+        else:
+            sorted_files = self.file_list.get_sorted_files(sort_by)
+
+        # 如果勾选了一式两份，将每个文件复制一份
+        if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
+            sorted_files = [f for f in sorted_files for _ in range(2)]
+
+        # 进入合并状态：禁用按钮、显示进度条
+        self.merge_btn.setEnabled(False)
+        self.merge_btn.setText("合并中...")
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+
+        # 启动后台工作线程执行合并
+        self.worker = MergeWorker(
+            pdf_handler=self.pdf_handler,
+            pdf_paths=sorted_files,
+            output_path=output_path,
+            layout=layout_config,
+            mode=mode,
+            batch_size=50
+        )
+        self.worker.progress.connect(self._on_merge_progress)
+        self.worker.finished.connect(self._on_merge_finished)
+        self.worker.error.connect(self._on_merge_error)
+        self.worker.start()
+
+    def _on_merge_progress(self, current, total):
         """
-        更新进度条
-        
+        更新合并进度条
+
         参数:
-            value (int): 进度值（0-100）
+            current: 当前已完成的步骤数
+            total: 总步骤数
         """
-        self.progress_bar.setValue(value)
-    
+        if total > 0:
+            self.progress_bar.setValue(int(current * 100 / total))
+
+    def _on_merge_finished(self, success, message):
+        """
+        合并完成后的回调
+
+        参数:
+            success: 是否成功
+            message: 提示信息
+        """
+        self.progress_bar.setVisible(False)
+        self.merge_btn.setEnabled(True)
+        self.merge_btn.setText("合并")
+
+        if success:
+            QMessageBox.information(self, "成功", message)
+            if self.print_checkbox.isChecked():
+                self._on_print()
+        else:
+            QMessageBox.warning(self, "警告", message)
+
+        self.worker = None
+
+    def _on_merge_error(self, error_message):
+        """
+        合并过程中发生错误的回调
+
+        参数:
+            error_message: 错误信息
+        """
+        self.progress_bar.setVisible(False)
+        self.merge_btn.setEnabled(True)
+        self.merge_btn.setText("合并")
+        QMessageBox.critical(self, "错误", f"合并失败: {error_message}")
+        self.worker = None
+
     def _on_select_path(self):
         """
         选择输出路径
