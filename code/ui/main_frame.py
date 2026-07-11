@@ -22,6 +22,7 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkRe
 from ui.file_list import FileListPanel
 from ui.rename_dialog import RenameDialog
 from ui.merge_worker import MergeWorker
+from ui.file_load_worker import FileLoadWorker
 from core.pdf_handler import PDFHandler
 from core.update_checker import UpdateChecker, show_update_dialog
 
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
         self.preview_pixmap = None
         self.preview_timer = None  # 用于延迟更新预览的定时器
         self.worker = None  # 后台合并工作线程
+        self.file_load_worker = None  # 后台文件加载工作线程
         
         self._init_ui()
         self._init_drag_drop()
@@ -141,13 +143,13 @@ class MainWindow(QMainWindow):
         
         main_layout.addWidget(content_splitter, 1)
         
-        # 底部进度条，用于显示合并等耗时任务进度
+        # 底部进度条，用于显示文件加载、合并等耗时任务进度
         self.progress_bar = QProgressBar()
         self.progress_bar.setObjectName("progressBar")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
-        self.progress_bar.setFormat("%p%")
+        self.progress_bar.setFormat("准备中 %p%")
         self.progress_bar.setVisible(False)
         main_layout.addWidget(self.progress_bar)
     
@@ -1883,11 +1885,97 @@ class MainWindow(QMainWindow):
         )
         
         if files:
-            for file_path in files:
-                self.file_list.add_file(file_path)
-            self._update_stats()
-            self._update_button_states()
-    
+            self._start_file_load_worker(files)
+
+    def _start_file_load_worker(self, files):
+        """
+        启动后台线程批量加载文件
+
+        参数:
+            files: 需要加载的 PDF 文件路径列表
+        """
+        # 防止重复启动加载任务
+        if self.file_load_worker is not None and self.file_load_worker.isRunning():
+            return
+
+        # 合并进行中时不允许加载文件，避免进度条状态冲突
+        if self.worker is not None and self.worker.isRunning():
+            QMessageBox.warning(self, "警告", "合并任务正在进行中，请稍候再加载文件")
+            return
+
+        self.merge_btn.setEnabled(False)
+        self._show_progress("文件加载中")
+
+        self.file_load_worker = FileLoadWorker(
+            pdf_handler=self.pdf_handler,
+            file_paths=files,
+            file_list_panel=self.file_list
+        )
+        self.file_load_worker.progress.connect(self._on_file_load_progress)
+        self.file_load_worker.file_loaded.connect(self._on_file_loaded)
+        self.file_load_worker.finished.connect(self._on_file_load_finished)
+        self.file_load_worker.error.connect(self._on_file_load_error)
+        self.file_load_worker.start()
+
+    def _on_file_load_progress(self, current, total):
+        """
+        更新文件加载进度条
+
+        参数:
+            current: 当前已加载的文件数
+            total: 总文件数
+        """
+        if total > 0:
+            self.progress_bar.setValue(int(current * 100 / total))
+
+    def _on_file_loaded(self, file_info):
+        """
+        单个文件加载完成后的回调
+
+        参数:
+            file_info: 文件信息字典
+        """
+        self.file_list.add_file_info(file_info)
+
+    def _on_file_load_finished(self, success, message):
+        """
+        文件加载完成后的回调
+
+        参数:
+            success: 是否成功
+            message: 提示信息
+        """
+        self._hide_progress()
+        self._update_stats()
+        self._update_button_states()
+        self.file_load_worker = None
+
+    def _on_file_load_error(self, error_message):
+        """
+        文件加载过程中发生错误的回调
+
+        参数:
+            error_message: 错误信息
+        """
+        self._hide_progress()
+        QMessageBox.critical(self, "错误", f"文件加载失败: {error_message}")
+        self.file_load_worker = None
+
+    def _show_progress(self, text):
+        """
+        显示底部进度条并设置提示文字
+
+        参数:
+            text: 进度条上显示的文字前缀
+        """
+        self.progress_bar.setFormat(f"{text} %p%")
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+
+    def _hide_progress(self):
+        """隐藏底部进度条"""
+        self.progress_bar.setVisible(False)
+
     def _on_merge_all(self):
         """
         合并所有文件
@@ -1924,6 +2012,11 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "合并任务正在进行中，请稍候")
             return
 
+        # 文件加载进行中时不允许合并
+        if self.file_load_worker is not None and self.file_load_worker.isRunning():
+            QMessageBox.warning(self, "警告", "文件加载正在进行中，请稍候再合并")
+            return
+
         # 获取排序方式
         sort_by = self._get_current_sort_by()
 
@@ -1940,8 +2033,7 @@ class MainWindow(QMainWindow):
         # 进入合并状态：禁用按钮、显示进度条
         self.merge_btn.setEnabled(False)
         self.merge_btn.setText("合并中...")
-        self.progress_bar.setValue(0)
-        self.progress_bar.setVisible(True)
+        self._show_progress("文件合并中")
 
         # 启动后台工作线程执行合并
         self.worker = MergeWorker(
@@ -2347,11 +2439,8 @@ class MainWindow(QMainWindow):
                             files.append(os.path.join(root, filename))
         
         if files:
-            for file_path in files:
-                self.file_list.add_file(file_path)
-            self._update_stats()
-            self._update_button_states()
-        
+            self._start_file_load_worker(files)
+
         event.acceptProposedAction()
     
     def _update_stats(self):

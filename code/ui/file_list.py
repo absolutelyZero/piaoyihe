@@ -729,31 +729,32 @@ class FileListPanel(QWidget):
             self.table.setItem(row, 7, mod_item)
             self.table.setItem(row, 8, size_item)
 
-    def add_file(self, file_path):
+    @staticmethod
+    def build_file_info(pdf_handler, file_path):
         """
-        添加文件到列表
-        
+        构建文件信息字典
+
+        功能描述:
+            提取 PDF 文件的基本信息和发票字段，返回可在后台线程中构建的数据结构。
+
         参数:
-            file_path: 要添加的PDF文件路径
-            
+            pdf_handler: PDF处理器实例，用于提取发票字段
+            file_path: PDF文件路径
+
         返回值:
-            无
+            dict: 包含文件名、金额、发票日期、发票代码、税额、路径、修改时间、大小的字典
         """
-        for file_info in self.files:
-            if file_info['path'] == file_path:
-                return
-        
         file_name = os.path.basename(file_path)
         file_size = os.path.getsize(file_path) / 1024
         mod_time = os.path.getmtime(file_path)
         mod_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mod_time))
-        
-        amount = self.pdf_handler.extract_amount(file_path)
-        invoice_date = self.pdf_handler.extract_invoice_date(file_path)
-        invoice_code = self.pdf_handler.extract_invoice_code(file_path)
-        tax_amount = self.pdf_handler.extract_tax_amount(file_path)
 
-        file_info = {
+        amount = pdf_handler.extract_amount(file_path)
+        invoice_date = pdf_handler.extract_invoice_date(file_path)
+        invoice_code = pdf_handler.extract_invoice_code(file_path)
+        tax_amount = pdf_handler.extract_tax_amount(file_path)
+
+        return {
             'name': file_name,
             'amount': amount,
             'invoice_date': invoice_date,
@@ -763,13 +764,38 @@ class FileListPanel(QWidget):
             'mod_time': mod_time_str,
             'size': f"{file_size:.2f} KB"
         }
-        
+
+    def add_file_info(self, file_info):
+        """
+        将已构建好的文件信息添加到列表
+
+        功能描述:
+            在 UI 线程中将后台线程提取好的文件信息插入表格，避免在主线程中解析 PDF。
+
+        参数:
+            file_info: 包含文件信息的字典
+
+        返回值:
+            无
+        """
+        for existing in self.files:
+            if existing['path'] == file_info['path']:
+                return
+
         is_first_file = len(self.files) == 0
-        
+
         self.files.append(file_info)
-        
+
         row = self.table.rowCount()
         self.table.insertRow(row)
+
+        file_name = file_info['name']
+        invoice_code = file_info['invoice_code']
+        amount = file_info['amount']
+        tax_amount = file_info['tax_amount']
+        invoice_date = file_info['invoice_date']
+        file_path = file_info['path']
+        mod_time_str = file_info['mod_time']
 
         # 预览图标列
         preview_item = QTableWidgetItem()
@@ -811,12 +837,33 @@ class FileListPanel(QWidget):
 
         # 触发重复发票检查
         self._trigger_duplicate_check()
-        
+
         if is_first_file and self.on_file_added:
             self.on_file_added(file_path)
-        
+
         self.file_added.emit(file_path)
-    
+
+    def add_file(self, file_path):
+        """
+        添加文件到列表（同步方式）
+
+        功能描述:
+            直接在主线程中提取并添加单个文件。小批量添加时可使用，
+            大批量添加请使用 build_file_info + add_file_info 的后台线程方式。
+
+        参数:
+            file_path: 要添加的PDF文件路径
+
+        返回值:
+            无
+        """
+        for existing in self.files:
+            if existing['path'] == file_path:
+                return
+
+        file_info = self.build_file_info(self.pdf_handler, file_path)
+        self.add_file_info(file_info)
+
     def delete_selected(self):
         """
         删除选中的文件
