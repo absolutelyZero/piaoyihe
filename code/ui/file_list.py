@@ -517,7 +517,7 @@ class FileListPanel(QWidget):
         在文件夹中显示指定文件
         
         功能描述:
-            使用系统文件管理器打开文件所在文件夹（仅打开目录，不选中文件）
+            使用系统文件管理器打开文件所在文件夹并选中文件
         
         参数:
             row: 文件所在的行索引
@@ -532,10 +532,11 @@ class FileListPanel(QWidget):
                 system = platform.system()
                 try:
                     if system == 'Windows':
-                        # 仅打开文件夹，不选中文件
-                        subprocess.run(['explorer', folder_path], check=True)
+                        # 打开文件夹并选中文件
+                        subprocess.run(['explorer', '/select,' + file_path], check=True)
                     elif system == 'Darwin':  # macOS
-                        subprocess.run(['open', folder_path], check=True)
+                        # -R 参数在 Finder 中显示并选中文件
+                        subprocess.run(['open', '-R', file_path], check=True)
                     else:  # Linux
                         subprocess.run(['xdg-open', folder_path], check=True)
                 except Exception as e:
