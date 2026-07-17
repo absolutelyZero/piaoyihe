@@ -533,7 +533,11 @@ class FileListPanel(QWidget):
                 try:
                     if system == 'Windows':
                         # 打开文件夹并选中文件
-                        subprocess.run(['explorer', '/select,' + file_path], check=True)
+                        # 使用绝对路径并规范化为 Windows 本地路径格式，
+                        # 避免相对路径或正斜杠导致 Explorer 回退到桌面
+                        abs_path = os.path.abspath(file_path)
+                        abs_path = os.path.normpath(abs_path)
+                        subprocess.run(['explorer', '/select,' + abs_path], check=True)
                     elif system == 'Darwin':  # macOS
                         # -R 参数在 Finder 中显示并选中文件
                         subprocess.run(['open', '-R', file_path], check=True)
