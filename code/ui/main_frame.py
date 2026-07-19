@@ -1744,11 +1744,13 @@ class MainWindow(QMainWindow):
             
             # 调用PDFHandler合并PDF（使用与实际合并相同的参数）
             mode_str = "图像" if mode == 1 else "普通"
+            batch_size = pages_per_sheet * 10
             result = self.pdf_handler.merge_pdfs(
-                files_to_preview, 
-                temp_path, 
-                layout_config, 
-                mode_str
+                files_to_preview,
+                temp_path,
+                layout_config,
+                mode_str,
+                batch_size=batch_size
             )
             
             pixmaps = []
@@ -2148,11 +2150,13 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'duplicate_copy_checkbox') and self.duplicate_copy_checkbox.isChecked():
                 sorted_files = [f for f in sorted_files for _ in range(2)]
             
+            invoices_per_page = layout_config['rows'] * layout_config['cols']
             self.pdf_handler.merge_pdfs(
                 sorted_files,
                 tmp_path,
                 layout=layout_config,
-                mode="普通"
+                mode="普通",
+                batch_size=invoices_per_page * 10
             )
             
             # 使用系统默认程序打开打印对话框
