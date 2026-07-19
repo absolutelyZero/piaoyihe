@@ -1,7 +1,7 @@
 {
-  "layout": "横向2x2",
+  "layout": "横向2x3",
   "mode": "普通",
-  "print_checkbox": false,
+  "print_checkbox": true,
   "ignored_version": "0.1.5",
   "save_path": "",
   "sort_by": "date",
@@ -10,9 +10,9 @@
   "layout_config": {
     "orientation": "landscape",
     "rows": 2,
-    "cols": 2,
+    "cols": 3,
     "rotate": 0
   },
   "preview_enabled": true,
-  "duplicate_copy": true
+  "duplicate_copy": false
 }
