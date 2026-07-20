@@ -9,6 +9,8 @@ PDF处理核心功能
 import fitz  # PyMuPDF
 import os
 import time
+import tempfile
+import shutil
 from .invoice_extractors.factory import InvoiceExtractorFactory
 
 
@@ -27,21 +29,29 @@ class PDFHandler:
         """初始化PDF处理器"""
         pass
 
-    def merge_pdfs(self, pdf_paths, output_path, layout, mode='普通'):
+    def merge_pdfs(self, pdf_paths, output_path, layout, mode='普通', batch_size=50, progress_callback=None):
         """
         合并PDF文件并按指定布局排版
 
-        Args:
+        功能描述:
+            将多个PDF文件按指定布局合并成一个PDF，支持大批量文件分批次处理，
+            避免一次性加载过多文件导致内存耗尽或打开文件失败。
+
+        参数:
             pdf_paths: PDF文件路径列表
             output_path: 输出文件路径
-            layout: 布局类型，如"横向 2x2"
+            layout: 布局类型字符串或字典，如"横向 2x2"
             mode: 模式，可选值：'普通'、'图像'
+            batch_size: 每批处理的文件数量，默认50
+            progress_callback: 进度回调函数，签名 progress_callback(current, total)
 
-        Returns:
+        返回值:
             bool: 合并是否成功
         """
-        # 创建新的PDF文档
-        output_doc = fitz.open()
+        if not pdf_paths:
+            return False
+
+        temp_files = []
 
         try:
             # 解析布局
@@ -65,200 +75,272 @@ class PDFHandler:
             available_width = page_width - 2 * margin
             available_height = page_height - 2 * margin
 
-            # 处理每个PDF文件
-            current_page = None
-            page_count = 0
+            total_files = len(pdf_paths)
+            expected_temp_count = (total_files + batch_size - 1) // batch_size
+            total_steps = total_files + expected_temp_count
+            processed_files = 0
 
-            for pdf_path in pdf_paths:
-                # 打开PDF文件
-                with fitz.open(pdf_path) as doc:
-                    for i in range(len(doc)):
-                        # 检查是否需要创建新页
-                        if page_count % (layout_config['rows'] * layout_config['cols']) == 0:
-                            # 创建新页（根据方向设置尺寸）
-                            current_page = output_doc.new_page(width=page_width, height=page_height)
-                            page_count = 0
+            def on_file_processed():
+                """单个源文件处理完成后的回调，用于更新进度"""
+                nonlocal processed_files
+                processed_files += 1
+                if progress_callback:
+                    progress_callback(processed_files, total_steps)
 
-                            # 如果是多发票页面，绘制分割线
-                            if layout_config['rows'] * layout_config['cols'] > 1:
-                                self._draw_dividers(current_page, layout_config, margin, available_width, available_height)
+            # 第一阶段：分批次生成中间PDF
+            # 每批单独创建一个临时PDF，避免单个 output_doc 过大导致内存或资源耗尽
+            for start in range(0, total_files, batch_size):
+                batch = pdf_paths[start:start + batch_size]
+                batch_doc = fitz.open()
 
-                        # 计算当前页面在新页中的位置
-                        row = page_count // layout_config['cols']
-                        col = page_count % layout_config['cols']
+                try:
+                    self._merge_files_into_doc(
+                        batch,
+                        batch_doc,
+                        layout_config,
+                        mode,
+                        margin,
+                        page_width,
+                        page_height,
+                        available_width,
+                        available_height,
+                        on_file_processed
+                    )
 
-                        # 计算每个单元格的尺寸（基于可用区域）
-                        cell_width = available_width / layout_config['cols']
-                        cell_height = available_height / layout_config['rows']
+                    # 保存当前批次到临时文件
+                    temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
+                    os.close(temp_fd)
+                    batch_doc.save(temp_path)
+                    temp_files.append(temp_path)
+                finally:
+                    batch_doc.close()
 
-                        # 计算位置（加上页边距偏移）
-                        x = margin + col * cell_width
-                        y = margin + row * cell_height
+            # 第二阶段：将所有中间PDF合并为最终输出
+            output_doc = fitz.open()
+            try:
+                for idx, temp_path in enumerate(temp_files):
+                    with fitz.open(temp_path) as doc:
+                        output_doc.insert_pdf(doc)
 
-                        # 检查是否需要旋转
-                        rotate = layout_config.get('rotate', 0)
+                    if progress_callback:
+                        progress_callback(total_files + idx + 1, total_steps)
 
-                        # 获取源页面
-                        src_page = doc[i]
-                        # 计算缩放比例（留出小间隙）
-                        gap = 5  # 发票之间的间隙
-                        src_rect = src_page.rect
+                output_doc.save(output_path)
+            finally:
+                output_doc.close()
 
-                        # 如果需要旋转90度，交换宽高进行缩放计算
-                        if rotate == 90:
-                            scale_x = (cell_width - gap) / src_rect.height
-                            scale_y = (cell_height - gap) / src_rect.width
-                        else:
-                            scale_x = (cell_width - gap) / src_rect.width
-                            scale_y = (cell_height - gap) / src_rect.height
-
-                        # 使用较小的缩放比例以适应单元格
-                        scale = min(scale_x, scale_y)
-
-                        # 计算居中偏移
-                        if rotate == 90:
-                            scaled_width = src_rect.height * scale
-                            scaled_height = src_rect.width * scale
-                        else:
-                            scaled_width = src_rect.width * scale
-                            scaled_height = src_rect.height * scale
-
-                        offset_x = (cell_width - scaled_width) / 2
-                        offset_y = (cell_height - scaled_height) / 2
-
-                        # 创建目标矩形（居中放置）
-                        target_rect = fitz.Rect(
-                            x + offset_x,
-                            y + offset_y,
-                            x + offset_x + scaled_width,
-                            y + offset_y + scaled_height
-                        )
-
-                        # 显示页面到目标矩形
-                        if mode == '图像':
-                           # 图像模式：先转换为图片再插入
-                            src_page = doc[i]
-                            # 渲染页面为图片（高分辨率）
-                            pix = src_page.get_pixmap(dpi=150)
-                            
-                            # 如果需要旋转90度，创建旋转后的图片
-                            if rotate == 90:
-                                # 使用Pixmap的旋转方法（创建新的旋转后的pixmap）
-                                from PIL import Image
-                                import io
-                                
-                                # 将pixmap转换为PIL Image
-                                img_data = pix.tobytes("png")
-                                pil_img = Image.open(io.BytesIO(img_data))
-                                # 旋转90度（逆时针）
-                                pil_img = pil_img.rotate(90, expand=True)
-                                # 转换回bytes
-                                img_buffer = io.BytesIO()
-                                pil_img.save(img_buffer, format='PNG')
-                                img_buffer.seek(0)
-                                # 创建新的pixmap
-                                pix = fitz.Pixmap(img_buffer)
-                            
-                            img_width = pix.width
-                            img_height = pix.height
-                            
-                            scale_x = (cell_width - gap) / img_width
-                            scale_y = (cell_height - gap) / img_height
-                            scale = min(scale_x, scale_y)
-                            
-                            final_width = img_width * scale
-                            final_height = img_height * scale
-                            
-                            # 计算居中位置（与普通模式保持一致）
-                            # img_x = center_x + (scaled_width - final_width) / 2
-                            # img_y = center_y + (scaled_height - final_height) / 2
-                            
-                            # # 创建图像矩形
-                            # img_rect = fitz.Rect(img_x, img_y, img_x + final_width, img_y + final_height)
-                            
-                            # 插入图像
-                            current_page.insert_image(target_rect, pixmap=pix)
-                        
-                        else:
-                            # 普通模式：直接嵌入页面
-                            current_page.show_pdf_page(
-                                target_rect,
-                                doc,
-                                i,
-                                rotate=rotate
-                            )
-
-                            # 额外复制注释对象（包括监制章）
-                            src_page = doc[i]
-                            annotations = list(src_page.annots()) if src_page.annots() else []
-                            print(f"找到 {len(annotations)} 个注释对象")
-                            for annot_idx, annot in enumerate(annotations):
-                                try:
-                                    print(f"  注释 {annot_idx + 1}: 类型={annot.type}, 位置={annot.rect}")
-
-                                    # 只处理Stamp类型的注释（监制章）
-                                    if annot.type[0] != 13:  # 13对应Stamp类型
-                                        print(f"  跳过非Stamp类型注释")
-                                        continue
-
-                                    # 方案B：将注释渲染为图片插入（最可靠）
-                                    # 直接渲染注释区域为图片
-                                    pix = src_page.get_pixmap(dpi=450, clip=annot.rect)
-
-                                    # 处理90度旋转
-                                    if rotate == 90:
-                                        # 先旋转图片
-                                        from PIL import Image
-                                        import io
-                                        # 将pixmap转为PIL Image
-                                        img_data = pix.tobytes("png")
-                                        pil_img = Image.open(io.BytesIO(img_data))
-                                        # 旋转90度（逆时针）
-                                        pil_img = pil_img.rotate(90, expand=True)
-                                        # 转回bytes
-                                        img_buffer = io.BytesIO()
-                                        pil_img.save(img_buffer, format='PNG')
-                                        img_buffer.seek(0)
-                                        # 创建新的pixmap
-                                        pix = fitz.Pixmap(img_buffer)
-
-                                        # 计算旋转后的坐标（逆时针旋转90度）
-                                        # 原始坐标：(x0,y0) -> (y0, src_rect.width - x1)
-                                        new_x0 = x + offset_x + (annot.rect.y0) * scale
-                                        new_y0 = y + offset_y + (src_rect.width - annot.rect.x1) * scale
-                                        new_x1 = x + offset_x + (annot.rect.y1) * scale
-                                        new_y1 = y + offset_y + (src_rect.width - annot.rect.x0) * scale
-                                        new_rect = fitz.Rect(new_x0, new_y0, new_x1, new_y1)
-                                    else:
-                                        # 调整注释位置以匹配缩放
-                                        new_x0 = x + offset_x + annot.rect.x0 * scale
-                                        new_y0 = y + offset_y + annot.rect.y0 * scale
-                                        new_x1 = x + offset_x + annot.rect.x1 * scale
-                                        new_y1 = y + offset_y + annot.rect.y1 * scale
-                                        new_rect = fitz.Rect(new_x0, new_y0, new_x1, new_y1)
-
-                                    print(f"  调整后位置: {new_rect}")
-                                    # 插入渲染后的图片
-                                    current_page.insert_image(new_rect, pixmap=pix)
-                                    print(f"  成功将注释渲染为图片插入")
-
-                                except Exception as e:
-                                    print(f"处理注释失败: {str(e)}")
-
-                        page_count += 1
-
-            # 保存输出文件
-            output_doc.save(output_path)
             return True
 
         except Exception as e:
             print(f"合并PDF失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return False
 
         finally:
-            # 确保关闭输出文档
-            if output_doc:
-                output_doc.close()
+            # 清理所有临时文件
+            for temp_path in temp_files:
+                try:
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
+                except Exception:
+                    pass
+
+    def _merge_files_into_doc(self, pdf_paths, output_doc, layout_config, mode,
+                              margin, page_width, page_height,
+                              available_width, available_height,
+                              file_processed_callback=None):
+        """
+        将一批PDF文件按布局合并到指定的PDF文档中
+
+        参数:
+            pdf_paths: 当前批次需要合并的PDF文件路径列表
+            output_doc: 目标 fitz 文档对象
+            layout_config: 布局配置字典
+            mode: 合并模式，'普通' 或 '图像'
+            margin: 页边距
+            page_width: 输出页面宽度
+            page_height: 输出页面高度
+            available_width: 可用区域宽度
+            available_height: 可用区域高度
+            file_processed_callback: 每处理完一个源文件后的回调函数
+        """
+        current_page = None
+        page_count = 0
+
+        for pdf_path in pdf_paths:
+            # 打开PDF文件
+            with fitz.open(pdf_path) as doc:
+                for i in range(len(doc)):
+                    # 检查是否需要创建新页
+                    if page_count % (layout_config['rows'] * layout_config['cols']) == 0:
+                        # 创建新页（根据方向设置尺寸）
+                        current_page = output_doc.new_page(width=page_width, height=page_height)
+                        page_count = 0
+
+                        # 如果是多发票页面，绘制分割线
+                        if layout_config['rows'] * layout_config['cols'] > 1:
+                            self._draw_dividers(current_page, layout_config, margin, available_width, available_height)
+
+                    # 计算当前页面在新页中的位置
+                    row = page_count // layout_config['cols']
+                    col = page_count % layout_config['cols']
+
+                    # 计算每个单元格的尺寸（基于可用区域）
+                    cell_width = available_width / layout_config['cols']
+                    cell_height = available_height / layout_config['rows']
+
+                    # 计算位置（加上页边距偏移）
+                    x = margin + col * cell_width
+                    y = margin + row * cell_height
+
+                    # 检查是否需要旋转
+                    rotate = layout_config.get('rotate', 0)
+
+                    # 获取源页面
+                    src_page = doc[i]
+                    # 计算缩放比例（留出小间隙）
+                    gap = 5  # 发票之间的间隙
+                    src_rect = src_page.rect
+
+                    # 如果需要旋转90度，交换宽高进行缩放计算
+                    if rotate == 90:
+                        scale_x = (cell_width - gap) / src_rect.height
+                        scale_y = (cell_height - gap) / src_rect.width
+                    else:
+                        scale_x = (cell_width - gap) / src_rect.width
+                        scale_y = (cell_height - gap) / src_rect.height
+
+                    # 使用较小的缩放比例以适应单元格
+                    scale = min(scale_x, scale_y)
+
+                    # 计算居中偏移
+                    if rotate == 90:
+                        scaled_width = src_rect.height * scale
+                        scaled_height = src_rect.width * scale
+                    else:
+                        scaled_width = src_rect.width * scale
+                        scaled_height = src_rect.height * scale
+
+                    offset_x = (cell_width - scaled_width) / 2
+                    offset_y = (cell_height - scaled_height) / 2
+
+                    # 创建目标矩形（居中放置）
+                    target_rect = fitz.Rect(
+                        x + offset_x,
+                        y + offset_y,
+                        x + offset_x + scaled_width,
+                        y + offset_y + scaled_height
+                    )
+
+                    # 显示页面到目标矩形
+                    if mode == '图像':
+                        # 图像模式：先转换为图片再插入
+                        src_page = doc[i]
+                        # 渲染页面为图片（高分辨率）
+                        pix = src_page.get_pixmap(dpi=150)
+
+                        # 如果需要旋转90度，创建旋转后的图片
+                        if rotate == 90:
+                            # 使用Pixmap的旋转方法（创建新的旋转后的pixmap）
+                            from PIL import Image
+                            import io
+
+                            # 将pixmap转换为PIL Image
+                            img_data = pix.tobytes("png")
+                            pil_img = Image.open(io.BytesIO(img_data))
+                            # 旋转90度（逆时针）
+                            pil_img = pil_img.rotate(90, expand=True)
+                            # 转换回bytes
+                            img_buffer = io.BytesIO()
+                            pil_img.save(img_buffer, format='PNG')
+                            img_buffer.seek(0)
+                            # 创建新的pixmap
+                            pix = fitz.Pixmap(img_buffer)
+
+                        img_width = pix.width
+                        img_height = pix.height
+
+                        scale_x = (cell_width - gap) / img_width
+                        scale_y = (cell_height - gap) / img_height
+                        scale = min(scale_x, scale_y)
+
+                        final_width = img_width * scale
+                        final_height = img_height * scale
+
+                        # 插入图像
+                        current_page.insert_image(target_rect, pixmap=pix)
+
+                    else:
+                        # 普通模式：直接嵌入页面
+                        current_page.show_pdf_page(
+                            target_rect,
+                            doc,
+                            i,
+                            rotate=rotate
+                        )
+
+                        # 额外复制注释对象（包括监制章）
+                        src_page = doc[i]
+                        annotations = list(src_page.annots()) if src_page.annots() else []
+                        print(f"找到 {len(annotations)} 个注释对象")
+                        for annot_idx, annot in enumerate(annotations):
+                            try:
+                                print(f"  注释 {annot_idx + 1}: 类型={annot.type}, 位置={annot.rect}")
+
+                                # 只处理Stamp类型的注释（监制章）
+                                if annot.type[0] != 13:  # 13对应Stamp类型
+                                    print(f"  跳过非Stamp类型注释")
+                                    continue
+
+                                # 方案B：将注释渲染为图片插入（最可靠）
+                                # 直接渲染注释区域为图片
+                                pix = src_page.get_pixmap(dpi=450, clip=annot.rect)
+
+                                # 处理90度旋转
+                                if rotate == 90:
+                                    # 先旋转图片
+                                    from PIL import Image
+                                    import io
+                                    # 将pixmap转为PIL Image
+                                    img_data = pix.tobytes("png")
+                                    pil_img = Image.open(io.BytesIO(img_data))
+                                    # 旋转90度（逆时针）
+                                    pil_img = pil_img.rotate(90, expand=True)
+                                    # 转回bytes
+                                    img_buffer = io.BytesIO()
+                                    pil_img.save(img_buffer, format='PNG')
+                                    img_buffer.seek(0)
+                                    # 创建新的pixmap
+                                    pix = fitz.Pixmap(img_buffer)
+
+                                    # 计算旋转后的坐标（逆时针旋转90度）
+                                    # 原始坐标：(x0,y0) -> (y0, src_rect.width - x1)
+                                    new_x0 = x + offset_x + (annot.rect.y0) * scale
+                                    new_y0 = y + offset_y + (src_rect.width - annot.rect.x1) * scale
+                                    new_x1 = x + offset_x + (annot.rect.y1) * scale
+                                    new_y1 = y + offset_y + (src_rect.width - annot.rect.x0) * scale
+                                    new_rect = fitz.Rect(new_x0, new_y0, new_x1, new_y1)
+                                else:
+                                    # 调整注释位置以匹配缩放
+                                    new_x0 = x + offset_x + annot.rect.x0 * scale
+                                    new_y0 = y + offset_y + annot.rect.y0 * scale
+                                    new_x1 = x + offset_x + annot.rect.x1 * scale
+                                    new_y1 = y + offset_y + annot.rect.y1 * scale
+                                    new_rect = fitz.Rect(new_x0, new_y0, new_x1, new_y1)
+
+                                print(f"  调整后位置: {new_rect}")
+                                # 插入渲染后的图片
+                                current_page.insert_image(new_rect, pixmap=pix)
+                                print(f"  成功将注释渲染为图片插入")
+
+                            except Exception as e:
+                                print(f"处理注释失败: {str(e)}")
+
+                    page_count += 1
+
+            if file_processed_callback:
+                file_processed_callback()
 
     def _draw_dividers(self, page, layout_config, margin, available_width, available_height):
         """
