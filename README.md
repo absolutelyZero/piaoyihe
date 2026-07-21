@@ -10,6 +10,7 @@
 - **PDF 处理**: PyMuPDF (fitz)
 - **编程语言**: Python 3
 - **打包工具**: PyInstaller
+- **MCP 协议**: 官方 `mcp` Python SDK + FastMCP
 
 #### 功能特性
 - 支持拖拽导入 PDF 文件，亦可点击"添加"按钮选择文件
@@ -50,6 +51,112 @@
 4. **查看统计**：右侧面板显示文件数量和金额统计
 5. **合并文件**：点击"合并PDF"按钮生成合并后的 PDF
 6. **打印输出**：可勾选"合并后打印"复选框直接打印
+
+#### MCP Server 使用
+
+票易合已内置 MCP Server，支持 Claude Desktop、Cursor、Cherry Studio 等 AI 客户端通过标准 MCP 协议调用核心能力。
+
+##### 启动方式
+
+```bash
+# stdio 独立模式（推荐用于 Claude Desktop）
+python -m code.mcp_server
+
+# SSE 独立模式
+python -m code.mcp_server --transport sse --host 127.0.0.1 --port 8766
+
+# GUI 共存模式
+python code/main.py --mcp-server --transport sse --host 127.0.0.1 --port 8766
+```
+
+##### 命令行参数
+
+| 参数 | 说明 | 默认值 |
+|---|---|---|
+| `--transport` | 传输方式，`stdio` 或 `sse` | `stdio` |
+| `--host` | SSE 模式监听地址 | `127.0.0.1` |
+| `--port` | SSE 模式监听端口 | `8765` |
+| `--cors-origins` | SSE 模式允许的 CORS 来源列表 | `*` |
+
+##### 环境变量
+
+| 变量名 | 说明 | 默认值 |
+|---|---|---|
+| `PYYH_LOG_LEVEL` | MCP Server 日志级别（DEBUG/INFO/WARNING/ERROR） | `INFO` |
+
+##### Claude Desktop 配置示例（stdio）
+
+```json
+{
+  "mcpServers": {
+    "piaoyihe": {
+      "command": "python",
+      "args": ["-m", "code.mcp_server"],
+      "cwd": "D:\\minipro\\piaoyihe\\piaoyihe"
+    }
+  }
+}
+```
+
+##### Cursor / Cherry Studio 配置示例（SSE）
+
+若使用 SSE 模式，在支持 SSE 的客户端中填写：
+
+```
+http://127.0.0.1:8766/sse
+```
+
+启动命令：
+
+```bash
+python -m code.mcp_server --transport sse --host 127.0.0.1 --port 8766
+```
+
+##### 可用 Tools
+
+| Tool 名称 | 功能 |
+|-----------|------|
+| `merge_invoices` | 合并多个 PDF 发票为指定布局 |
+| `extract_invoice_info` | 提取单张发票全部字段 |
+| `batch_extract_invoice_info` | 批量提取多张发票字段 |
+| `batch_rename_invoices` | 按规则批量重命名文件（支持 `dry_run` 预览） |
+| `export_invoice_list` | 将构造好的发票信息列表导出为 Excel |
+| `export_invoice_list_from_paths` | 按 PDF 路径列表直接导出 Excel |
+| `get_supported_layouts` | 获取支持的布局配置 |
+| `get_supported_fields` | 获取重命名可用字段 |
+| `get_server_info` | 获取服务名称、版本和 Tools 列表 |
+
+##### 返回结构说明
+
+所有 Tool 统一返回 JSON 对象，至少包含 `success` 和 `message` 字段：
+
+```json
+{
+  "success": true,
+  "message": "操作成功提示"
+}
+```
+
+常见附加字段：
+
+- `merge_invoices`：`output_path`（合并后的文件路径）
+- `extract_invoice_info`：`info`（发票字段字典）
+- `batch_extract_invoice_info`：`results`（结果列表）
+- `batch_rename_invoices`：`renamed_count`、`failed_count`、`unrecognized_files`、`renamed_map`、`dry_run`
+- `export_invoice_list` / `export_invoice_list_from_paths`：`output_path`
+- `get_supported_layouts`：`layouts`
+- `get_supported_fields`：`fields`
+- `get_server_info`：`name`、`version`、`tools`
+
+##### 常见错误与排查
+
+| 现象 | 原因 | 解决 |
+|---|---|---|
+| `文件不存在: xxx` | 传入的 PDF 路径错误或文件已被移动 | 检查路径是否为绝对路径或相对当前工作目录的正确路径 |
+| `仅支持 PDF 文件: xxx` | 文件后缀不是 `.pdf` | 确认传入文件为 PDF 格式 |
+| `无法创建输出目录: xxx` | 输出目录父目录不存在或无写入权限 | 选择可写目录，或先手动创建父目录 |
+| `无法识别该发票类型` | PDF 为图片格式或暂不支持的发票版式 | 尝试使用图像模式合并，或检查 PDF 是否可正常打开 |
+| SSE 端口被占用 | 上次服务未完全退出 | 更换 `--port` 或结束占用该端口的进程 |
 
 #### 打包发布
 

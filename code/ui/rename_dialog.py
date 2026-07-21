@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QWidget
 )
 from PySide6.QtCore import Qt, Signal
+from core.invoice_service import InvoiceService
 
 
 # 配色方案 - 与主界面保持一致
@@ -479,61 +480,31 @@ class RenameDialog(QDialog):
     def sanitize_filename(filename):
         """
         清理文件名，移除非法字符
-        
+
+        功能描述:
+            委托给 InvoiceService.sanitize_filename，保持与业务层逻辑一致。
+
         参数:
             filename: 原始文件名
-            
+
         返回值:
             str: 清理后的文件名
         """
-        # 替换Windows文件名非法字符
-        sanitized = re.sub(RenameDialog.INVALID_CHARS, '_', filename)
-        # 移除首尾空格和点
-        sanitized = sanitized.strip('. ')
-        # 如果文件名为空，返回默认值
-        if not sanitized:
-            sanitized = "未命名"
-        return sanitized
-    
+        return InvoiceService.sanitize_filename(filename)
+
     @staticmethod
     def apply_rule(rule, file_info):
         """
         应用重命名规则
-        
+
+        功能描述:
+            委托给 InvoiceService.apply_rule，保持与业务层逻辑一致。
+
         参数:
             rule: 规则字符串，包含占位符
             file_info: 文件信息字典，包含各字段值
-            
+
         返回值:
             str: 应用规则后的文件名（不含扩展名）
         """
-        if not rule:
-            return None
-        
-        result = rule
-        
-        # 定义字段映射
-        field_mapping = {
-            '发票类型': 'invoice_type',
-            '商品类型': 'product_type',
-            '开票日期': 'invoice_date',
-            '发票号码': 'invoice_code',
-            '买方名字': 'buyer_name',
-            '销方名字': 'seller_name',
-            '金额': 'amount',
-        }
-        
-        # 替换所有占位符
-        for field_name, field_key in field_mapping.items():
-            placeholder = f"{{{field_name}}}"
-            if placeholder in result:
-                value = file_info.get(field_key, '')
-                # 格式化金额
-                if field_key == 'amount' and isinstance(value, (int, float)):
-                    value = f"{value:.2f}"
-                result = result.replace(placeholder, str(value))
-        
-        # 清理文件名
-        result = RenameDialog.sanitize_filename(result)
-        
-        return result
+        return InvoiceService.apply_rule(rule, file_info)

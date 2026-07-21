@@ -1,10 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+import os
+
+from PyInstaller.utils.hooks import collect_submodules
+
+# 将 code 目录加入模块搜索路径，使 PyInstaller 能收集本地包 mcp_server / core
+sys.path.insert(0, '/Users/xieyonggao/Documents/self/minipro/invoiceTool/code')
+
 block_cipher = None
 
 a = Analysis(
     ['code/main.py'],
-    pathex=['/Users/xieyonggao/Documents/self/minipro/invoiceTool'],
+    pathex=['/Users/xieyonggao/Documents/self/minipro/invoiceTool', '/Users/xieyonggao/Documents/self/minipro/invoiceTool/code'],
     binaries=[],
     datas=[
         ('code/res/logo3.png', 'res'),
@@ -46,6 +54,29 @@ a = Analysis(
         'math',
         'io',
         'time',
+
+        # MCP Server 相关模块
+        'mcp',
+        'mcp.server.fastmcp',
+        'mcp.server.sse',
+        'mcp.server.stdio',
+        *collect_submodules('mcp_server'),
+        *collect_submodules('core'),
+
+        # SSE 传输依赖
+        'uvicorn',
+        'uvicorn.protocols.http',
+        'uvicorn.protocols.http.auto',
+        'uvicorn.lifespan.on',
+        'click',                  # uvicorn CLI 依赖
+        'starlette',
+        'starlette.middleware.cors',
+        'anyio',
+
+        # MCP 底层 HTTP 依赖
+        'httpx',
+        'httpx._transports.default',
+        'httpx_sse',
     ],
     hookspath=[],
     hooksconfig={},
