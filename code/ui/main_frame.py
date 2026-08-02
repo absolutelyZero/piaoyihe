@@ -25,6 +25,7 @@ from ui.merge_worker import MergeWorker
 from ui.file_load_worker import FileLoadWorker
 from core.pdf_handler import PDFHandler
 from core.update_checker import UpdateChecker, show_update_dialog
+from ui.theme import AppTheme
 
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), '../config.json')
@@ -33,17 +34,25 @@ VERSION_FILE = os.path.join(os.path.dirname(__file__), '../version.json')
 # ============================================================================
 # 配色方案 - 统一的样式常量
 # ============================================================================
-PRIMARY_COLOR = "#2196F3"      # 主色调 - 蓝色
-PRIMARY_HOVER = "#1976D2"      # 主色悬停
-SUCCESS_COLOR = "#4CAF50"      # 成功色 - 绿色
-WARNING_COLOR = "#FF9800"      # 警告色 - 橙色
-DANGER_COLOR = "#F44336"       # 危险色 - 红色
-BG_COLOR = "#F5F5F5"           # 背景色 - 浅灰
-CARD_BG = "#FFFFFF"            # 卡片背景 - 白色
-BORDER_COLOR = "#E0E0E0"       # 边框色
-TEXT_PRIMARY = "#212121"       # 主要文字
-TEXT_SECONDARY = "#757575"     # 次要文字
-TEXT_MUTED = "#9E9E9E"         # 弱化文字
+# 根据系统主题（深色/浅色）自动选择配色方案
+_theme = AppTheme()
+
+PRIMARY_COLOR = "#2196F3"             # 主色调 - 蓝色
+PRIMARY_HOVER = "#1976D2"             # 主色悬停
+SUCCESS_COLOR = "#4CAF50"             # 成功色 - 绿色
+WARNING_COLOR = "#FF9800"             # 警告色 - 橙色
+DANGER_COLOR = "#F44336"              # 危险色 - 红色
+BG_COLOR = _theme.bg                  # 背景色
+CARD_BG = _theme.card_bg              # 卡片背景色
+BORDER_COLOR = _theme.border          # 边框色
+TEXT_PRIMARY = _theme.text_primary    # 主要文字
+TEXT_SECONDARY = _theme.text_secondary  # 次要文字
+TEXT_MUTED = _theme.text_muted        # 弱化文字
+HOVER_BG = _theme.hover_bg            # 悬停背景色
+PRESSED_BG = _theme.pressed_bg        # 按下背景色
+SELECTED_BG = _theme.selected_bg      # 选中背景色
+SELECTED_TEXT = _theme.selected_text  # 选中文字色
+SCROLL_AREA_BG = _theme.scroll_area_bg  # 滚动区域背景色
 SHADOW_COLOR = "rgba(0, 0, 0, 0.08)"  # 阴影色
 
 
@@ -211,16 +220,16 @@ class MainWindow(QMainWindow):
             }}
             
             QPushButton:hover {{
-                background-color: #FAFAFA;
-                border-color: #BDBDBD;
+                background-color: {HOVER_BG};
+                border-color: {TEXT_MUTED};
             }}
             
             QPushButton:pressed {{
-                background-color: #F0F0F0;
+                background-color: {PRESSED_BG};
             }}
             
             QPushButton:disabled {{
-                background-color: #EEEEEE;
+                background-color: {BG_COLOR};
                 color: {TEXT_MUTED};
                 border-color: {BORDER_COLOR};
             }}
@@ -294,7 +303,7 @@ class MainWindow(QMainWindow):
             }}
             
             QLineEdit:disabled {{
-                background-color: #FAFAFA;
+                background-color: {HOVER_BG};
                 color: {TEXT_MUTED};
             }}
             
@@ -310,7 +319,7 @@ class MainWindow(QMainWindow):
             }}
             
             QComboBox:hover {{
-                border-color: #BDBDBD;
+                border-color: {TEXT_MUTED};
             }}
             
             QComboBox:focus {{
@@ -335,8 +344,8 @@ class MainWindow(QMainWindow):
                 border: 1px solid {BORDER_COLOR};
                 border-radius: 6px;
                 background-color: {CARD_BG};
-                selection-background-color: #E3F2FD;
-                selection-color: {TEXT_PRIMARY};
+                selection-background-color: {SELECTED_BG};
+                selection-color: {SELECTED_TEXT};
             }}
             
             /* 单选按钮样式 */
@@ -413,7 +422,7 @@ class MainWindow(QMainWindow):
             QScrollArea {{
                 border: 1px solid {BORDER_COLOR};
                 border-radius: 8px;
-                background-color: #FAFAFA;
+                background-color: {SCROLL_AREA_BG};
             }}
             
             /* 分割器样式 */
@@ -672,10 +681,10 @@ class MainWindow(QMainWindow):
         placeholder_container.setStyleSheet(f"""
             QFrame#card {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #E3F2FD,
-                    stop:0.5 #F3E5F5,
-                    stop:1 #E8F5E9);
-                border: 2px dashed {PRIMARY_COLOR};
+                    stop:0 {_theme.placeholder_start},
+                    stop:0.5 {_theme.placeholder_mid},
+                    stop:1 {_theme.placeholder_end});
+                border: 2px dashed {_theme.placeholder_border};
                 border-radius: 12px;
             }}
         """)
@@ -705,7 +714,7 @@ class MainWindow(QMainWindow):
         self.preview_scroll.setWidgetResizable(True)
         self.preview_scroll.setStyleSheet(f"""
             QScrollArea {{
-                background-color: #FAFAFA;
+                background-color: {SCROLL_AREA_BG};
                 border: 1px solid {BORDER_COLOR};
                 border-radius: 8px;
             }}
@@ -1346,10 +1355,10 @@ class MainWindow(QMainWindow):
         placeholder_container.setStyleSheet(f"""
             QFrame#card {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #E3F2FD,
-                    stop:0.5 #F3E5F5,
-                    stop:1 #E8F5E9);
-                border: 2px dashed {PRIMARY_COLOR};
+                    stop:0 {_theme.placeholder_start},
+                    stop:0.5 {_theme.placeholder_mid},
+                    stop:1 {_theme.placeholder_end});
+                border: 2px dashed {_theme.placeholder_border};
                 border-radius: 12px;
             }}
         """)
@@ -1379,7 +1388,7 @@ class MainWindow(QMainWindow):
         self.preview_scroll.setWidgetResizable(True)
         self.preview_scroll.setStyleSheet(f"""
             QScrollArea {{
-                background-color: #FAFAFA;
+                background-color: {SCROLL_AREA_BG};
                 border: 1px solid {BORDER_COLOR};
                 border-radius: 8px;
             }}
@@ -2823,25 +2832,25 @@ class FeedbackDialog(QDialog):
         
         # 标题
         title = QLabel("📖 使用帮助")
-        title.setStyleSheet("""
+        title.setStyleSheet(f"""
             font-size: 20px;
             font-weight: bold;
-            color: #212121;
+            color: {TEXT_PRIMARY};
         """)
         layout.addWidget(title)
         
         # 帮助内容区域
         help_text = QTextEdit()
         help_text.setReadOnly(True)
-        help_text.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #E0E0E0;
+        help_text.setStyleSheet(f"""
+            QTextEdit {{
+                border: 1px solid {BORDER_COLOR};
                 border-radius: 8px;
-                background-color: #FFFFFF;
+                background-color: {CARD_BG};
                 padding: 12px;
                 font-size: 13px;
                 line-height: 1.6;
-            }
+            }}
         """)
         
         help_content = """<h3>快速开始</h3>
@@ -2895,7 +2904,7 @@ class FeedbackDialog(QDialog):
         # 添加分隔线
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("background-color: #E0E0E0;")
+        separator.setStyleSheet(f"background-color: {BORDER_COLOR};")
         separator.setFixedHeight(1)
         layout.addWidget(separator)
         
@@ -2917,17 +2926,17 @@ class FeedbackDialog(QDialog):
                 qrcode_label.setPixmap(qrcode_pixmap)
             else:
                 qrcode_label.setText("图片加载失败")
-                qrcode_label.setStyleSheet("color: #757575; font-size: 12px; border: 1px solid #E0E0E0; border-radius: 4px;")
+                qrcode_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px; border: 1px solid {BORDER_COLOR}; border-radius: 4px;")
         else:
             qrcode_label.setText("二维码")
-            qrcode_label.setStyleSheet("color: #757575; font-size: 12px; border: 1px solid #E0E0E0; border-radius: 4px;")
+            qrcode_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px; border: 1px solid {BORDER_COLOR}; border-radius: 4px;")
         qrcode_label.setFixedSize(120, 120)
         qrcode_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         qrcode_layout.addWidget(qrcode_label)
         
         # 提示文字
         qrcode_text = QLabel("有其他问题可以扫码反馈")
-        qrcode_text.setStyleSheet("color: #757575; font-size: 13px;")
+        qrcode_text.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px;")
         qrcode_layout.addWidget(qrcode_text)
         
         layout.addLayout(qrcode_layout)
