@@ -1,17 +1,23 @@
 {
-  "layout": "横向2x3",
+  "layout": "横向2x2",
   "mode": "普通",
-  "print_checkbox": true,
-  "ignored_version": "0.1.5",
+  "print_checkbox": false,
+  "ignored_version": "1.0.0",
   "save_path": "",
-  "sort_by": "date",
-  "output_path": "D:/minipro/piaoyihe/piaoyihe_batch\\output.pdf",
+  "sort_by": "list",
+  "output_path": "/Users/xieyonggao/Documents/self/minipro/test/251201/output.pdf",
   "rename_rule": "{发票类型}-{商品类型}-{开票日期}-{买方名字}-{销方名字}-{金额}-{发票号码}",
   "layout_config": {
     "orientation": "landscape",
     "rows": 2,
-    "cols": 3,
-    "rotate": 0
+    "cols": 2,
+    "rotate": 0,
+    "margins": {
+      "top": 25,
+      "bottom": 10,
+      "left": 10,
+      "right": 10
+    }
   },
   "preview_enabled": true,
   "duplicate_copy": false
