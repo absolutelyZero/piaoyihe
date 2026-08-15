@@ -1071,6 +1071,85 @@ class MainWindow(QMainWindow):
         order_container.addWidget(self.order_combo)
         
         layout.addLayout(order_container)
+
+
+        # 添加分隔线
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.Shape.VLine)
+        separator2.setStyleSheet(f"background-color: {BORDER_COLOR};")
+        separator2.setFixedWidth(1)
+        layout.addWidget(separator2)
+
+        # ========== 裁切线区域 ==========
+        crop_title = QLabel("裁切线:")
+        crop_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
+        layout.addWidget(crop_title)
+
+        self.crop_mark_checkbox = QCheckBox("显示")
+        self.crop_mark_checkbox.setToolTip("开启后绘制左右两侧的裁切线，便于裁剪")
+        self.crop_mark_checkbox.setStyleSheet(f"""
+            QCheckBox {{
+                font-size: 12px;
+                color: {TEXT_PRIMARY};
+                spacing: 6px;
+            }}
+        """)
+        self.crop_mark_checkbox.stateChanged.connect(self._on_config_changed)
+        layout.addWidget(self.crop_mark_checkbox)
+
+        # 默认裁切线距离（mm）
+        self.default_crop_mark_dist = 0
+
+        # 左裁切线距离
+        left_crop_label = QLabel("左")
+        left_crop_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        layout.addWidget(left_crop_label)
+
+        self.crop_mark_left_spinbox = QSpinBox()
+        self.crop_mark_left_spinbox.setRange(0, 50)
+        self.crop_mark_left_spinbox.setValue(self.default_crop_mark_dist)
+        self.crop_mark_left_spinbox.setFixedWidth(50)
+        self.crop_mark_left_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.crop_mark_left_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.crop_mark_left_spinbox.valueChanged.connect(self._on_config_changed)
+        layout.addWidget(self.crop_mark_left_spinbox)
+
+        # 右裁切线距离
+        right_crop_label = QLabel("右")
+        right_crop_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        layout.addWidget(right_crop_label)
+
+        self.crop_mark_right_spinbox = QSpinBox()
+        self.crop_mark_right_spinbox.setRange(0, 50)
+        self.crop_mark_right_spinbox.setValue(self.default_crop_mark_dist)
+        self.crop_mark_right_spinbox.setFixedWidth(50)
+        self.crop_mark_right_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.crop_mark_right_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.crop_mark_right_spinbox.valueChanged.connect(self._on_config_changed)
+        layout.addWidget(self.crop_mark_right_spinbox)
+        
         layout.addStretch()
         
         return card
@@ -1559,7 +1638,10 @@ class MainWindow(QMainWindow):
             'rows': rows,
             'cols': cols,
             'rotate': 0,
-            'margins': margins
+            'margins': margins,
+            'show_crop_marks': self.crop_mark_checkbox.isChecked(),
+            'crop_mark_left': self.crop_mark_left_spinbox.value(),
+            'crop_mark_right': self.crop_mark_right_spinbox.value()
         }
     
     def _get_margin_config(self):
@@ -2683,6 +2765,14 @@ class MainWindow(QMainWindow):
                         self.margin_bottom_spinbox.setValue(self.default_margins['bottom'])
                         self.margin_left_spinbox.setValue(self.default_margins['left'])
                         self.margin_right_spinbox.setValue(self.default_margins['right'])
+                    
+                    # 加载裁切线设置
+                    show_crop_marks = layout_config.get('show_crop_marks', False)
+                    self.crop_mark_checkbox.setChecked(show_crop_marks)
+                    crop_mark_left = layout_config.get('crop_mark_left', 0)
+                    self.crop_mark_left_spinbox.setValue(crop_mark_left)
+                    crop_mark_right = layout_config.get('crop_mark_right', 0)
+                    self.crop_mark_right_spinbox.setValue(crop_mark_right)
                 else:
                     # 兼容旧版配置
                     layout = config.get('layout', '横向2x2')

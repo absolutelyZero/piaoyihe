@@ -201,6 +201,18 @@ class PDFHandler:
                                 available_height
                             )
 
+                        # 绘制裁切线（如果开启）
+                        crop_mark_left = layout_config.get('crop_mark_left', 0)
+                        crop_mark_right = layout_config.get('crop_mark_right', 0)
+                        if layout_config.get('show_crop_marks', False) and (crop_mark_left > 0 or crop_mark_right > 0):
+                            self._draw_crop_marks(
+                                current_page,
+                                crop_mark_left,
+                                crop_mark_right,
+                                page_width,
+                                page_height
+                            )
+
                     # 计算当前页面在新页中的位置
                     row = page_count // layout_config['cols']
                     col = page_count % layout_config['cols']
@@ -404,6 +416,45 @@ class PDFHandler:
                 gap_length=3,
                 color=(0.7, 0.7, 0.7),
                 width=0.5
+            )
+
+    def _draw_crop_marks(self, page, crop_mark_left_mm, crop_mark_right_mm,
+                          page_width, page_height):
+        """
+        绘制裁切线（仅左右两侧垂直虚线）
+
+        在左右两侧距页面边缘指定距离处绘制垂直虚线，从页面顶部延伸到底部。
+
+        Args:
+            page: PDF页面对象
+            crop_mark_left_mm: 左侧裁切线距离页面边缘的距离（mm）
+            crop_mark_right_mm: 右侧裁切线距离页面边缘的距离（mm）
+            page_width: 页面宽度（点）
+            page_height: 页面高度（点）
+        """
+        # 毫米转点（1点=25.4/72 mm）
+        mm_to_pt = 72.0 / 25.4
+
+        # 左侧裁切线
+        if crop_mark_left_mm > 0:
+            x_left = crop_mark_left_mm * mm_to_pt
+            self._draw_dashed_line(
+                page,
+                x_left, 0,
+                x_left, page_height,
+                dash_length=5, gap_length=3,
+                color=(0.7, 0.7, 0.7), width=0.5
+            )
+
+        # 右侧裁切线
+        if crop_mark_right_mm > 0:
+            x_right = page_width - crop_mark_right_mm * mm_to_pt
+            self._draw_dashed_line(
+                page,
+                x_right, 0,
+                x_right, page_height,
+                dash_length=5, gap_length=3,
+                color=(0.7, 0.7, 0.7), width=0.5
             )
 
     def _draw_dashed_line(self, page, x1, y1, x2, y2, dash_length=5, gap_length=3, color=(0, 0, 0), width=1):
