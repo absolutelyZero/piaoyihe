@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
         self.preview_timer = None  # 用于延迟更新预览的定时器
         self.worker = None  # 后台合并工作线程
         self.file_load_worker = None  # 后台文件加载工作线程
-        
+
         self._init_ui()
         self._init_drag_drop()
         self._load_config()
@@ -751,15 +751,15 @@ class MainWindow(QMainWindow):
         
         return widget
     
-    def _create_options_widget(self):
+    def _create_layout_widget(self):
         """
-        创建选项设置区域
+        创建布局设置区域
         
         功能描述:
-            创建包含布局选择、模式选择、排序方式等选项的单行水平布局
+            创建包含方向选择、行列数量设置的卡片式布局
         
         返回值:
-            QWidget: 选项设置区域控件
+            QWidget: 布局设置区域控件
         """
         # 创建卡片容器
         card = QFrame()
@@ -773,9 +773,6 @@ class MainWindow(QMainWindow):
         # ========== 方向选择区域 ==========
         orientation_container = QHBoxLayout()
         orientation_container.setSpacing(8)
-        
-        # orientation_icon = self._icon_label("布局2_layout-two.svg", 14)
-        # orientation_container.addWidget(orientation_icon)
         
         orientation_title = QLabel("布局:")
         orientation_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
@@ -910,19 +907,142 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(grid_container)
         
-        # 添加分隔线
-        separator1 = QFrame()
-        separator1.setFrameShape(QFrame.Shape.VLine)
-        separator1.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator1.setFixedWidth(1)
-        layout.addWidget(separator1)
+
+               
+        # 标题
+        margin_title = QLabel("页边距（mm）:")
+        margin_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
+        layout.addWidget(margin_title)
+        
+        # 默认页边距（单位：mm）
+        self.default_margins = {'top': 10, 'bottom': 10, 'left': 10, 'right': 10}
+        
+        # 上
+        top_label = QLabel("上")
+        top_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        layout.addWidget(top_label)
+        
+        self.margin_top_spinbox = QSpinBox()
+        self.margin_top_spinbox.setRange(0, 50)
+        self.margin_top_spinbox.setValue(self.default_margins['top'])
+        self.margin_top_spinbox.setFixedWidth(50)
+        self.margin_top_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.margin_top_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.margin_top_spinbox.valueChanged.connect(self._on_margin_changed)
+        layout.addWidget(self.margin_top_spinbox)
+        
+        # 下
+        bottom_label = QLabel("下")
+        bottom_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        layout.addWidget(bottom_label)
+        
+        self.margin_bottom_spinbox = QSpinBox()
+        self.margin_bottom_spinbox.setRange(0, 50)
+        self.margin_bottom_spinbox.setValue(self.default_margins['bottom'])
+        self.margin_bottom_spinbox.setFixedWidth(50)
+        self.margin_bottom_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.margin_bottom_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.margin_bottom_spinbox.valueChanged.connect(self._on_margin_changed)
+        layout.addWidget(self.margin_bottom_spinbox)
+        
+        # 左
+        left_label = QLabel("左")
+        left_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        layout.addWidget(left_label)
+        
+        self.margin_left_spinbox = QSpinBox()
+        self.margin_left_spinbox.setRange(0, 50)
+        self.margin_left_spinbox.setValue(self.default_margins['left'])
+        self.margin_left_spinbox.setFixedWidth(50)
+        self.margin_left_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.margin_left_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.margin_left_spinbox.valueChanged.connect(self._on_margin_changed)
+        layout.addWidget(self.margin_left_spinbox)
+        
+        # 右
+        right_label = QLabel("右")
+        right_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        layout.addWidget(right_label)
+        
+        self.margin_right_spinbox = QSpinBox()
+        self.margin_right_spinbox.setRange(0, 50)
+        self.margin_right_spinbox.setValue(self.default_margins['right'])
+        self.margin_right_spinbox.setFixedWidth(50)
+        self.margin_right_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.margin_right_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.margin_right_spinbox.valueChanged.connect(self._on_margin_changed)
+        layout.addWidget(self.margin_right_spinbox)
+
+        layout.addStretch()
+        
+        return card
+    
+    def _create_mode_order_widget(self):
+        """
+        创建处理模式与排序方式设置区域
+        
+        功能描述:
+            创建包含处理模式选择和打印顺序选择的卡片式布局
+        
+        返回值:
+            QWidget: 模式与排序设置区域控件
+        """
+        # 创建卡片容器
+        card = QFrame()
+        card.setObjectName("card")
+        card.setFrameShape(QFrame.Shape.StyledPanel)
+        
+        layout = QHBoxLayout(card)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(12)
         
         # ========== 处理模式区域 ==========
         mode_container = QHBoxLayout()
         mode_container.setSpacing(8)
-        
-        # mode_icon = self._icon_label("扫描设置_scan-setting.svg", 14)
-        # mode_container.addWidget(mode_icon)
         
         mode_title = QLabel("模式:")
         mode_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
@@ -938,18 +1058,15 @@ class MainWindow(QMainWindow):
         layout.addLayout(mode_container)
         
         # 添加分隔线
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.Shape.VLine)
-        separator2.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator2.setFixedWidth(1)
-        layout.addWidget(separator2)
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.VLine)
+        separator.setStyleSheet(f"background-color: {BORDER_COLOR};")
+        separator.setFixedWidth(1)
+        layout.addWidget(separator)
         
         # ========== 排序方式区域 ==========
         order_container = QHBoxLayout()
         order_container.setSpacing(8)
-        
-        # order_icon = self._icon_label("排序2_sort-two.svg", 14)
-        # order_container.addWidget(order_icon)
         
         order_title = QLabel("打印顺序:")
         order_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
@@ -963,6 +1080,85 @@ class MainWindow(QMainWindow):
         order_container.addWidget(self.order_combo)
         
         layout.addLayout(order_container)
+
+
+        # 添加分隔线
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.Shape.VLine)
+        separator2.setStyleSheet(f"background-color: {BORDER_COLOR};")
+        separator2.setFixedWidth(1)
+        layout.addWidget(separator2)
+
+        # ========== 裁切线区域 ==========
+        crop_title = QLabel("裁切线:")
+        crop_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
+        layout.addWidget(crop_title)
+
+        self.crop_mark_checkbox = QCheckBox("显示")
+        self.crop_mark_checkbox.setToolTip("开启后绘制左右两侧的裁切线，便于裁剪")
+        self.crop_mark_checkbox.setStyleSheet(f"""
+            QCheckBox {{
+                font-size: 12px;
+                color: {TEXT_PRIMARY};
+                spacing: 6px;
+            }}
+        """)
+        self.crop_mark_checkbox.stateChanged.connect(self._on_config_changed)
+        layout.addWidget(self.crop_mark_checkbox)
+
+        # 默认裁切线距离（mm）
+        self.default_crop_mark_dist = 0
+
+        # 左裁切线距离
+        left_crop_label = QLabel("左")
+        left_crop_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        layout.addWidget(left_crop_label)
+
+        self.crop_mark_left_spinbox = QSpinBox()
+        self.crop_mark_left_spinbox.setRange(0, 50)
+        self.crop_mark_left_spinbox.setValue(self.default_crop_mark_dist)
+        self.crop_mark_left_spinbox.setFixedWidth(50)
+        self.crop_mark_left_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.crop_mark_left_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.crop_mark_left_spinbox.valueChanged.connect(self._on_config_changed)
+        layout.addWidget(self.crop_mark_left_spinbox)
+
+        # 右裁切线距离
+        right_crop_label = QLabel("右")
+        right_crop_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        layout.addWidget(right_crop_label)
+
+        self.crop_mark_right_spinbox = QSpinBox()
+        self.crop_mark_right_spinbox.setRange(0, 50)
+        self.crop_mark_right_spinbox.setValue(self.default_crop_mark_dist)
+        self.crop_mark_right_spinbox.setFixedWidth(50)
+        self.crop_mark_right_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.crop_mark_right_spinbox.setStyleSheet(f"""
+            QSpinBox {{
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid {BORDER_COLOR};
+                background-color: {CARD_BG};
+                font-size: 12px;
+            }}
+            QSpinBox:focus {{
+                border-color: {PRIMARY_COLOR};
+            }}
+        """)
+        self.crop_mark_right_spinbox.valueChanged.connect(self._on_config_changed)
+        layout.addWidget(self.crop_mark_right_spinbox)
+        
         layout.addStretch()
         
         return card
@@ -1179,11 +1375,15 @@ class MainWindow(QMainWindow):
         actions_card = self._create_actions_widget()
         layout.addWidget(actions_card)
 
-        # 3 配置选项区域（单行水平布局）
-        options_card = self._create_options_widget()
-        layout.addWidget(options_card)
+        # 3. 布局设置卡片
+        layout_card = self._create_layout_widget()
+        layout.addWidget(layout_card)
+
+        # 4. 模式与排序设置卡片
+        mode_order_card = self._create_mode_order_widget()
+        layout.addWidget(mode_order_card)
         
-        # 4. 保存路径和版本号区域
+        # 5. 保存路径和版本号区域
         bottom_card = QFrame()
         bottom_card.setObjectName("card")
         bottom_card.setFrameShape(QFrame.Shape.StyledPanel)
@@ -1432,20 +1632,42 @@ class MainWindow(QMainWindow):
         获取当前选中的布局类型
         
         功能描述:
-            根据方向选择和行列设置返回布局配置字典
+            根据方向选择、行列设置和页边距设置返回布局配置字典
         
         返回值:
-            dict: 布局配置字典，包含orientation、rows、cols
+            dict: 布局配置字典，包含orientation、rows、cols、rotate、margins
         """
         orientation = 'portrait' if self.radio_portrait.isChecked() else 'landscape'
         rows = self.row_spinbox.value()
         cols = self.col_spinbox.value()
+        margins = self._get_margin_config()
         
         return {
             'orientation': orientation,
             'rows': rows,
             'cols': cols,
-            'rotate': 0
+            'rotate': 0,
+            'margins': margins,
+            'show_crop_marks': self.crop_mark_checkbox.isChecked(),
+            'crop_mark_left': self.crop_mark_left_spinbox.value(),
+            'crop_mark_right': self.crop_mark_right_spinbox.value()
+        }
+    
+    def _get_margin_config(self):
+        """
+        获取当前页边距配置
+        
+        功能描述:
+            从四个页边距输入框读取当前设置，返回毫米为单位的边距配置
+        
+        返回值:
+            dict: 页边距配置字典，包含top、bottom、left、right（单位：mm）
+        """
+        return {
+            'top': self.margin_top_spinbox.value(),
+            'bottom': self.margin_bottom_spinbox.value(),
+            'left': self.margin_left_spinbox.value(),
+            'right': self.margin_right_spinbox.value()
         }
     
     def _get_layout_display_name(self):
@@ -1547,6 +1769,16 @@ class MainWindow(QMainWindow):
         # 保存配置
         self._save_config()
     
+    def _on_margin_changed(self):
+        """
+        页边距数值改变时的处理
+
+        功能描述:
+            当用户手动修改上/下/左/右边距时，触发预览更新和配置保存
+        """
+        # 触发预览更新和配置保存
+        self._on_config_changed()
+
     def _on_preview_checkbox_changed(self, state):
         """
         预览开关状态改变时的处理
@@ -2526,6 +2758,30 @@ class MainWindow(QMainWindow):
                     cols = layout_config.get('cols', 2)
                     self.row_spinbox.setValue(rows)
                     self.col_spinbox.setValue(cols)
+                    
+                    # 加载页边距配置（兼容旧版无此字段的情况）
+                    margins = layout_config.get('margins')
+                    if margins:
+                        self.margin_top_spinbox.setValue(margins.get('top', self.default_margins['top']))
+                        self.margin_bottom_spinbox.setValue(margins.get('bottom', self.default_margins['bottom']))
+                        self.margin_left_spinbox.setValue(margins.get('left', self.default_margins['left']))
+                        self.margin_right_spinbox.setValue(margins.get('right', self.default_margins['right']))
+                        # 触发预览更新和配置保存
+                        self._on_margin_changed()
+                    else:
+                        # 旧版配置使用默认边距
+                        self.margin_top_spinbox.setValue(self.default_margins['top'])
+                        self.margin_bottom_spinbox.setValue(self.default_margins['bottom'])
+                        self.margin_left_spinbox.setValue(self.default_margins['left'])
+                        self.margin_right_spinbox.setValue(self.default_margins['right'])
+                    
+                    # 加载裁切线设置
+                    show_crop_marks = layout_config.get('show_crop_marks', False)
+                    self.crop_mark_checkbox.setChecked(show_crop_marks)
+                    crop_mark_left = layout_config.get('crop_mark_left', 0)
+                    self.crop_mark_left_spinbox.setValue(crop_mark_left)
+                    crop_mark_right = layout_config.get('crop_mark_right', 0)
+                    self.crop_mark_right_spinbox.setValue(crop_mark_right)
                 else:
                     # 兼容旧版配置
                     layout = config.get('layout', '横向2x2')
@@ -2554,6 +2810,12 @@ class MainWindow(QMainWindow):
                         self.radio_portrait.setChecked(True)
                         self.row_spinbox.setValue(2)
                         self.col_spinbox.setValue(2)
+                    
+                    # 旧版配置使用默认页边距
+                    self.margin_top_spinbox.setValue(self.default_margins['top'])
+                    self.margin_bottom_spinbox.setValue(self.default_margins['bottom'])
+                    self.margin_left_spinbox.setValue(self.default_margins['left'])
+                    self.margin_right_spinbox.setValue(self.default_margins['right'])
 
                 # 加载模式设置
                 mode = config.get('mode', '普通')
@@ -2868,6 +3130,13 @@ class FeedbackDialog(QDialog):
     <li>方向：选择A4纸的排列方向（竖向/横向）</li>
     <li>行列：设置每页排列的发票数量（行数 x 列数）</li>
     <li>常用组合：竖向2x2=4张/页，横向2x2=4张/页，竖向2x4=8张/页</li>
+  </ul>
+</li>
+<li><b>页边距设置</b>：
+  <ul>
+    <li>可分别设置上、下、左、右边距，精度为 1 mm</li>
+    <li>提供默认（10mm）、窄边距（5mm）、宽边距（20mm）三种预设</li>
+    <li>调整后会实时更新右侧预览，合并与打印时均生效</li>
   </ul>
 </li>
 <li><b>处理模式</b>：
