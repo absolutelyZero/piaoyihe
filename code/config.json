@@ -5,7 +5,7 @@
   "ignored_version": "1.0.0",
   "save_path": "",
   "sort_by": "list",
-  "output_path": "/Users/xieyonggao/Documents/self/minipro/test/251201/output.pdf",
+  "output_path": "/Users/xieyonggao/Documents/self/minipro/test/piaoyihe_test/output.pdf",
   "rename_rule": "{发票类型}-{商品类型}-{开票日期}-{买方名字}-{销方名字}-{金额}-{发票号码}",
   "layout_config": {
     "orientation": "landscape",
@@ -13,10 +13,10 @@
     "cols": 2,
     "rotate": 0,
     "margins": {
-      "top": 25,
-      "bottom": 10,
-      "left": 10,
-      "right": 10
+      "top": 0,
+      "bottom": 0,
+      "left": 0,
+      "right": 0
     }
   },
   "preview_enabled": true,

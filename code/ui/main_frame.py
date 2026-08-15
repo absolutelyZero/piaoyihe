@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         self.preview_timer = None  # 用于延迟更新预览的定时器
         self.worker = None  # 后台合并工作线程
         self.file_load_worker = None  # 后台文件加载工作线程
-        
+
         self._init_ui()
         self._init_drag_drop()
         self._load_config()
@@ -901,19 +901,12 @@ class MainWindow(QMainWindow):
 
                
         # 标题
-        margin_title = QLabel("页边距:")
+        margin_title = QLabel("页边距（mm）:")
         margin_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
         layout.addWidget(margin_title)
         
         # 默认页边距（单位：mm）
         self.default_margins = {'top': 10, 'bottom': 10, 'left': 10, 'right': 10}
-        
-        # 页边距预设方案（单位：mm）
-        self.margin_presets = {
-            '默认': {'top': 10, 'bottom': 10, 'left': 10, 'right': 10},
-            '窄边距': {'top': 5, 'bottom': 5, 'left': 5, 'right': 5},
-            '宽边距': {'top': 20, 'bottom': 20, 'left': 20, 'right': 20}
-        }
         
         # 上
         top_label = QLabel("上")
@@ -925,7 +918,6 @@ class MainWindow(QMainWindow):
         self.margin_top_spinbox.setValue(self.default_margins['top'])
         self.margin_top_spinbox.setFixedWidth(50)
         self.margin_top_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.margin_top_spinbox.setSuffix("mm")
         self.margin_top_spinbox.setStyleSheet(f"""
             QSpinBox {{
                 padding: 4px 8px;
@@ -951,7 +943,6 @@ class MainWindow(QMainWindow):
         self.margin_bottom_spinbox.setValue(self.default_margins['bottom'])
         self.margin_bottom_spinbox.setFixedWidth(50)
         self.margin_bottom_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.margin_bottom_spinbox.setSuffix("mm")
         self.margin_bottom_spinbox.setStyleSheet(f"""
             QSpinBox {{
                 padding: 4px 8px;
@@ -977,7 +968,6 @@ class MainWindow(QMainWindow):
         self.margin_left_spinbox.setValue(self.default_margins['left'])
         self.margin_left_spinbox.setFixedWidth(50)
         self.margin_left_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.margin_left_spinbox.setSuffix("mm")
         self.margin_left_spinbox.setStyleSheet(f"""
             QSpinBox {{
                 padding: 4px 8px;
@@ -1003,7 +993,6 @@ class MainWindow(QMainWindow):
         self.margin_right_spinbox.setValue(self.default_margins['right'])
         self.margin_right_spinbox.setFixedWidth(50)
         self.margin_right_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.margin_right_spinbox.setSuffix("mm")
         self.margin_right_spinbox.setStyleSheet(f"""
             QSpinBox {{
                 padding: 4px 8px;
@@ -1019,73 +1008,6 @@ class MainWindow(QMainWindow):
         self.margin_right_spinbox.valueChanged.connect(self._on_margin_changed)
         layout.addWidget(self.margin_right_spinbox)
 
-        layout.addStretch()
-        
-        return card
-    
-    def _create_margin_widget(self):
-        """
-        创建页边距设置区域
-        
-        功能描述:
-            创建包含上/下/左/右边距输入框、预设方案和恢复默认按钮的卡片式布局
-        
-        返回值:
-            QWidget: 页边距设置区域控件
-        """
-        # 创建卡片容器
-        card = QFrame()
-        card.setObjectName("card")
-        card.setFrameShape(QFrame.Shape.StyledPanel)
-        
-        layout = QHBoxLayout(card)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(12)
- 
-        
-        # 预设方案下拉框
-        preset_label = QLabel("预设:")
-        preset_label.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        layout.addWidget(preset_label)
-        
-        self.margin_preset_combo = QComboBox()
-        self.margin_preset_combo.addItems(list(self.margin_presets.keys()))
-        self.margin_preset_combo.setToolTip("选择预设的页边距方案")
-        self.margin_preset_combo.currentTextChanged.connect(self._on_margin_preset_changed)
-        self.margin_preset_combo.setFixedWidth(80)
-        self.margin_preset_combo.setStyleSheet(f"""
-            QComboBox {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 12px;
-                color: {TEXT_PRIMARY};
-                min-width: 60px;
-            }}
-            QComboBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-            QComboBox::drop-down {{
-                border: none;
-                width: 20px;
-            }}
-            QComboBox QAbstractItemView {{
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 4px;
-                background-color: {CARD_BG};
-                selection-background-color: #E3F2FD;
-            }}
-        """)
-        layout.addWidget(self.margin_preset_combo)
-        
-        # 恢复默认按钮
-        self.reset_margin_btn = QPushButton("恢复默认")
-        self.reset_margin_btn.setObjectName("iconButton")
-        self.reset_margin_btn.setToolTip("恢复默认页边距设置")
-        self.reset_margin_btn.clicked.connect(self._on_reset_margins)
-        layout.addWidget(self.reset_margin_btn)
-        
         layout.addStretch()
         
         return card
@@ -1369,15 +1291,11 @@ class MainWindow(QMainWindow):
         layout_card = self._create_layout_widget()
         layout.addWidget(layout_card)
 
-        # 4. 页边距设置卡片
-        # margin_card = self._create_margin_widget()
-        # layout.addWidget(margin_card)
-
-        # 5. 模式与排序设置卡片
+        # 4. 模式与排序设置卡片
         mode_order_card = self._create_mode_order_widget()
         layout.addWidget(mode_order_card)
         
-        # 6. 保存路径和版本号区域
+        # 5. 保存路径和版本号区域
         bottom_card = QFrame()
         bottom_card.setObjectName("card")
         bottom_card.setFrameShape(QFrame.Shape.StyledPanel)
@@ -1763,77 +1681,13 @@ class MainWindow(QMainWindow):
     def _on_margin_changed(self):
         """
         页边距数值改变时的处理
-        
+
         功能描述:
-            当用户手动修改上/下/左/右边距时，同步更新预设下拉框显示，
-            并触发预览更新和配置保存
+            当用户手动修改上/下/左/右边距时，触发预览更新和配置保存
         """
-        # 根据当前四个边距值匹配预设方案
-        current_margins = self._get_margin_config()
-        matched_preset = None
-        for preset_name, preset_margins in self.margin_presets.items():
-            if current_margins == preset_margins:
-                matched_preset = preset_name
-                break
-        
-        # 临时断开信号，避免循环触发
-        self.margin_preset_combo.currentTextChanged.disconnect(self._on_margin_preset_changed)
-        if matched_preset:
-            self.margin_preset_combo.setCurrentText(matched_preset)
-        else:
-            # 没有匹配的预设时，显示为自定义（插入临时项）
-            custom_text = "自定义"
-            if self.margin_preset_combo.findText(custom_text) < 0:
-                self.margin_preset_combo.addItem(custom_text)
-            self.margin_preset_combo.setCurrentText(custom_text)
-        self.margin_preset_combo.currentTextChanged.connect(self._on_margin_preset_changed)
-        
         # 触发预览更新和配置保存
         self._on_config_changed()
-    
-    def _on_margin_preset_changed(self, preset_name):
-        """
-        页边距预设方案改变时的处理
-        
-        功能描述:
-            当用户选择预设方案时，将四个边距输入框同步为预设值
-        
-        参数:
-            preset_name: 预设方案名称
-        """
-        preset = self.margin_presets.get(preset_name)
-        if not preset:
-            return
-        
-        # 移除"自定义"临时项
-        custom_index = self.margin_preset_combo.findText("自定义")
-        if custom_index >= 0:
-            self.margin_preset_combo.removeItem(custom_index)
-        
-        self.margin_top_spinbox.setValue(preset['top'])
-        self.margin_bottom_spinbox.setValue(preset['bottom'])
-        self.margin_left_spinbox.setValue(preset['left'])
-        self.margin_right_spinbox.setValue(preset['right'])
-        
-        # 触发预览更新和配置保存
-        self._on_config_changed()
-    
-    def _on_reset_margins(self):
-        """
-        恢复默认页边距
-        
-        功能描述:
-            将四个边距输入框恢复为默认页边距（10mm），并选择默认预设
-        """
-        self.margin_preset_combo.setCurrentText('默认')
-        self.margin_top_spinbox.setValue(self.default_margins['top'])
-        self.margin_bottom_spinbox.setValue(self.default_margins['bottom'])
-        self.margin_left_spinbox.setValue(self.default_margins['left'])
-        self.margin_right_spinbox.setValue(self.default_margins['right'])
-        
-        # 触发预览更新和配置保存
-        self._on_config_changed()
-    
+
     def _on_preview_checkbox_changed(self, state):
         """
         预览开关状态改变时的处理
@@ -2821,7 +2675,7 @@ class MainWindow(QMainWindow):
                         self.margin_bottom_spinbox.setValue(margins.get('bottom', self.default_margins['bottom']))
                         self.margin_left_spinbox.setValue(margins.get('left', self.default_margins['left']))
                         self.margin_right_spinbox.setValue(margins.get('right', self.default_margins['right']))
-                        # 同步预设下拉框显示
+                        # 触发预览更新和配置保存
                         self._on_margin_changed()
                     else:
                         # 旧版配置使用默认边距
@@ -2829,7 +2683,6 @@ class MainWindow(QMainWindow):
                         self.margin_bottom_spinbox.setValue(self.default_margins['bottom'])
                         self.margin_left_spinbox.setValue(self.default_margins['left'])
                         self.margin_right_spinbox.setValue(self.default_margins['right'])
-                        self.margin_preset_combo.setCurrentText('默认')
                 else:
                     # 兼容旧版配置
                     layout = config.get('layout', '横向2x2')
@@ -2864,7 +2717,6 @@ class MainWindow(QMainWindow):
                     self.margin_bottom_spinbox.setValue(self.default_margins['bottom'])
                     self.margin_left_spinbox.setValue(self.default_margins['left'])
                     self.margin_right_spinbox.setValue(self.default_margins['right'])
-                    self.margin_preset_combo.setCurrentText('默认')
 
                 # 加载模式设置
                 mode = config.get('mode', '普通')
