@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (
     QHeaderView, QAbstractItemView, QMenu, QLabel, QFrame
 )
 from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QPoint, QSize
-from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor, QIcon
+from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor, QIcon, QColor
+from ui.theme import AppTheme
 
 
 class PreviewPopup(QFrame):
@@ -165,6 +166,9 @@ class FileListPanel(QWidget):
         self.files = []
         self.on_file_added = on_file_added
 
+        # 初始化当前系统主题配色
+        self.theme = AppTheme()
+
         # 设置图标目录
         if getattr(sys, 'frozen', False):
             base_path = sys._MEIPASS
@@ -276,6 +280,39 @@ class FileListPanel(QWidget):
         
         # 设置预览图标列宽度
         self.table.setColumnWidth(0, 40)
+        
+        # 设置表格样式，确保在 Windows 深色模式下文字/背景颜色始终可见
+        self.table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {self.theme.card_bg};
+                color: {self.theme.text_primary};
+                gridline-color: {self.theme.border};
+                border: none;
+                outline: none;
+            }}
+            QHeaderView::section {{
+                background-color: {self.theme.bg};
+                color: {self.theme.text_primary};
+                border: 1px solid {self.theme.border};
+                padding: 4px;
+                font-weight: bold;
+            }}
+            QTableWidget::item {{
+                padding: 4px;
+                border-bottom: 1px solid {self.theme.border};
+            }}
+            QTableWidget::item:selected {{
+                background-color: {self.theme.selected_bg};
+                color: {self.theme.selected_text};
+            }}
+            QTableWidget::item:alternate {{
+                background-color: {self.theme.alt_row};
+            }}
+            QTableWidget::item:focus {{
+                background-color: {self.theme.selected_bg};
+                color: {self.theme.selected_text};
+            }}
+        """)
         
         # 启用鼠标跟踪（macOS需要）
         self.table.setMouseTracking(True)
@@ -449,26 +486,27 @@ class FileListPanel(QWidget):
         
         # 创建菜单
         menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu {
-                background-color: white;
-                border: 1px solid #E0E0E0;
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {self.theme.card_bg};
+                border: 1px solid {self.theme.border};
                 border-radius: 6px;
                 padding: 6px;
-            }
-            QMenu::item {
+                color: {self.theme.text_primary};
+            }}
+            QMenu::item {{
                 padding: 8px 24px;
                 border-radius: 4px;
-            }
-            QMenu::item:selected {
-                background-color: #E3F2FD;
-                color: #1976D2;
-            }
-            QMenu::separator {
+            }}
+            QMenu::item:selected {{
+                background-color: {self.theme.selected_bg};
+                color: {self.theme.selected_text};
+            }}
+            QMenu::separator {{
                 height: 1px;
-                background-color: #E0E0E0;
+                background-color: {self.theme.border};
                 margin: 6px 0px;
-            }
+            }}
         """)
         
         # 添加"打开文件"动作
@@ -625,14 +663,16 @@ class FileListPanel(QWidget):
                 is_duplicate = code in duplicate_codes and code != ""
                 print(f"[DEBUG] 行 {row}: 代码='{code}', 是否重复={is_duplicate}")
 
-                # 设置背景色
+                # 设置背景色与前景色，确保重复发票行在任意主题下都清晰可见
                 for col in range(self.table.columnCount()):
                     item = self.table.item(row, col)
                     if item:
                         if is_duplicate:
-                            item.setBackground(Qt.GlobalColor.yellow)
+                            item.setBackground(QColor("#FF9800"))
+                            item.setForeground(QColor("#212121"))
                         else:
                             item.setBackground(Qt.GlobalColor.transparent)
+                            item.setForeground(QColor(self.theme.text_primary))
 
         # 发出重复数量变化信号
         print(f"[DEBUG] 发出 duplicate_count_changed 信号: {duplicate_count}")

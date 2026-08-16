@@ -15,20 +15,26 @@ from PySide6.QtWidgets import (
     QScrollArea, QWidget
 )
 from PySide6.QtCore import Qt, Signal
+from ui.theme import AppTheme
 
 
-# 配色方案 - 与主界面保持一致
+# 配色方案 - 与主界面保持一致，并根据系统主题自动适配深色/浅色模式
+_theme = AppTheme()
 PRIMARY_COLOR = "#2196F3"
 PRIMARY_HOVER = "#1976D2"
 SUCCESS_COLOR = "#4CAF50"
 WARNING_COLOR = "#FF9800"
 DANGER_COLOR = "#F44336"
-BG_COLOR = "#F5F5F5"
-CARD_BG = "#FFFFFF"
-BORDER_COLOR = "#E0E0E0"
-TEXT_PRIMARY = "#212121"
-TEXT_SECONDARY = "#757575"
-TEXT_MUTED = "#9E9E9E"
+BG_COLOR = _theme.bg
+CARD_BG = _theme.card_bg
+BORDER_COLOR = _theme.border
+TEXT_PRIMARY = _theme.text_primary
+TEXT_SECONDARY = _theme.text_secondary
+TEXT_MUTED = _theme.text_muted
+HOVER_BG = _theme.hover_bg
+PRESSED_BG = _theme.pressed_bg
+SELECTED_BG = _theme.selected_bg
+SELECTED_TEXT = _theme.selected_text
 
 
 class RenameDialog(QDialog):
@@ -264,16 +270,16 @@ class RenameDialog(QDialog):
             }}
             
             QPushButton:hover {{
-                background-color: #FAFAFA;
-                border-color: #BDBDBD;
+                background-color: {HOVER_BG};
+                border-color: {TEXT_MUTED};
             }}
             
             QPushButton:pressed {{
-                background-color: #F0F0F0;
+                background-color: {PRESSED_BG};
             }}
             
             QPushButton#fieldButton {{
-                background-color: #E3F2FD;
+                background-color: {SELECTED_BG};
                 border-color: {PRIMARY_COLOR};
                 color: {PRIMARY_COLOR};
                 padding: 6px 12px;
