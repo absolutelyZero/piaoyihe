@@ -220,14 +220,14 @@ class CommonInvoiceExtractor(InvoiceExtractor):
         # 策略2：查找第一个包含公司关键词的"名称:"
         name_pattern = r'名[\n\s]*称[：:]\s*([\u4e00-\u9fa5a-zA-Z0-9（）()]+)'
         matches = re.findall(name_pattern, self._text)
-        company_keywords = ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室']
+        company_keywords = ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室', '部']
         for buyer in matches:
             buyer = buyer.strip().replace('\n', '').replace(' ', '')
             if len(buyer) > 4 and any(keyword in buyer for keyword in company_keywords):
                 return buyer[:30]
 
         # 策略3：查找第一个公司名称
-        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室|部)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
         matches = re.findall(company_pattern, self._text)
         for buyer in matches:
             buyer = buyer.strip().replace('\n', '').replace(' ', '')
@@ -256,7 +256,7 @@ class CommonInvoiceExtractor(InvoiceExtractor):
 
         seller_labels = ['销', '售方', '销售方']
         buyer_labels = ['购', '买方', '购买方']
-        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室|部)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
 
         for words in self._words:
             if not words:
@@ -267,17 +267,25 @@ class CommonInvoiceExtractor(InvoiceExtractor):
             min_x, max_x = min(xs), max(xs)
             mid_x = (min_x + max_x) / 2
 
-            # 按 x 坐标分为左右两栏，并按视觉顺序（从上到下、从左到右）重建文本
-            left_words = [w for w in words if w[2] < mid_x]
-            right_words = [w for w in words if w[0] > mid_x]
+            # 按 x 坐标分为左右两栏（使用中心点判断，避免跨中线字符被遗漏）
+            left_words = [w for w in words if (w[0] + w[2]) / 2 < mid_x]
+            right_words = [w for w in words if (w[0] + w[2]) / 2 > mid_x]
             left_text = ' '.join([w[4] for w in sorted(left_words, key=lambda w: (w[1], w[0]))])
             right_text = ' '.join([w[4] for w in sorted(right_words, key=lambda w: (w[1], w[0]))])
 
+            # 为避免备注区域（如"销方开户银行"）中的字符干扰标签检测，
+            # 只使用页面上半部分（y < 200）的词汇来判断买卖方分栏
+            top_words = [w for w in words if w[1] < 200]
+            top_left_words = [w for w in top_words if (w[0] + w[2]) / 2 < mid_x]
+            top_right_words = [w for w in top_words if (w[0] + w[2]) / 2 > mid_x]
+            top_left_text = ' '.join([w[4] for w in sorted(top_left_words, key=lambda w: (w[1], w[0]))])
+            top_right_text = ' '.join([w[4] for w in sorted(top_right_words, key=lambda w: (w[1], w[0]))])
+
             # 根据标签判断哪边是销售方、哪边是购买方
-            seller_in_left = any(label in left_text for label in seller_labels)
-            seller_in_right = any(label in right_text for label in seller_labels)
-            buyer_in_left = any(label in left_text for label in buyer_labels)
-            buyer_in_right = any(label in right_text for label in buyer_labels)
+            seller_in_left = any(label in top_left_text for label in seller_labels)
+            seller_in_right = any(label in top_right_text for label in seller_labels)
+            buyer_in_left = any(label in top_left_text for label in buyer_labels)
+            buyer_in_right = any(label in top_right_text for label in buyer_labels)
 
             if seller_in_left and not seller_in_right:
                 seller_text, buyer_text = left_text, right_text
@@ -335,14 +343,14 @@ class CommonInvoiceExtractor(InvoiceExtractor):
         # 策略2：查找第二个"名称:"
         name_pattern = r'名[\n\s]*称[：:]\s*([\u4e00-\u9fa5a-zA-Z0-9（）()]+)'
         matches = re.findall(name_pattern, self._text)
-        company_keywords = ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室']
+        company_keywords = ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室', '部']
         if len(matches) >= 2:
             seller = matches[1].strip().replace('\n', '').replace(' ', '')
             if len(seller) > 4 and any(keyword in seller for keyword in company_keywords):
                 return seller[:30]
 
         # 策略3：查找最后一个公司名称
-        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室|部)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
         matches = re.findall(company_pattern, self._text)
         if matches:
             seller = matches[-1].strip().replace('\n', '').replace(' ', '')
