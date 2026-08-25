@@ -11,7 +11,7 @@ name: 打包发布
 
 on:
   push:
-    branches: [main, master，feat/cicd，feat/mcpserver]
+    branches: [main, master，feat/cicd]
     tags: ["v*"]
   pull_request:
     branches: [main, master]
@@ -191,7 +191,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           # 从标签名提取版本号作为 Release 标题
-          name: 票易合 ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           # 自动生成 Release 说明（基于 commit 信息）
           generate_release_notes: true
           # 上传所有安装包文件
