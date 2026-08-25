@@ -57,8 +57,13 @@ class PDFHandler:
             # 解析布局
             layout_config = self._parse_layout(layout)
 
-            # 页边距设置（单位：点，1点=1/72英寸）
-            margin = 20  # 页边距
+            # 页边距设置（单位：mm，需转换为点，1点=25.4/72 mm）
+            margins_mm = layout_config.get('margins', {'top': 10, 'bottom': 10, 'left': 10, 'right': 10})
+            margins_pt = {k: v * 72.0 / 25.4 for k, v in margins_mm.items()}
+            margin_top = margins_pt.get('top', 28.35)
+            margin_bottom = margins_pt.get('bottom', 28.35)
+            margin_left = margins_pt.get('left', 28.35)
+            margin_right = margins_pt.get('right', 28.35)
 
             # 根据布局方向确定页面尺寸
             # 横向布局使用横向A4纸张，竖向布局使用纵向A4纸张
@@ -71,9 +76,9 @@ class PDFHandler:
                 page_width = 595  # A4纵向宽度
                 page_height = 842  # A4纵向高度
 
-            # 计算可用区域（扣除页边距）
-            available_width = page_width - 2 * margin
-            available_height = page_height - 2 * margin
+            # 计算可用区域（扣除四边页边距）
+            available_width = page_width - margin_left - margin_right
+            available_height = page_height - margin_top - margin_bottom
 
             total_files = len(pdf_paths)
             expected_temp_count = (total_files + batch_size - 1) // batch_size
@@ -99,7 +104,10 @@ class PDFHandler:
                         batch_doc,
                         layout_config,
                         mode,
-                        margin,
+                        margin_top,
+                        margin_bottom,
+                        margin_left,
+                        margin_right,
                         page_width,
                         page_height,
                         available_width,
@@ -147,7 +155,8 @@ class PDFHandler:
                     pass
 
     def _merge_files_into_doc(self, pdf_paths, output_doc, layout_config, mode,
-                              margin, page_width, page_height,
+                              margin_top, margin_bottom, margin_left, margin_right,
+                              page_width, page_height,
                               available_width, available_height,
                               file_processed_callback=None):
         """
@@ -158,7 +167,10 @@ class PDFHandler:
             output_doc: 目标 fitz 文档对象
             layout_config: 布局配置字典
             mode: 合并模式，'普通' 或 '图像'
-            margin: 页边距
+            margin_top: 上边距（单位：点）
+            margin_bottom: 下边距（单位：点）
+            margin_left: 左边距（单位：点）
+            margin_right: 右边距（单位：点）
             page_width: 输出页面宽度
             page_height: 输出页面高度
             available_width: 可用区域宽度
@@ -180,7 +192,26 @@ class PDFHandler:
 
                         # 如果是多发票页面，绘制分割线
                         if layout_config['rows'] * layout_config['cols'] > 1:
-                            self._draw_dividers(current_page, layout_config, margin, available_width, available_height)
+                            self._draw_dividers(
+                                current_page,
+                                layout_config,
+                                margin_top,
+                                margin_left,
+                                available_width,
+                                available_height
+                            )
+
+                        # 绘制裁切线（如果开启）
+                        crop_mark_left = layout_config.get('crop_mark_left', 0)
+                        crop_mark_right = layout_config.get('crop_mark_right', 0)
+                        if layout_config.get('show_crop_marks', False) and (crop_mark_left > 0 or crop_mark_right > 0):
+                            self._draw_crop_marks(
+                                current_page,
+                                crop_mark_left,
+                                crop_mark_right,
+                                page_width,
+                                page_height
+                            )
 
                     # 计算当前页面在新页中的位置
                     row = page_count // layout_config['cols']
@@ -190,9 +221,9 @@ class PDFHandler:
                     cell_width = available_width / layout_config['cols']
                     cell_height = available_height / layout_config['rows']
 
-                    # 计算位置（加上页边距偏移）
-                    x = margin + col * cell_width
-                    y = margin + row * cell_height
+                    # 计算位置（加上四边页边距偏移）
+                    x = margin_left + col * cell_width
+                    y = margin_top + row * cell_height
 
                     # 检查是否需要旋转
                     rotate = layout_config.get('rotate', 0)
@@ -342,14 +373,15 @@ class PDFHandler:
             if file_processed_callback:
                 file_processed_callback()
 
-    def _draw_dividers(self, page, layout_config, margin, available_width, available_height):
+    def _draw_dividers(self, page, layout_config, margin_top, margin_left, available_width, available_height):
         """
         绘制分割线
 
         Args:
             page: PDF页面对象
             layout_config: 布局配置
-            margin: 页边距
+            margin_top: 上边距（单位：点）
+            margin_left: 左边距（单位：点）
             available_width: 可用宽度
             available_height: 可用高度
         """
@@ -362,11 +394,11 @@ class PDFHandler:
 
         # 绘制水平分割线
         for i in range(1, rows):
-            y = margin + i * cell_height
+            y = margin_top + i * cell_height
             self._draw_dashed_line(
                 page,
-                margin, y,
-                margin + available_width, y,
+                margin_left, y,
+                margin_left + available_width, y,
                 dash_length=5,
                 gap_length=3,
                 color=(0.7, 0.7, 0.7),
@@ -375,15 +407,54 @@ class PDFHandler:
 
         # 绘制垂直分割线
         for i in range(1, cols):
-            x = margin + i * cell_width
+            x = margin_left + i * cell_width
             self._draw_dashed_line(
                 page,
-                x, margin,
-                x, margin + available_height,
+                x, margin_top,
+                x, margin_top + available_height,
                 dash_length=5,
                 gap_length=3,
                 color=(0.7, 0.7, 0.7),
                 width=0.5
+            )
+
+    def _draw_crop_marks(self, page, crop_mark_left_mm, crop_mark_right_mm,
+                          page_width, page_height):
+        """
+        绘制裁切线（仅左右两侧垂直虚线）
+
+        在左右两侧距页面边缘指定距离处绘制垂直虚线，从页面顶部延伸到底部。
+
+        Args:
+            page: PDF页面对象
+            crop_mark_left_mm: 左侧裁切线距离页面边缘的距离（mm）
+            crop_mark_right_mm: 右侧裁切线距离页面边缘的距离（mm）
+            page_width: 页面宽度（点）
+            page_height: 页面高度（点）
+        """
+        # 毫米转点（1点=25.4/72 mm）
+        mm_to_pt = 72.0 / 25.4
+
+        # 左侧裁切线
+        if crop_mark_left_mm > 0:
+            x_left = crop_mark_left_mm * mm_to_pt
+            self._draw_dashed_line(
+                page,
+                x_left, 0,
+                x_left, page_height,
+                dash_length=5, gap_length=3,
+                color=(0.7, 0.7, 0.7), width=0.5
+            )
+
+        # 右侧裁切线
+        if crop_mark_right_mm > 0:
+            x_right = page_width - crop_mark_right_mm * mm_to_pt
+            self._draw_dashed_line(
+                page,
+                x_right, 0,
+                x_right, page_height,
+                dash_length=5, gap_length=3,
+                color=(0.7, 0.7, 0.7), width=0.5
             )
 
     def _draw_dashed_line(self, page, x1, y1, x2, y2, dash_length=5, gap_length=3, color=(0, 0, 0), width=1):
