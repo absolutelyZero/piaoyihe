@@ -43,20 +43,27 @@ logger = logging.getLogger(__name__)
 
 @mcp.tool()
 def merge_invoices(pdf_paths: List[str], output_path: str,
-                   layout: Dict[str, Any], mode: str = "普通") -> Dict[str, Any]:
+                   layout: Dict[str, Any], mode: str = "普通",
+                   margins: Optional[Dict[str, int]] = None,
+                   crop_marks: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     MCP Tool：合并多个 PDF 发票为指定布局
+
+    支持自定义页边距和裁切线设置，便于实体裁剪和排版。
 
     参数:
         pdf_paths: 待合并的 PDF 文件路径列表
         output_path: 合并后的输出文件路径
         layout: 布局配置字典，包含 orientation、rows、cols、rotate
         mode: 合并模式，可选 "普通" 或 "图像"，默认 "普通"
+        margins: 页边距配置（mm），可选，格式 {"top": 10, "bottom": 10, "left": 10, "right": 10}
+        crop_marks: 裁切线配置，可选，格式 {"show": true, "left_mm": 5, "right_mm": 5}
 
     返回值:
         Dict[str, Any]: 包含 success 和 message 的字典
     """
-    return handle_merge_invoices(pdf_paths, output_path, layout, mode)
+    return handle_merge_invoices(pdf_paths, output_path, layout, mode,
+                                 margins=margins, crop_marks=crop_marks)
 
 
 @mcp.tool()

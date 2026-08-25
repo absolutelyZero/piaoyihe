@@ -195,6 +195,88 @@ class TestTools(unittest.TestCase):
             self.assertFalse(result['success'])
 
     @patch('mcp_server.tools._new_pdf_handler')
+    def test_merge_invoices_with_margins(self, mock_new):
+        """合并时传入页边距应透传到 layout 中"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, 'a.pdf')
+            output_path = os.path.join(tmpdir, 'out.pdf')
+            with open(pdf_path, 'w') as f:
+                pass
+
+            handler = self._fake_handler({})
+            handler.merge_pdfs = Mock(return_value=True)
+            mock_new.return_value = handler
+
+            result = handle_merge_invoices(
+                [pdf_path], output_path,
+                {'orientation': 'portrait', 'rows': 2, 'cols': 1},
+                margins={'top': 15, 'bottom': 15, 'left': 20, 'right': 20},
+            )
+            self.assertTrue(result['success'])
+
+            # 验证 margins 被合并到 layout 中
+            call_args = handler.merge_pdfs.call_args
+            passed_layout = call_args[0][2]  # layout 参数位置
+            self.assertIn('margins', passed_layout)
+            self.assertEqual(passed_layout['margins']['top'], 15)
+            self.assertEqual(passed_layout['margins']['left'], 20)
+
+    @patch('mcp_server.tools._new_pdf_handler')
+    def test_merge_invoices_with_crop_marks(self, mock_new):
+        """合并时传入裁切线应透传到 layout 中"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, 'a.pdf')
+            output_path = os.path.join(tmpdir, 'out.pdf')
+            with open(pdf_path, 'w') as f:
+                pass
+
+            handler = self._fake_handler({})
+            handler.merge_pdfs = Mock(return_value=True)
+            mock_new.return_value = handler
+
+            result = handle_merge_invoices(
+                [pdf_path], output_path,
+                {'orientation': 'portrait', 'rows': 2, 'cols': 1},
+                crop_marks={'show': True, 'left_mm': 5, 'right_mm': 5},
+            )
+            self.assertTrue(result['success'])
+
+            call_args = handler.merge_pdfs.call_args
+            passed_layout = call_args[0][2]
+            self.assertTrue(passed_layout['show_crop_marks'])
+            self.assertEqual(passed_layout['crop_mark_left'], 5)
+            self.assertEqual(passed_layout['crop_mark_right'], 5)
+
+    @patch('mcp_server.tools._new_pdf_handler')
+    def test_merge_invoices_with_both_params(self, mock_new):
+        """同时传入页边距和裁切线都应正确透传"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, 'a.pdf')
+            output_path = os.path.join(tmpdir, 'out.pdf')
+            with open(pdf_path, 'w') as f:
+                pass
+
+            handler = self._fake_handler({})
+            handler.merge_pdfs = Mock(return_value=True)
+            mock_new.return_value = handler
+
+            result = handle_merge_invoices(
+                [pdf_path], output_path,
+                {'orientation': 'landscape', 'rows': 2, 'cols': 2},
+                margins={'top': 5, 'bottom': 5, 'left': 5, 'right': 5},
+                crop_marks={'show': True, 'left_mm': 10, 'right_mm': 0},
+            )
+            self.assertTrue(result['success'])
+
+            call_args = handler.merge_pdfs.call_args
+            passed_layout = call_args[0][2]
+            self.assertEqual(passed_layout['margins']['top'], 5)
+            self.assertEqual(passed_layout['margins']['right'], 5)
+            self.assertTrue(passed_layout['show_crop_marks'])
+            self.assertEqual(passed_layout['crop_mark_left'], 10)
+            self.assertEqual(passed_layout['crop_mark_right'], 0)
+
+    @patch('mcp_server.tools._new_pdf_handler')
     def test_merge_invoices_exception(self, mock_new):
         """合并异常应返回 success=False 并携带异常信息"""
         with tempfile.TemporaryDirectory() as tmpdir:

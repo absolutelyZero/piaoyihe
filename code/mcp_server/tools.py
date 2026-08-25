@@ -106,18 +106,23 @@ def _ensure_output_dir(output_path: str) -> tuple[bool, str]:
 
 
 def handle_merge_invoices(pdf_paths: List[str], output_path: str,
-                          layout: Dict[str, Any], mode: str = "普通") -> Dict[str, Any]:
+                          layout: Dict[str, Any], mode: str = "普通",
+                          margins: Optional[Dict[str, int]] = None,
+                          crop_marks: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     合并多个 PDF 发票为指定布局
 
     功能描述:
         调用 PDFHandler.merge_pdfs 将多个 PDF 文件按指定布局合并输出。
+        支持自定义页边距和裁切线设置。
 
     参数:
         pdf_paths: 待合并的 PDF 文件路径列表
         output_path: 合并后的输出文件路径
         layout: 布局配置字典，包含 orientation、rows、cols、rotate
         mode: 合并模式，可选 "普通" 或 "图像"，默认 "普通"
+        margins: 页边距配置（mm），可选，格式 {"top": 10, "bottom": 10, "left": 10, "right": 10}
+        crop_marks: 裁切线配置，可选，格式 {"show": true, "left_mm": 5, "right_mm": 5}
 
     返回值:
         Dict[str, Any]: 包含 success（是否成功）和 message（提示信息）的字典
@@ -131,12 +136,27 @@ def handle_merge_invoices(pdf_paths: List[str], output_path: str,
         return {"success": False, "message": msg}
 
     pdf_paths = _normalize_paths(pdf_paths)
+
+    # 合并可选参数到 layout 配置中
+    merged_layout = layout.copy()
+    if margins is not None and isinstance(margins, dict):
+        merged_layout['margins'] = {
+            'top': margins.get('top', 10),
+            'bottom': margins.get('bottom', 10),
+            'left': margins.get('left', 10),
+            'right': margins.get('right', 10),
+        }
+    if crop_marks is not None and isinstance(crop_marks, dict):
+        merged_layout['show_crop_marks'] = crop_marks.get('show', False)
+        merged_layout['crop_mark_left'] = crop_marks.get('left_mm', 0)
+        merged_layout['crop_mark_right'] = crop_marks.get('right_mm', 0)
+
     pdf_handler = _new_pdf_handler()
     try:
         result = pdf_handler.merge_pdfs(
             pdf_paths,
             output_path,
-            layout,
+            merged_layout,
             mode=mode,
             batch_size=50
         )
