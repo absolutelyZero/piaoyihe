@@ -31,7 +31,7 @@ def main() -> int:
 
     new_content = re.sub(
         r"pathex=\[.*?\]",
-        f"pathex=['{cwd}']",
+        lambda m: f"pathex=['{cwd}']",
         content
     )
 
