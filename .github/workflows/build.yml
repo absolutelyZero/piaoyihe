@@ -87,7 +87,6 @@ jobs:
         with:
           name: 票易合-macOS
           path: |
-            dist/票易合_*.dmg
             dist/票易合_macos_*.zip
           if-no-files-found: error
 
