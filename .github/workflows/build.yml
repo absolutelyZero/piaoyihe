@@ -11,7 +11,7 @@ name: 打包发布
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master，feat/cicd]
     tags: ["v*"]
   pull_request:
     branches: [main, master]
@@ -49,23 +49,7 @@ jobs:
       # 步骤4: 修正 spec 文件中的硬编码路径（适配 CI 运行环境）
       - name: 修正 spec 文件路径
         run: |
-          python -c "
-          import os
-          cwd = os.getcwd()
-          spec_file = 'invoice_tool.spec'
-          with open(spec_file, 'r') as f:
-              content = f.read()
-          # 替换 pathex 为当前工作目录
-          import re
-          content = re.sub(
-              r\"pathex=\[.*?\]\",
-              f\"pathex=['{cwd}']\",
-              content
-          )
-          with open(spec_file, 'w') as f:
-              f.write(content)
-          print(f'已修正 {spec_file} 的 pathex 为: {cwd}')
-          "
+          python scripts/patch_spec.py invoice_tool.spec
 
       # 步骤5: 使用 PyInstaller 打包
       - name: PyInstaller 打包
@@ -137,25 +121,8 @@ jobs:
 
       # 步骤4: 修正 spec 文件中的硬编码路径（适配 CI 运行环境）
       - name: 修正 spec 文件路径
-        shell: pwsh
         run: |
-          python -c "
-          import os
-          cwd = os.getcwd().replace('\\\\', '/')
-          spec_file = 'invoice_tool_win.spec'
-          with open(spec_file, 'r') as f:
-              content = f.read()
-          # 替换 pathex 为当前工作目录
-          import re
-          content = re.sub(
-              r\"pathex=\[.*?\]\",
-              f\"pathex=['{cwd}']\",
-              content
-          )
-          with open(spec_file, 'w') as f:
-              f.write(content)
-          print(f'已修正 {spec_file} 的 pathex 为: {cwd}')
-          "
+          python scripts/patch_spec.py invoice_tool_win.spec
 
       # 步骤5: 使用 PyInstaller 打包
       - name: PyInstaller 打包
