@@ -23,7 +23,21 @@ else:
     base_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, base_path)
 
-from mcp_server.config import DEFAULT_HOST, DEFAULT_CORS_ORIGINS
+# 兼容 Windows AI 工具从外部目录调用的场景：
+# 将 code/ 的父目录也加入 sys.path，确保 -m mcp_server 等方式也能正常工作
+_parent = os.path.dirname(base_path)
+if _parent not in sys.path:
+    sys.path.insert(0, _parent)
+
+# 懒加载 mcp_server.config，避免 PyInstaller 打包后模块未收集时启动崩溃
+# 提供默认值兜底，确保 _parse_args 等函数能正常定义
+_DEFAULT_HOST = "127.0.0.1"
+_DEFAULT_CORS_ORIGINS = ["*"]
+try:
+    from mcp_server.config import DEFAULT_HOST, DEFAULT_CORS_ORIGINS
+except ModuleNotFoundError:
+    DEFAULT_HOST = _DEFAULT_HOST
+    DEFAULT_CORS_ORIGINS = _DEFAULT_CORS_ORIGINS
 
 
 def _parse_args(argv=None):

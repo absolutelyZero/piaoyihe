@@ -11,7 +11,7 @@ name: 打包发布
 
 on:
   push:
-    branches: [main, master，feat/cicd]
+    branches: [main, master，feat/cicd，feat/mcpserver]
     tags: ["v*"]
   pull_request:
     branches: [main, master]

@@ -7,11 +7,6 @@
 import os
 import sys
 
-# 将 code 目录加入模块搜索路径，使 PyInstaller 能收集本地包 mcp_server / core
-sys.path.insert(0, r'd:\minipro\piaoyihe\piaoyihe\code')
-
-from PyInstaller.utils.hooks import collect_submodules
-
 block_cipher = None
 
 # 分析项目依赖
@@ -50,13 +45,31 @@ a = Analysis(
         'PySide6.QtWidgets',       # Qt控件模块
         'PySide6.QtNetwork',       # Qt网络模块（用于更新检查）
 
-        # MCP Server 相关模块
+        # MCP Server 相关模块（显式列出，避免 collect_submodules 静默失败）
         'mcp',
         'mcp.server.fastmcp',
         'mcp.server.sse',
         'mcp.server.stdio',
-        *collect_submodules('mcp_server'),
-        *collect_submodules('core'),
+        'mcp_server',
+        'mcp_server.config',
+        'mcp_server.server',
+        'mcp_server.tools',
+        'mcp_server.__main__',
+        'core',
+        'core.pdf_handler',
+        'core.update_checker',
+        'core.invoice_extractors',
+        'core.invoice_extractors.base',
+        'core.invoice_extractors.factory',
+        'core.invoice_extractors.common_invoice',
+        'core.invoice_extractors.train_ticket',
+        'core.invoice_extractors.flight_ticket',
+        'core.invoice_extractors.vehicle_invoice',
+        'core.invoice_extractors.taxi_invoice',
+        'core.invoice_extractors.fixed_amount_invoice',
+        'core.invoice_extractors.toll_invoice',
+        'core.invoice_service',
+        'core.rename_engine',
 
         # SSE 传输依赖
         'uvicorn',
