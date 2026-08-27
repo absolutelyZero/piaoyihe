@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QPoint, QSize
 from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor, QIcon, QColor
+from core.invoice_service import InvoiceService
 from ui.theme import AppTheme
 
 
@@ -163,6 +164,7 @@ class FileListPanel(QWidget):
         super().__init__(parent)
 
         self.pdf_handler = pdf_handler
+        self.invoice_service = InvoiceService(pdf_handler)
         self.files = []
         self.on_file_added = on_file_added
 
@@ -1168,20 +1170,19 @@ class FileListPanel(QWidget):
         导出文件列表到Excel
 
         功能描述:
-            将文件列表导出为Excel文件，并标记重复的发票数据为黄色高亮
+            选择保存路径后，调用 InvoiceService 将文件列表导出为 Excel，
+            并标记重复的发票数据为黄色高亮。
 
         参数:
             row: 触发导出的行索引（当前未使用，导出整个列表）
         """
-        from openpyxl import Workbook
-        from openpyxl.styles import PatternFill
-        from PySide6.QtWidgets import QFileDialog
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from datetime import datetime
 
         if not self.files:
             return
 
         # 生成默认文件名：发票列表-{日期}.xlsx
-        from datetime import datetime
         today = datetime.now().strftime("%Y年%m月%d日")
         default_filename = f"发票列表-{today}.xlsx"
 
@@ -1197,84 +1198,16 @@ class FileListPanel(QWidget):
             return
 
         try:
-            # 创建工作簿
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "发票列表"
+            success = self.invoice_service.export_to_excel(
+                self.files,
+                file_path,
+                duplicate_codes=self._duplicate_codes
+            )
 
-            # 设置表头（不包含预览列）
-            headers = ["发票代码", "文件名", "金额", "税额", "发票日期", "文件路径", "修改时间", "大小"]
-            for col, header in enumerate(headers, 1):
-                cell = ws.cell(row=1, column=col, value=header)
-                cell.font = cell.font.copy(bold=True)
-
-            # 创建黄色填充样式
-            yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-
-            # 写入数据
-            total_amount = 0.0
-            total_tax = 0.0
-            for row_idx, file_info in enumerate(self.files, 2):
-                # 获取发票代码
-                invoice_code = file_info.get('invoice_code', '')
-                amount = file_info.get('amount', 0.0)
-                tax_amount = file_info.get('tax_amount', 0.0)
-
-                # 累加总计
-                if isinstance(amount, (int, float)):
-                    total_amount += amount
-                if isinstance(tax_amount, (int, float)):
-                    total_tax += tax_amount
-
-                # 检查是否为重复数据
-                is_duplicate = invoice_code in self._duplicate_codes and invoice_code != ""
-
-                # 写入数据（列号从1开始，预览列已删除）
-                ws.cell(row=row_idx, column=1, value=invoice_code)
-                ws.cell(row=row_idx, column=2, value=file_info.get('name', ''))
-                ws.cell(row=row_idx, column=3, value=amount)
-                ws.cell(row=row_idx, column=4, value=tax_amount)
-                ws.cell(row=row_idx, column=5, value=file_info.get('invoice_date', ''))
-                ws.cell(row=row_idx, column=6, value=file_info.get('path', ''))
-                ws.cell(row=row_idx, column=7, value=file_info.get('mod_time', ''))
-                ws.cell(row=row_idx, column=8, value=file_info.get('size', ''))
-
-                # 如果是重复数据，应用黄色高亮（1-8列）
-                if is_duplicate:
-                    for col in range(1, 9):
-                        ws.cell(row=row_idx, column=col).fill = yellow_fill
-
-            # 添加总计行
-            total_row = len(self.files) + 2
-            ws.cell(row=total_row, column=1, value="")
-            ws.cell(row=total_row, column=2, value="总计")
-            ws.cell(row=total_row, column=3, value=total_amount)
-            ws.cell(row=total_row, column=4, value=total_tax)
-            ws.cell(row=total_row, column=5, value="")
-            ws.cell(row=total_row, column=6, value="")
-            ws.cell(row=total_row, column=7, value="")
-            ws.cell(row=total_row, column=8, value="")
-            # 设置总计行字体加粗
-            for col in range(1, 9):
-                ws.cell(row=total_row, column=col).font = ws.cell(row=total_row, column=col).font.copy(bold=True)
-
-            # 调整列宽（预览列已删除）
-            ws.column_dimensions['A'].width = 20
-            ws.column_dimensions['B'].width = 30
-            ws.column_dimensions['C'].width = 12
-            ws.column_dimensions['D'].width = 12
-            ws.column_dimensions['E'].width = 15
-            ws.column_dimensions['F'].width = 50
-            ws.column_dimensions['G'].width = 20
-            ws.column_dimensions['H'].width = 12
-
-            # 保存文件
-            wb.save(file_path)
-
-            # 导出成功提示
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "导出成功", f"文件列表已成功导出到：\n{file_path}")
+            if success:
+                QMessageBox.information(self, "导出成功", f"文件列表已成功导出到：\n{file_path}")
+            else:
+                QMessageBox.critical(self, "导出失败", "导出 Excel 文件时出错，请检查日志")
 
         except Exception as e:
-            from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "导出失败", f"导出Excel文件时出错：\n{str(e)}")

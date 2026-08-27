@@ -12,7 +12,7 @@ block_cipher = None
 # 分析项目依赖
 a = Analysis(
     ['code\\main.py'],
-    pathex=['d:\\minipro\\piaoyihe\\piaoyihe'],
+    pathex=['d:\\minipro\\piaoyihe\\piaoyihe', 'd:\\minipro\\piaoyihe\\piaoyihe\\code'],
     binaries=[],
     datas=[
         ('code\\res\\logo3.png', 'res'),
@@ -34,7 +34,6 @@ a = Analysis(
     hiddenimports=[
         'fitz',                    # PyMuPDF - PDF处理核心
         'PIL.Image',               # Pillow - 图像处理（用于PDF旋转）
-        'PIL.ImageRotate',         # PIL旋转功能
         'PIL.PngImagePlugin',      # PNG图像支持
         'PIL.JpegImagePlugin',     # JPEG图像支持
         'PIL.BmpImagePlugin',      # BMP图像支持
@@ -45,6 +44,47 @@ a = Analysis(
         'PySide6.QtGui',           # Qt GUI模块
         'PySide6.QtWidgets',       # Qt控件模块
         'PySide6.QtNetwork',       # Qt网络模块（用于更新检查）
+
+        # MCP Server 相关模块（显式列出，避免 collect_submodules 静默失败）
+        'mcp',
+        'mcp.server.fastmcp',
+        'mcp.server.sse',
+        'mcp.server.stdio',
+        'mcp_server',
+        'mcp_server.config',
+        'mcp_server.server',
+        'mcp_server.tools',
+        'mcp_server.__main__',
+        'core',
+        'core.pdf_handler',
+        'core.update_checker',
+        'core.invoice_extractors',
+        'core.invoice_extractors.base',
+        'core.invoice_extractors.factory',
+        'core.invoice_extractors.common_invoice',
+        'core.invoice_extractors.train_ticket',
+        'core.invoice_extractors.flight_ticket',
+        'core.invoice_extractors.vehicle_invoice',
+        'core.invoice_extractors.taxi_invoice',
+        'core.invoice_extractors.fixed_amount_invoice',
+        'core.invoice_extractors.toll_invoice',
+        'core.invoice_service',
+        'core.rename_engine',
+
+        # SSE 传输依赖
+        'uvicorn',
+        'uvicorn.protocols.http',
+        'uvicorn.protocols.http.auto',
+        'uvicorn.lifespan.on',
+        'click',                  # uvicorn CLI 依赖
+        'starlette',
+        'starlette.middleware.cors',
+        'anyio',
+
+        # MCP 底层 HTTP 依赖
+        'httpx',
+        'httpx._transports.default',
+        'httpx_sse',
     ],
     hookspath=[],
     hooksconfig={},
@@ -76,9 +116,9 @@ a = Analysis(
         # 网络请求（项目使用标准库urllib）
         'requests',
         'urllib3',
-        'certifi',
+        # 'certifi',  # httpx 依赖，保留
         'chardet',
-        'idna',
+        # 'idna',     # httpx 依赖，保留
         'charset_normalizer',
 
         # Web框架（未使用）
@@ -101,7 +141,6 @@ a = Analysis(
         'jinja2',
         'markupsafe',
         'werkzeug',
-        'click',
         'itsdangerous',
         'blinker',
         'colorama',

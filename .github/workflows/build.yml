@@ -1,0 +1,203 @@
+# ============================================================================
+# 票易合 - GitHub Actions 自动打包工作流
+# 功能: 在 push/tag/PR 时自动为 macOS 和 Windows 构建可分发安装包
+# 触发条件:
+#   - 推送到 main/master 分支
+#   - 创建 v* 标签（如 v0.1.11）-> 自动发布 Release
+#   - 提交 Pull Request 到 main/master
+# ============================================================================
+
+name: 打包发布
+
+on:
+  push:
+    branches: [main, master，feat/cicd，feat/mcpserver]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ==========================================================================
+  # macOS 打包任务
+  # ==========================================================================
+  build-macos:
+    name: "macOS 打包"
+    runs-on: macos-latest
+    # 每次打包独立执行，避免缓存干扰
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+
+    steps:
+      # 步骤1: 检出代码
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 步骤2: 设置 Python 环境
+      - name: 设置 Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # 步骤3: 安装项目依赖 + PyInstaller
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # 步骤4: 修正 spec 文件中的硬编码路径（适配 CI 运行环境）
+      - name: 修正 spec 文件路径
+        run: |
+          python scripts/patch_spec.py invoice_tool.spec
+
+      # 步骤5: 使用 PyInstaller 打包
+      - name: PyInstaller 打包
+        run: |
+          pyinstaller invoice_tool.spec
+
+      # 步骤6: 读取版本号，创建 DMG 和 ZIP
+      - name: 创建 DMG 和 ZIP 安装包
+        run: |
+          # 读取版本号
+          VERSION=$(python3 -c "import json; print(json.load(open('code/version.json'))['version'])")
+          echo "当前版本: $VERSION"
+
+          cd dist
+
+          # 创建 DMG 安装包
+          echo "创建 DMG 安装包..."
+          mkdir -p tmp/dmg
+          cp -r '票易合.app' tmp/dmg/
+          hdiutil create -volname '票易合' -srcfolder tmp/dmg -ov -format UDZO "票易合_${VERSION}.dmg"
+          rm -rf tmp
+          echo "DMG 创建完成: 票易合_${VERSION}.dmg"
+
+          # 创建 ZIP 压缩包（兼容非 macOS 分发）
+          echo "创建 ZIP 压缩包..."
+          zip -ry "票易合_macos_${VERSION}.zip" '票易合.app'
+          echo "ZIP 创建完成: 票易合_macos_${VERSION}.zip"
+
+          # 将产物路径输出到环境变量，供后续步骤使用
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      # 步骤7: 上传构建产物到 GitHub Actions Artifacts
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: 票易合-macOS
+          path: |
+            dist/票易合_macos_*.zip
+          if-no-files-found: error
+
+  # ==========================================================================
+  # Windows 打包任务
+  # ==========================================================================
+  build-windows:
+    name: "Windows 打包"
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+
+    steps:
+      # 步骤1: 检出代码
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 步骤2: 设置 Python 环境
+      - name: 设置 Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # 步骤3: 安装项目依赖 + PyInstaller
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # 步骤4: 修正 spec 文件中的硬编码路径（适配 CI 运行环境）
+      - name: 修正 spec 文件路径
+        run: |
+          python scripts/patch_spec.py invoice_tool_win.spec
+
+      # 步骤5: 使用 PyInstaller 打包
+      - name: PyInstaller 打包
+        run: |
+          pyinstaller invoice_tool_win.spec
+
+      # 步骤6: 读取版本号，创建 ZIP 压缩包
+      - name: 创建 ZIP 安装包
+        shell: pwsh
+        run: |
+          # 读取版本号
+          $version = (Get-Content code\version.json | ConvertFrom-Json).version
+          Write-Host "当前版本: $version"
+
+          # 创建 ZIP 压缩包
+          Write-Host "创建 ZIP 压缩包..."
+          $zipFile = "票易合_win_$version.zip"
+          Compress-Archive -Path 'dist\票易合\*' -DestinationPath $zipFile -Force
+          Write-Host "ZIP 创建完成: $zipFile"
+
+          # 将产物路径输出到环境变量
+          echo "VERSION=$version" >> $env:GITHUB_ENV
+
+      # 步骤7: 上传构建产物到 GitHub Actions Artifacts
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: 票易合-Windows
+          path: 票易合_win_*.zip
+          if-no-files-found: error
+
+  # ==========================================================================
+  # Release 发布任务（仅在打标签时触发）
+  # ==========================================================================
+  release:
+    name: "发布 Release"
+    # 仅在推送标签时触发
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      # 步骤1: 下载所有构建产物
+      - name: 下载 macOS 构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: 票易合-macOS
+          path: release-artifacts/
+
+      - name: 下载 Windows 构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: 票易合-Windows
+          path: release-artifacts/
+
+      # 步骤2: 列出所有待发布文件
+      - name: 列出发布文件
+        run: |
+          echo "=== 待发布的安装包 ==="
+          ls -lh release-artifacts/
+
+      # 步骤3: 创建 GitHub Release 并上传安装包
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # 从标签名提取版本号作为 Release 标题
+          name: ${{ github.ref_name }}
+          # 自动生成 Release 说明（基于 commit 信息）
+          generate_release_notes: true
+          # 上传所有安装包文件
+          files: |
+            release-artifacts/*
+          # 标记为最新版本（非预发布）
+          prerelease: false
+          # 当为 true 时，会覆盖同名的已有 Release
+          fail_on_unmatched_files: true
