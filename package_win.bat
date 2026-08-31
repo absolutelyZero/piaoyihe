@@ -1,30 +1,69 @@
 @echo off
 chcp 65001 >nul
-echo 开始打包 Windows 版本...
 
-:: 清理旧构建文件
-echo 清理旧文件...
+:: Switch to the directory where this batch file is located
+set "SCRIPT_DIR=%~dp0"
+cd /d "%SCRIPT_DIR%"
+
+echo Starting Windows build...
+
+:: Clean old build files
+echo Cleaning old files...
 if exist dist rmdir /s /q dist
 if exist build rmdir /s /q build
+if exist dist_build rmdir /s /q dist_build
 
-:: 执行打包
-echo 开始打包...
-"E:\tools\pyenv-win\pyenv-win\versions\3.14.4\python3.14.exe" -m PyInstaller invoice_tool_win.spec
+:: Build to a temporary directory to avoid file locks on the common 'dist' folder
+:: (IDE file watchers / antivirus may hold handles on 'dist' during COLLECT)
+echo Building...
+"E:\tools\pyenv-win\pyenv-win\versions\3.14.4\python3.14.exe" -m PyInstaller -y invoice_tool_win.spec --distpath dist_build --workpath build
+if %ERRORLEVEL% NEQ 0 (
+    echo Build failed
+    pause
+    exit /b 1)
+
+:: Move build output to the final dist folder
+echo Moving build output to dist...
+robocopy "dist_build" "dist" /E /MOVE /R:5 /W:2 >nul
+if %ERRORLEVEL% GEQ 8 (
+    echo Failed to move build output to dist
+    pause
+    exit /b 1)
+:: robocopy 成功时也可能返回非零的 1-7，避免影响后续 %ERRORLEVEL% 判断
+set ERRORLEVEL=
 
 echo.
-echo 打包完成！
-echo 输出目录: dist\票易合\票易合.exe
+echo Build complete!
+echo Output: dist\票易合\票易合.exe
 
-:: 读取版本号
+:: Verify MCP Server help (check exit code, no console output because console=False)
+echo.
+echo Verifying MCP Server mode...
+"dist\票易合\票易合.exe" --mcp-server --help
+if %ERRORLEVEL% NEQ 0 (
+    echo MCP Server verification failed
+    pause
+    exit /b 1)
+
+:: Verify key MCP dependencies can be imported in the packaged build
+echo.
+echo Verifying MCP Server dependencies...
+"dist\票易合\票易合.exe" --verify-imports
+if %ERRORLEVEL% NEQ 0 (
+    echo MCP Server dependency import failed
+    pause
+    exit /b 1)
+
+:: Read version
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "(Get-Content code\version.json | ConvertFrom-Json).version"`) do set VERSION=%%i
-echo 版本号: %VERSION%
+echo Version: %VERSION%
 
-:: 等待 PyInstaller 释放文件句柄
-echo 等待文件句柄释放...
+:: Wait for PyInstaller to release file handles
+echo Waiting for file handles to be released...
 timeout /t 3 /nobreak >nul
 
-:: 压缩为 zip（带重试，避免偶发文件占用）
-echo 开始压缩...
+:: Compress to zip (with retries in case of transient file locks)
+echo Compressing...
 set ZIP_FILE=票易合_win_%VERSION%.zip
 if exist "%ZIP_FILE%" del /f /q "%ZIP_FILE%"
 
@@ -34,15 +73,15 @@ powershell -NoProfile -Command "Compress-Archive -Path 'dist\票易合' -Destina
 if %ERRORLEVEL% NEQ 0 (
     set /a RETRY+=1
     if %RETRY% LEQ 5 (
-        echo 压缩被占用，第 %RETRY% 次重试...
+        echo Compression locked, retry %RETRY%...
         timeout /t 2 /nobreak >nul
         goto COMPRESS_RETRY
     ) else (
-        echo 压缩失败，已达到最大重试次数。
+        echo Compression failed after max retries.
         pause
         exit /b 1
     )
 )
-echo 压缩完成: %ZIP_FILE%
+echo Compression complete: %ZIP_FILE%
 
 pause
