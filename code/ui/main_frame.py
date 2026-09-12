@@ -23,7 +23,7 @@ from ui.file_list import FileListPanel
 from ui.rename_dialog import RenameDialog
 from ui.merge_worker import MergeWorker
 from ui.file_load_worker import FileLoadWorker
-from core.pdf_handler import PDFHandler
+from core.pdf_handler import PDFHandler, is_image_file
 from core.invoice_service import InvoiceService
 from core.update_checker import UpdateChecker, show_update_dialog
 from ui.theme import AppTheme
@@ -2124,9 +2124,9 @@ class MainWindow(QMainWindow):
         """
         files, _ = QFileDialog.getOpenFileNames(
             self,
-            "选择PDF文件",
+            "选择PDF或图片文件",
             "",
-            "PDF文件 (*.pdf)"
+            "PDF文件 (*.pdf);;图片文件 (*.png *.jpg *.jpeg);;所有支持文件 (*.pdf *.png *.jpg *.jpeg)"
         )
         
         if files:
@@ -2496,6 +2496,8 @@ class MainWindow(QMainWindow):
                 messages.append(f"成功重命名 {result['renamed_count']} 个文件")
             if result.get('failed_count', 0) > 0:
                 messages.append(f"失败: {result['failed_count']} 个")
+            if result.get('skipped_image_count', 0) > 0:
+                messages.append(f"跳过 {result['skipped_image_count']} 个图片文件")
             if len(result.get('unrecognized_files', [])) > 0:
                 messages.append(f"未能识别: {len(result['unrecognized_files'])} 个文件（可能是图片格式，无法提取文本）")
 
@@ -2627,16 +2629,20 @@ class MainWindow(QMainWindow):
         """
         urls = event.mimeData().urls()
         files = []
-        
+
+        def is_supported_file(path):
+            """判断是否为支持的PDF或图片文件"""
+            return path.lower().endswith('.pdf') or is_image_file(path)
+
         for url in urls:
             file_path = url.toLocalFile()
-            if file_path.lower().endswith('.pdf'):
+            if is_supported_file(file_path):
                 files.append(file_path)
             elif os.path.isdir(file_path):
-                # 如果是目录，递归查找PDF文件
+                # 如果是目录，递归查找PDF和图片文件
                 for root, dirs, filenames in os.walk(file_path):
                     for filename in filenames:
-                        if filename.lower().endswith('.pdf'):
+                        if is_supported_file(filename):
                             files.append(os.path.join(root, filename))
         
         if files:
