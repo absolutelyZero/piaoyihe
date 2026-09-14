@@ -29,9 +29,17 @@ def main() -> int:
     with open(spec_file, 'r', encoding='utf-8') as f:
         content = f.read()
 
+    # 保留 cwd，并把入口脚本所在目录(code/)也加入 pathex。
+    # 原因: ui/core 是 code/ 下的顶层包，若 pathex 缺省 code 目录，
+    # PyInstaller 在 CI 下将无法解析这些 (hidden)import，打出的 exe 会报 No module named 'ui'。
+    code_dir = os.path.join(cwd, 'code')
+    if not os.path.isdir(code_dir):
+        code_dir = cwd
+    new_pathex = f"pathex=[r'{cwd}', r'{code_dir}']"
+
     new_content = re.sub(
         r"pathex=\[.*?\]",
-        lambda m: f"pathex=['{cwd}']",
+        lambda m: new_pathex,
         content
     )
 

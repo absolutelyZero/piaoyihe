@@ -7,7 +7,7 @@ block_cipher = None
 
 a = Analysis(
     ['code/main.py'],
-    pathex=['/Users/xieyonggao/Documents/self/minipro/invoiceTool', '/Users/xieyonggao/Documents/self/minipro/invoiceTool/code'],
+    pathex=[r'D:\minipro\piaoyihe\piaoyihe', r'D:\minipro\piaoyihe\piaoyihe\code'],
     binaries=[],
     datas=[
         ('code/res/logo3.png', 'res'),
