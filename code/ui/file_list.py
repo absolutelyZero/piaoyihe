@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QPoint, QSize
 from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor, QIcon, QColor
 from core.invoice_service import InvoiceService
+from core.pdf_handler import is_image_file
 from ui.theme import AppTheme
 
 
@@ -82,8 +83,33 @@ class PreviewPopup(QFrame):
             return
         
         self.current_file = file_path
-        
+
         try:
+            # 图片文件直接用 QPixmap 加载预览
+            if is_image_file(file_path):
+                pixmap = QPixmap(file_path)
+                if pixmap.isNull():
+                    raise ValueError("图片加载失败")
+
+                # 缩放图片以适应浮窗大小（保持宽高比）
+                scaled_pixmap = pixmap.scaled(
+                    780, 980,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+
+                self.image_label.setPixmap(scaled_pixmap)
+
+                # 调整浮窗大小以适应图片
+                self.setFixedSize(
+                    max(scaled_pixmap.width() + 16, 400),
+                    max(scaled_pixmap.height() + 16, 500)
+                )
+                self.move(global_pos)
+                self.show()
+                self.raise_()
+                return
+
             # 使用PyMuPDF渲染PDF第一页
             doc = fitz.open(file_path)
             page = doc[0]
@@ -795,6 +821,19 @@ class FileListPanel(QWidget):
         file_size = os.path.getsize(file_path) / 1024
         mod_time = os.path.getmtime(file_path)
         mod_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mod_time))
+
+        # 图片文件跳过发票字段提取，字段填缺省值
+        if is_image_file(file_path):
+            return {
+                'name': file_name,
+                'amount': 0.0,
+                'invoice_date': '',
+                'invoice_code': '',
+                'tax_amount': 0.0,
+                'path': file_path,
+                'mod_time': mod_time_str,
+                'size': f"{file_size:.2f} KB"
+            }
 
         amount = pdf_handler.extract_amount(file_path)
         invoice_date = pdf_handler.extract_invoice_date(file_path)

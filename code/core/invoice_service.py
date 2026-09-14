@@ -15,6 +15,8 @@ from typing import List, Dict, Any, Optional, Callable
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill
 
+from core.pdf_handler import is_image_file
+
 
 # 模块级日志器
 logger = logging.getLogger(__name__)
@@ -98,6 +100,7 @@ class InvoiceService:
 
         功能描述:
             提取每个 PDF 的发票字段，应用规则生成新文件名，处理文件名冲突后执行或预览重命名。
+            图片类型文件不参与重命名，计入 skipped_image_count。
 
         参数:
             pdf_paths: 需要重命名的 PDF 文件路径列表
@@ -110,11 +113,13 @@ class InvoiceService:
                 - renamed_count: 成功重命名（或预览中将会重命名）的文件数
                 - failed_count: 失败的文件数
                 - unrecognized_files: 无法识别（info 为 None）的文件名列表
+                - skipped_image_count: 被跳过的图片文件数量
                 - renamed_map: 旧路径 -> 新路径 的映射字典
         """
         renamed_count = 0
         failed_count = 0
         unrecognized_files = []
+        skipped_image_count = 0
         renamed_map = {}
         total = len(pdf_paths)
 
@@ -123,6 +128,11 @@ class InvoiceService:
 
         for idx, file_path in enumerate(pdf_paths, start=1):
             try:
+                # 图片文件不提取字段，直接跳过重命名
+                if is_image_file(file_path):
+                    skipped_image_count += 1
+                    continue
+
                 file_info = self.pdf_handler.extract_all_invoice_info(file_path)
 
                 if file_info is None:
@@ -178,6 +188,7 @@ class InvoiceService:
             'renamed_count': renamed_count,
             'failed_count': failed_count,
             'unrecognized_files': unrecognized_files,
+            'skipped_image_count': skipped_image_count,
             'renamed_map': renamed_map,
         }
 

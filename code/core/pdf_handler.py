@@ -13,6 +13,25 @@ import tempfile
 import shutil
 from .invoice_extractors.factory import InvoiceExtractorFactory
 
+# 支持的图片文件扩展名（图片文件不提取发票字段，仅参与合并）
+IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg'}
+
+
+def is_image_file(file_path):
+    """
+    判断文件是否为支持的图片类型
+
+    功能描述:
+        根据文件扩展名判断是否为支持的图片文件（png/jpg/jpeg）
+
+    参数:
+        file_path: 文件路径
+
+    返回值:
+        bool: 是支持的图片文件返回 True，否则返回 False
+    """
+    return os.path.splitext(file_path)[1].lower() in IMAGE_EXTENSIONS
+
 
 class PDFHandler:
     """
@@ -160,10 +179,10 @@ class PDFHandler:
                               available_width, available_height,
                               file_processed_callback=None):
         """
-        将一批PDF文件按布局合并到指定的PDF文档中
+        将一批PDF/图片文件按布局合并到指定的PDF文档中
 
         参数:
-            pdf_paths: 当前批次需要合并的PDF文件路径列表
+            pdf_paths: 当前批次需要合并的PDF或图片文件路径列表
             output_doc: 目标 fitz 文档对象
             layout_config: 布局配置字典
             mode: 合并模式，'普通' 或 '图像'
@@ -180,38 +199,97 @@ class PDFHandler:
         current_page = None
         page_count = 0
 
+        def prepare_output_page():
+            """按需创建新输出页（含分割线、裁切线），并在新页时重置页内计数"""
+            nonlocal current_page, page_count
+            if page_count % (layout_config['rows'] * layout_config['cols']) != 0:
+                return
+
+            # 创建新页（根据方向设置尺寸）
+            current_page = output_doc.new_page(width=page_width, height=page_height)
+            page_count = 0
+
+            # 如果是多发票页面，绘制分割线
+            if layout_config['rows'] * layout_config['cols'] > 1:
+                self._draw_dividers(
+                    current_page,
+                    layout_config,
+                    margin_top,
+                    margin_left,
+                    available_width,
+                    available_height
+                )
+
+            # 绘制裁切线（如果开启）
+            crop_mark_left = layout_config.get('crop_mark_left', 0)
+            crop_mark_right = layout_config.get('crop_mark_right', 0)
+            if layout_config.get('show_crop_marks', False) and (crop_mark_left > 0 or crop_mark_right > 0):
+                self._draw_crop_marks(
+                    current_page,
+                    crop_mark_left,
+                    crop_mark_right,
+                    page_width,
+                    page_height
+                )
+
         for pdf_path in pdf_paths:
+            # 图片文件：作为单个排版单元插入
+            if is_image_file(pdf_path):
+                prepare_output_page()
+
+                # 计算当前图片在新页中的位置
+                row = page_count // layout_config['cols']
+                col = page_count % layout_config['cols']
+
+                # 计算每个单元格的尺寸（基于可用区域）
+                cell_width = available_width / layout_config['cols']
+                cell_height = available_height / layout_config['rows']
+
+                # 计算位置（加上四边页边距偏移）
+                x = margin_left + col * cell_width
+                y = margin_top + row * cell_height
+
+                # 检查是否需要旋转
+                rotate = layout_config.get('rotate', 0)
+                gap = 5  # 发票之间的间隙
+
+                # 打开图片（含旋转处理）
+                pix = self._open_image_pixmap(pdf_path, rotate)
+
+                img_width = pix.width
+                img_height = pix.height
+
+                scale_x = (cell_width - gap) / img_width
+                scale_y = (cell_height - gap) / img_height
+                scale = min(scale_x, scale_y)
+
+                final_width = img_width * scale
+                final_height = img_height * scale
+
+                offset_x = (cell_width - final_width) / 2
+                offset_y = (cell_height - final_height) / 2
+
+                # 创建目标矩形（居中放置）
+                target_rect = fitz.Rect(
+                    x + offset_x,
+                    y + offset_y,
+                    x + offset_x + final_width,
+                    y + offset_y + final_height
+                )
+
+                # 插入图片
+                current_page.insert_image(target_rect, pixmap=pix)
+                page_count += 1
+
+                if file_processed_callback:
+                    file_processed_callback()
+                continue
+
             # 打开PDF文件
             with fitz.open(pdf_path) as doc:
                 for i in range(len(doc)):
                     # 检查是否需要创建新页
-                    if page_count % (layout_config['rows'] * layout_config['cols']) == 0:
-                        # 创建新页（根据方向设置尺寸）
-                        current_page = output_doc.new_page(width=page_width, height=page_height)
-                        page_count = 0
-
-                        # 如果是多发票页面，绘制分割线
-                        if layout_config['rows'] * layout_config['cols'] > 1:
-                            self._draw_dividers(
-                                current_page,
-                                layout_config,
-                                margin_top,
-                                margin_left,
-                                available_width,
-                                available_height
-                            )
-
-                        # 绘制裁切线（如果开启）
-                        crop_mark_left = layout_config.get('crop_mark_left', 0)
-                        crop_mark_right = layout_config.get('crop_mark_right', 0)
-                        if layout_config.get('show_crop_marks', False) and (crop_mark_left > 0 or crop_mark_right > 0):
-                            self._draw_crop_marks(
-                                current_page,
-                                crop_mark_left,
-                                crop_mark_right,
-                                page_width,
-                                page_height
-                            )
+                    prepare_output_page()
 
                     # 计算当前页面在新页中的位置
                     row = page_count // layout_config['cols']
@@ -372,6 +450,48 @@ class PDFHandler:
 
             if file_processed_callback:
                 file_processed_callback()
+
+    def _open_image_pixmap(self, image_path, rotate=0):
+        """
+        打开图片文件为 PyMuPDF Pixmap，并按需旋转90度
+
+        功能描述:
+            打开图片文件生成 pixmap；rotate 为 90 时先旋转图片再返回。
+            当 fitz.Pixmap 无法解析图片时，回退使用 PIL 转换后再生成 pixmap。
+
+        参数:
+            image_path: 图片文件路径
+            rotate: 旋转角度，目前仅支持 0 或 90
+
+        返回值:
+            fitz.Pixmap: 图片对应的 pixmap 对象
+        """
+        try:
+            pix = fitz.Pixmap(image_path)
+        except Exception as e:
+            print(f"fitz 打开图片失败，回退PIL: {image_path} - {str(e)}")
+            from PIL import Image
+            import io
+            with Image.open(image_path) as pil_img:
+                img_buffer = io.BytesIO()
+                pil_img.convert('RGB').save(img_buffer, format='PNG')
+                img_buffer.seek(0)
+            pix = fitz.Pixmap(img_buffer)
+
+        # 旋转90度（逆时针，与现有图像模式一致）
+        if rotate == 90:
+            from PIL import Image
+            import io
+
+            img_data = pix.tobytes("png")
+            pil_img = Image.open(io.BytesIO(img_data))
+            pil_img = pil_img.rotate(90, expand=True)
+            img_buffer = io.BytesIO()
+            pil_img.save(img_buffer, format='PNG')
+            img_buffer.seek(0)
+            pix = fitz.Pixmap(img_buffer)
+
+        return pix
 
     def _draw_dividers(self, page, layout_config, margin_top, margin_left, available_width, available_height):
         """
