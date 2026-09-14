@@ -71,6 +71,15 @@ a = Analysis(
         'core.invoice_service',
         'core.rename_engine',
 
+        # GUI 界面模块（namespace 包无法被自动收集，必须显式列出）
+        'ui',
+        'ui.main_frame',
+        'ui.file_list',
+        'ui.rename_dialog',
+        'ui.merge_worker',
+        'ui.file_load_worker',
+        'ui.theme',
+
         # SSE 传输依赖
         'uvicorn',
         'uvicorn.protocols.http',
