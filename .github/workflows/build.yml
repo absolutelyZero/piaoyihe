@@ -11,7 +11,7 @@ name: 打包发布
 
 on:
   push:
-    branches: [main, master，feat/cicd，feat/mcpserver]
+    branches: [main, master, feat/cicd, feat/mcpserver]
     tags: ["v*"]
   pull_request:
     branches: [main, master]
@@ -21,12 +21,24 @@ jobs:
   # macOS 打包任务
   # ==========================================================================
   build-macos:
-    name: "macOS 打包"
-    runs-on: macos-latest
+    name: "macOS 打包 (${{ matrix.arch }})"
+    # 双架构矩阵: Intel(x86_64) + Apple Silicon(arm64)
+    # 注意: macos-latest 已是 Apple Silicon(arm64)，在其上打出的包无法在 Intel Mac 上运行，
+    #       因此必须分别用 macos-15-intel(x86_64) 和 macos-15(arm64) 各打一份
+    runs-on: ${{ matrix.runner }}
     # 每次打包独立执行，避免缓存干扰
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.13"]
+        include:
+          - python-version: "3.13"
+            arch: x86_64
+            runner: macos-15-intel
+            suffix: x64
+          - python-version: "3.13"
+            arch: arm64
+            runner: macos-15
+            suffix: arm64
 
     steps:
       # 步骤1: 检出代码
@@ -51,10 +63,18 @@ jobs:
         run: |
           python scripts/patch_spec.py invoice_tool.spec
 
-      # 步骤5: 使用 PyInstaller 打包
+      # 步骤5: 使用 PyInstaller 打包，并校验产物架构
       - name: PyInstaller 打包
         run: |
           pyinstaller invoice_tool.spec
+          # 校验产物架构，防止打出与预期不符、无法启动的包
+          BIN="dist/票易合.app/Contents/MacOS/票易合"
+          ARCH=$(lipo -archs "$BIN")
+          echo "产物架构: $ARCH"
+          if [ "$ARCH" != "${{ matrix.arch }}" ]; then
+            echo "架构校验失败: 期望 ${{ matrix.arch }}, 实际 $ARCH"
+            exit 1
+          fi
 
       # 步骤6: 读取版本号，创建 DMG 和 ZIP
       - name: 创建 DMG 和 ZIP 安装包
@@ -69,14 +89,14 @@ jobs:
           echo "创建 DMG 安装包..."
           mkdir -p tmp/dmg
           cp -r '票易合.app' tmp/dmg/
-          hdiutil create -volname '票易合' -srcfolder tmp/dmg -ov -format UDZO "票易合_${VERSION}.dmg"
+          hdiutil create -volname '票易合' -srcfolder tmp/dmg -ov -format UDZO "票易合_${VERSION}_${{ matrix.suffix }}.dmg"
           rm -rf tmp
-          echo "DMG 创建完成: 票易合_${VERSION}.dmg"
+          echo "DMG 创建完成: 票易合_${VERSION}_${{ matrix.suffix }}.dmg"
 
           # 创建 ZIP 压缩包（兼容非 macOS 分发）
           echo "创建 ZIP 压缩包..."
-          zip -ry "票易合_macos_${VERSION}.zip" '票易合.app'
-          echo "ZIP 创建完成: 票易合_macos_${VERSION}.zip"
+          zip -ry "票易合_macos_${VERSION}_${{ matrix.suffix }}.zip" '票易合.app'
+          echo "ZIP 创建完成: 票易合_macos_${VERSION}_${{ matrix.suffix }}.zip"
 
           # 将产物路径输出到环境变量，供后续步骤使用
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
@@ -85,7 +105,7 @@ jobs:
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: 票易合-macOS
+          name: 票易合-macOS-${{ matrix.suffix }}
           path: |
             dist/票易合_macos_*.zip
           if-no-files-found: error
@@ -168,10 +188,16 @@ jobs:
 
     steps:
       # 步骤1: 下载所有构建产物
-      - name: 下载 macOS 构建产物
+      - name: 下载 macOS x64 构建产物
         uses: actions/download-artifact@v4
         with:
-          name: 票易合-macOS
+          name: 票易合-macOS-x64
+          path: release-artifacts/
+
+      - name: 下载 macOS arm64 构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: 票易合-macOS-arm64
           path: release-artifacts/
 
       - name: 下载 Windows 构建产物
