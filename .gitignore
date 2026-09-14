@@ -12,3 +12,4 @@ code/config.json
 **/__pycache__/**
 code/ui/__pycache__/**
 .trae/**
+default.profraw
