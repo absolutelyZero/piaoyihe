@@ -13,3 +13,4 @@ code/config.json
 code/ui/__pycache__/**
 .trae/**
 default.profraw
+tests/fixtures/invoices/**

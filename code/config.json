@@ -5,7 +5,7 @@
   "ignored_version": "0.1.5",
   "save_path": "",
   "sort_by": "list",
-  "output_path": "",
+  "output_path": "/Users/xieyonggao/Downloads/金额错误发票/output.pdf",
   "rename_rule": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
   "layout_config": {
     "orientation": "landscape",
@@ -23,5 +23,5 @@
     "crop_mark_right": 0
   },
   "preview_enabled": true,
-  "duplicate_copy": true
+  "duplicate_copy": false
 }
