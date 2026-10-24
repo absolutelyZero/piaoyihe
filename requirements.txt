@@ -1,5 +1,7 @@
 PyMuPDF>=1.24.0
-PySide6>=6.6.0
+# 锁定 6.11.2：Qt 6.12 存在样式表回归，QSpinBox 应用 padding/border 样式后编辑区塌缩为 1px，
+# 导致布局设置中的行列/页边距输入框无法显示和输入（详见 说明文档.md）
+PySide6==6.11.2
 Pillow>=10.0.0
 requests>=2.31.0
 openpyxl>=3.1.0
