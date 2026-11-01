@@ -86,12 +86,32 @@ jobs:
           cd dist
 
           # 创建 DMG 安装包
+          # 说明: hdiutil 在 CI 环境会偶发 "hdiutil: create failed - Resource busy"（挂载临时镜像时资源占用），
+          #       故重试 3 次，并在重试前清理残留的 diskimages-helper 进程；
+          #       DMG 当前不参与 Release 发布，3 次均失败时只告警不中断，
+          #       避免非发布产物导致 ZIP 打包与 Release 发布整体失败
           echo "创建 DMG 安装包..."
-          mkdir -p tmp/dmg
-          cp -r '票易合.app' tmp/dmg/
-          hdiutil create -volname '票易合' -srcfolder tmp/dmg -ov -format UDZO "票易合_${VERSION}_${{ matrix.suffix }}.dmg"
+          DMG_NAME="票易合_${VERSION}_${{ matrix.suffix }}.dmg"
+          dmg_ok=false
+          for attempt in 1 2 3; do
+            rm -rf tmp
+            mkdir -p tmp/dmg
+            cp -r '票易合.app' tmp/dmg/
+            if hdiutil create -volname '票易合' -srcfolder tmp/dmg -ov -format UDZO "$DMG_NAME"; then
+              dmg_ok=true
+              break
+            fi
+            echo "::warning::hdiutil 第 ${attempt} 次创建 DMG 失败，清理残留后重试"
+            pkill -f diskimages-helper || true
+            rm -f "$DMG_NAME"
+            sleep 5
+          done
           rm -rf tmp
-          echo "DMG 创建完成: 票易合_${VERSION}_${{ matrix.suffix }}.dmg"
+          if [ "$dmg_ok" = true ]; then
+            echo "DMG 创建完成: $DMG_NAME"
+          else
+            echo "::warning::DMG 创建失败，已跳过（ZIP 产物与 Release 发布不受影响）"
+          fi
 
           # 创建 ZIP 压缩包（兼容非 macOS 分发）
           echo "创建 ZIP 压缩包..."
