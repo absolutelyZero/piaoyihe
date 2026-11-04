@@ -38,6 +38,14 @@ CASES = [
     ('2026-04-29-郑州衡量科技股份有限公司统一社会信用代码-496.pdf', 496.00, 0.0),
 ]
 
+# 发票号码右对齐版式样本 → 期望提取结果：(文件名, 期望发票号码)
+# 该版式中 20 位发票号码位于「发票号码:」标签左侧，且号码首位为 2，
+# 此前正则只支持「标签在前」及 0/1 开头的号码，导致号码提取为空。
+CODE_CASES = [
+    ('滴滴共享.pdf', '26447000002110821606'),
+    ('滴滴单车.pdf', '26337000000918802292'),
+]
+
 
 @unittest.skipUnless(os.path.isdir(FIXTURE_DIR), '缺少测试样本目录 tests/fixtures/invoices')
 class TestInvoiceExtractionRegression(unittest.TestCase):
@@ -74,6 +82,17 @@ class TestInvoiceExtractionRegression(unittest.TestCase):
                 self.assertAlmostEqual(
                     info['tax_amount'], expected_tax, places=2,
                     msg=f'{file_name} 税额提取错误'
+                )
+
+    def test_invoice_code_extraction(self):
+        """校验「发票号码」标签右对齐版式的 20 位发票号码提取结果"""
+        for file_name, expected_code in CODE_CASES:
+            with self.subTest(file=file_name):
+                info = self._extract(file_name)
+                self.assertIsNotNone(info, f'{file_name} 未能识别')
+                self.assertEqual(
+                    info['invoice_code'], expected_code,
+                    msg=f'{file_name} 发票号码提取错误'
                 )
 
 

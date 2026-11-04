@@ -364,32 +364,43 @@ class CommonInvoiceExtractor(InvoiceExtractor):
         提取发票号码
 
         提取策略（按优先级）：
-        1. 匹配"发票号码:"字段
-        2. 匹配"代码:"字段
-        3. 匹配20位数字代码格式
+        1. 匹配"发票号码:"字段（标签在号码左侧）
+        2. 匹配号码位于"发票号码"标签左侧的版式（标签右对齐，如号码→标题→标签）
+        3. 匹配"代码:"字段
+        4. 匹配20位数字代码格式（排除银行账号、纳税人识别号所在行）
 
         Returns:
             str: 发票号码，无则返回空字符串
         """
-        # 策略1：匹配"发票号码:"字段
+        # 策略1：标签在号码左侧，如「发票号码：26952000001331049211」
         code_pattern = r'发票号码[:：]\s*(\d{20})'
         match = re.search(code_pattern, self._text)
         if match:
             return match.group(1).strip()
 
-        # 策略2：匹配"代码:"字段（在发票信息区域）
+        # 策略2：号码在"发票号码"标签左侧同一行（标签右对齐版式），如
+        # 「26447000002110821606        电子发票（普通发票）        发票号码:」
+        code_pattern = r'(?<!\d)(\d{20})(?!\d)[^\n]{0,60}发票号码'
+        match = re.search(code_pattern, self._text)
+        if match:
+            return match.group(1).strip()
+
+        # 策略3：匹配"代码:"字段（在发票信息区域）
         code_pattern = r'代码[:：]\s*(\d{20})'
         match = re.search(code_pattern, self._text)
         if match:
             return match.group(1).strip()
 
-        # 策略3：匹配20位数字代码格式（通常是发票号码）
-        code_pattern = r'\b(\d{20})\b'
-        matches = re.findall(code_pattern, self._text)
-        for code in matches:
-            # 发票号码通常以特定数字开头
-            if code.startswith(('0', '1')):
-                return code
+        # 策略4：匹配20位数字代码格式（通常是发票号码）
+        # 新版全电发票号码首位不固定（如 2、3 开头），不再做首位过滤，
+        # 改为逐行排除银行账号、纳税人识别号等干扰字段
+        excluded_keywords = ('银行账号', '开户银行', '纳税人识别号', '统一社会信用代码')
+        for line in self._text.splitlines():
+            if any(keyword in line for keyword in excluded_keywords):
+                continue
+            match = re.search(r'(?<!\d)(\d{20})(?!\d)', line)
+            if match:
+                return match.group(1)
 
         return ""
 
