@@ -10,6 +10,7 @@ import os
 import sys
 import shutil
 import tempfile
+import importlib.util
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'code'))
@@ -68,6 +69,10 @@ class TestOfdRenderer(unittest.TestCase):
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+    @unittest.skipUnless(
+        importlib.util.find_spec('ofd2pdf') is not None,
+        'ofd2pdf 未安装（requirements 中为平台条件依赖），跳过依赖其 mock 的用例'
+    )
     @patch('ofd2pdf.render_ofd')
     def test_render_cache_reuse(self, mock_render):
         """同一文件重复渲染应命中缓存，仅调用底层渲染一次"""
@@ -134,7 +139,9 @@ class TestRenameSkipOfd(unittest.TestCase):
         handler = Mock()
         service = InvoiceService(handler)
 
-        result = service.batch_rename(['a.ofd', 'b.OFD'], '{金额}', dry_run=True)
+        result = service.batch_rename(
+            ['a.ofd', 'b.OFD'], {'vat_invoice': '{金额}'}, dry_run=True
+        )
 
         self.assertEqual(result['skipped_ofd_count'], 2)
         self.assertEqual(result['renamed_count'], 0)

@@ -9,6 +9,7 @@
 import re
 import os
 import time
+from typing import Any, Dict
 from .base import InvoiceExtractor
 
 
@@ -27,6 +28,8 @@ class FlightTicketExtractor(InvoiceExtractor):
     """
 
     INVOICE_TYPE_KEYWORDS = ['航空', '机票', '电子客票行程单']
+
+    TYPE_KEY = "flight_ticket"
 
     def extract_amount(self) -> float:
         """
@@ -326,3 +329,72 @@ class FlightTicketExtractor(InvoiceExtractor):
                     pass
 
         return 0.0
+
+    def extract_extra_fields(self) -> Dict[str, Any]:
+        """
+        提取飞机票特有字段：航班号、航空公司
+
+        票面版式（航空运输电子客票行程单）：
+            承运人  航班号  座位等级 ...
+            深航    ZH8377    L
+        航班号形如 ZH8377（2 位字母 + 4 位数字）。
+
+        提取策略：
+        1. 匹配「2 位字母 + 3~4 位数字」的航班号格式
+        2. 匹配「航班号:」标签
+        3. 航空公司取「承运人」标签值，或从航班号前缀/票面「XX航空」推断
+
+        Returns:
+            Dict[str, Any]: flight_number / airline
+        """
+        text = self._text or ""
+        flight_number = ""
+        airline = ""
+
+        # 策略1：按「航班号」标签
+        match = re.search(r'航\s*班\s*号[:：]?\s*([A-Z]{2}\d{3,4})', text)
+        if match:
+            flight_number = match.group(1).strip()
+
+        # 策略2：全文匹配航班号格式（形如 ZH8377 / MU5100）
+        if not flight_number:
+            match = re.search(r'(?<![A-Z0-9])([A-Z]{2}\d{3,4})(?![0-9])', text)
+            if match:
+                flight_number = match.group(1).strip()
+
+        # 航空公司：优先「承运人」标签（排除后面紧跟表头的情况）
+        match = re.search(r'承\s*运\s*人[:：]?\s*([\u4e00-\u9fa5]{2,10})', text)
+        if match:
+            candidate = match.group(1).strip()
+            # 排除表头文字（如「承运人 航班号 座位等级」中的「航班号」）
+            header_words = ('航班', '座位', '等级', '客票', '日期', '时间', '票价',
+                            '燃油', '税费', '合计', '承运', '项目', '名称')
+            if not any(word in candidate for word in header_words):
+                airline = candidate
+
+        # 其次匹配「XX航空」（如 中国国际航空、南方航空）
+        if not airline:
+            match = re.search(r'([\u4e00-\u9fa5]{2,6}航空(?:公司)?)', text)
+            if match:
+                candidate = match.group(1).strip()
+                if '客票' not in candidate:
+                    airline = candidate
+
+        # 最后由票面常见的简称推断（如「深航」「川航」，需排除表头词）
+        if not airline:
+            skip_words = ('承运', '航班', '座位', '等级', '客票', '行程', '电子', '发票',
+                          '民航', '航空', '停航', '通航', '适航', '起航', '领航')
+            for m in re.finditer(r'([\u4e00-\u9fa5]{1,3}航)(?!空)', text):
+                candidate = m.group(1).strip()
+                if len(candidate) < 2 or candidate in skip_words:
+                    continue
+                # 排除否定/描述性前缀（如「无航班」「非航班」）
+                if candidate.startswith(('无', '非', '不', '未', '缺')):
+                    continue
+                airline = candidate
+                break
+
+        return {
+            'flight_number': flight_number,
+            'airline': airline,
+        }

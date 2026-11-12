@@ -8,6 +8,7 @@
 import re
 import os
 import time
+from typing import Any, Dict
 from .base import InvoiceExtractor
 
 
@@ -22,6 +23,9 @@ class VehicleInvoiceExtractor(InvoiceExtractor):
     """
 
     INVOICE_TYPE_KEYWORDS = ['机动车', '二手车', '车辆销售']
+
+    # 新车与二手车同属「机动车发票」一类
+    TYPE_KEY = "vehicle_invoice"
 
     def extract_amount(self) -> float:
         """
@@ -227,3 +231,33 @@ class VehicleInvoiceExtractor(InvoiceExtractor):
                     pass
 
         return 0.0
+
+    def extract_extra_fields(self) -> Dict[str, Any]:
+        """
+        提取机动车发票特有字段：车架号（VIN）
+
+        VIN 为 17 位字母数字组合（不含 I/O/Q），票面标签通常为
+        「车架号」「车辆识别代号」「VIN」。
+
+        Returns:
+            Dict[str, Any]: vin
+        """
+        text = self._text or ""
+        vin = ""
+
+        # 策略1：按标签匹配（标签后可能紧跟 17 位）
+        match = re.search(
+            r'(?:车\s*架\s*号|车辆识别代?号|VIN)[:：]?\s*([A-HJ-NPR-Z0-9]{17})',
+            text, re.IGNORECASE
+        )
+        if match:
+            vin = match.group(1).strip().upper()
+        else:
+            # 策略2：全文匹配 17 位 VIN（排除 I/O/Q）
+            match = re.search(
+                r'(?<![A-Z0-9])([A-HJ-NPR-Z0-9]{17})(?![A-Z0-9])', text
+            )
+            if match:
+                vin = match.group(1).strip().upper()
+
+        return {'vin': vin}

@@ -44,10 +44,13 @@ class TestInvoiceServiceStatic(unittest.TestCase):
         self.assertIsNone(InvoiceService.apply_rule('', info))
 
     def test_get_available_fields(self):
-        """测试可用字段列表"""
-        fields = InvoiceService.get_available_fields()
-        self.assertIsInstance(fields, list)
-        self.assertTrue(any(f['key'] == 'amount' for f in fields))
+        """测试可用字段列表（按票种分组）"""
+        result = InvoiceService.get_available_fields()
+        self.assertIsInstance(result, dict)
+        self.assertIn('types', result)
+        self.assertIn('fields', result)
+        self.assertEqual(len(result['types']), 7)
+        self.assertTrue(any(f['key'] == 'amount' for f in result['fields']))
 
 
 class TestInvoiceServiceBatch(unittest.TestCase):
@@ -79,6 +82,7 @@ class TestInvoiceServiceBatch(unittest.TestCase):
                     'buyer_name': 'A',
                     'seller_name': 'B',
                     'product_type': 'X',
+                    'invoice_type_key': 'vat_invoice',
                 },
                 {
                     'invoice_type': '专票',
@@ -88,6 +92,7 @@ class TestInvoiceServiceBatch(unittest.TestCase):
                     'buyer_name': 'C',
                     'seller_name': 'D',
                     'product_type': 'Y',
+                    'invoice_type_key': 'vat_invoice',
                 },
             ]
             for idx in range(2):
@@ -99,7 +104,7 @@ class TestInvoiceServiceBatch(unittest.TestCase):
             pdf_handler = Mock()
             pdf_handler.extract_all_invoice_info = Mock(side_effect=file_infos)
             service = InvoiceService(pdf_handler)
-            result = service.batch_rename(paths, '{发票类型}-{开票日期}')
+            result = service.batch_rename(paths, {'vat_invoice': '{发票类型}-{开票日期}'})
 
             self.assertEqual(result['renamed_count'], 2)
             self.assertTrue(os.path.exists(os.path.join(tmpdir, '普票-2024-01-01.pdf')))
@@ -124,9 +129,10 @@ class TestInvoiceServiceBatch(unittest.TestCase):
                 'buyer_name': 'A',
                 'seller_name': 'B',
                 'product_type': 'X',
+                'invoice_type_key': 'vat_invoice',
             })
             service = InvoiceService(pdf_handler)
-            result = service.batch_rename(paths, '{发票类型}-{开票日期}', dry_run=True)
+            result = service.batch_rename(paths, {'vat_invoice': '{发票类型}-{开票日期}'}, dry_run=True)
 
             self.assertEqual(result['renamed_count'], 2)
             # 预览模式下文件应保持原名称
@@ -166,6 +172,7 @@ class TestInvoiceServiceBatch(unittest.TestCase):
                     'buyer_name': 'A',
                     'seller_name': 'B',
                     'product_type': 'X',
+                    'invoice_type_key': 'vat_invoice',
                 },
                 {
                     'invoice_type': '普票',
@@ -175,6 +182,7 @@ class TestInvoiceServiceBatch(unittest.TestCase):
                     'buyer_name': 'C',
                     'seller_name': 'D',
                     'product_type': 'Y',
+                    'invoice_type_key': 'vat_invoice',
                 },
             ]
             for idx in range(2):
@@ -186,7 +194,7 @@ class TestInvoiceServiceBatch(unittest.TestCase):
             pdf_handler = Mock()
             pdf_handler.extract_all_invoice_info = Mock(side_effect=file_infos)
             service = InvoiceService(pdf_handler)
-            result = service.batch_rename(paths, '{发票类型}-{开票日期}')
+            result = service.batch_rename(paths, {'vat_invoice': '{发票类型}-{开票日期}'})
 
             self.assertEqual(result['renamed_count'], 2)
             self.assertTrue(os.path.exists(os.path.join(tmpdir, '普票-2024-01-01.pdf')))
@@ -203,6 +211,7 @@ class TestInvoiceServiceBatch(unittest.TestCase):
             'buyer_name': 'A',
             'seller_name': 'B',
             'product_type': 'X',
+            'invoice_type_key': 'vat_invoice',
         })
         service = InvoiceService(pdf_handler)
 
@@ -216,7 +225,7 @@ class TestInvoiceServiceBatch(unittest.TestCase):
                 with open(p, 'w') as f:
                     pass
 
-            service.batch_rename(paths, '{发票类型}', on_progress=on_progress)
+            service.batch_rename(paths, {'vat_invoice': '{发票类型}'}, on_progress=on_progress)
 
         self.assertEqual(len(progress_calls), 3)
         self.assertEqual(progress_calls[-1], (3, 3))

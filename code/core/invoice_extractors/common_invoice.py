@@ -25,6 +25,9 @@ class CommonInvoiceExtractor(InvoiceExtractor):
 
     INVOICE_TYPE_KEYWORDS = ["发票"]
 
+    # 普票与专票同属「增值税发票」一类，共用一条重命名规则
+    TYPE_KEY = "vat_invoice"
+
     def extract_amount(self) -> float:
         """
         提取金额

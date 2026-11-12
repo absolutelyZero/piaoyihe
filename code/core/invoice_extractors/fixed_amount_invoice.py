@@ -28,6 +28,8 @@ class FixedAmountInvoiceExtractor(InvoiceExtractor):
 
     INVOICE_TYPE_KEYWORDS = ['定额发票']
 
+    TYPE_KEY = "fixed_amount_invoice"
+
     def extract_amount(self) -> float:
         """
         提取金额

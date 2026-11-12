@@ -19,13 +19,13 @@ class InvoiceExtractor(ABC):
 
     Attributes:
         INVOICE_TYPE_KEYWORDS: 类属性，用于识别票种的关键词列表
-        pdf_path: PDF文件路径
-        _doc: fitz.Document对象，在上下文管理器中打开
-        _text: PDF全文文本缓存
-        _pages: PDF页面列表缓存
+        TYPE_KEY: 类属性，票种标识（与 invoice_field_registry.INVOICE_TYPE_KEYS 对应）
     """
 
     INVOICE_TYPE_KEYWORDS: List[str] = []
+
+    # 票种标识，供重命名层按票种选择规则。子类必须赋值。
+    TYPE_KEY: str = ""
 
     def __init__(self, pdf_path: str):
         """
@@ -166,11 +166,25 @@ class InvoiceExtractor(ABC):
         """
         pass
 
+    def extract_extra_fields(self) -> Dict[str, Any]:
+        """
+        提取该票种特有的字段
+
+        非抽象钩子：默认无特有字段。需要特有字段的票种覆写此方法，
+        返回 {file_info 键: 值} 的字典，键应使用英文 snake_case。
+
+        返回值:
+            Dict[str, Any]: 特有字段字典，默认为空
+        """
+        return {}
+
     def extract_all(self) -> Dict[str, Any]:
         """
         一次性提取所有字段
 
-        调用各字段提取方法，返回完整信息字典
+        调用各字段提取方法，返回完整信息字典。
+        特有字段（extract_extra_fields 的返回值）会合并进结果，
+        并附带票种标识 invoice_type_key。
 
         Returns:
             Dict[str, Any]: 包含所有字段的字典
@@ -180,8 +194,12 @@ class InvoiceExtractor(ABC):
                 - product_type: 商品类型
                 - buyer_name: 购买方名称
                 - seller_name: 销售方名称
+                - invoice_code: 发票号码
+                - tax_amount: 税额
+                - invoice_type_key: 票种标识（7 类票种之一）
+                - 以及各票种特有字段
         """
-        return {
+        info = {
             'amount': self.extract_amount(),
             'invoice_date': self.extract_invoice_date(),
             'invoice_type': self.extract_invoice_type(),
@@ -191,3 +209,15 @@ class InvoiceExtractor(ABC):
             'invoice_code': self.extract_invoice_code(),
             'tax_amount': self.extract_tax_amount(),
         }
+
+        # 合并票种特有字段
+        try:
+            info.update(self.extract_extra_fields() or {})
+        except Exception:
+            # 特有字段提取失败不应影响通用字段
+            pass
+
+        # 票种标识（重命名层据此选择规则）
+        info['invoice_type_key'] = self.TYPE_KEY
+
+        return info

@@ -8,6 +8,7 @@
 import re
 import os
 import time
+from typing import Any, Dict
 from .base import InvoiceExtractor
 
 
@@ -22,6 +23,8 @@ class TollInvoiceExtractor(InvoiceExtractor):
     """
 
     INVOICE_TYPE_KEYWORDS = ['通行费', 'ETC', '过路费', '收费公路']
+
+    TYPE_KEY = "toll_invoice"
 
     def extract_amount(self) -> float:
         """
@@ -253,3 +256,52 @@ class TollInvoiceExtractor(InvoiceExtractor):
                     pass
 
         return 0.0
+
+    def extract_extra_fields(self) -> Dict[str, Any]:
+        """
+        提取通行费发票特有字段：入口、出口、路段
+
+        注意：不改变现有 extract_product_type() 的取值口径，
+        这里只补充独立的入口/出口/路段字段。
+
+        Returns:
+            Dict[str, Any]: toll_entry / toll_exit / toll_section
+        """
+        text = self._text or ""
+        entry = ""
+        exit_ = ""
+        section = ""
+
+        # 入口-出口：同一段文本内匹配
+        match = re.search(
+            r'入\s*口[:：]?\s*([^\n]{1,20}?)\s*(?:出\s*口[:：]?\s*([^\n]{1,20}?))?(?:\n|$)',
+            text
+        )
+        if match:
+            entry = (match.group(1) or '').strip()[:20]
+            exit_ = (match.group(2) or '').strip()[:20]
+
+        # 单独匹配出口（入口未带出出口时）
+        if not exit_:
+            match = re.search(r'出\s*口[:：]?\s*([^\n]{1,20})', text)
+            if match:
+                exit_ = match.group(1).strip()[:20]
+
+        # 路段（标签后必须是实际路名，不能是「无路段信息」这类否定描述的残留）
+        match = re.search(r'路\s*段[:：]?\s*([^\n]{1,20})', text)
+        if match:
+            candidate = match.group(1).strip()[:20]
+            # 排除「无路段」等否定描述与纯表头词
+            if candidate and not candidate.startswith(('无', '信息', '：', ':')) \
+                    and '无路' not in match.group(0)[:6]:
+                section = candidate
+
+        # 清洗：去掉残留的「出口」标签文字
+        entry = re.sub(r'出\s*口[:：]?', '', entry).strip()
+        exit_ = re.sub(r'入\s*口[:：]?', '', exit_).strip()
+
+        return {
+            'toll_entry': entry,
+            'toll_exit': exit_,
+            'toll_section': section,
+        }

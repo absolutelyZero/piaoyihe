@@ -14,3 +14,14 @@ code/ui/__pycache__/**
 .trae/**
 default.profraw
 tests/fixtures/invoices/**
+
+# 本地测试/依赖临时目录
+.pylibs/
+.testtmp/
+.trae/
+.pipwork/
+.screenshots/
+.piptmp/
+.openidea/
+.dsh/
+
