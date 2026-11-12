@@ -10,7 +10,7 @@ import re
 import os
 import time
 from typing import Any, Dict
-from .base import InvoiceExtractor
+from .base import InvoiceExtractor, COMPANY_SUFFIX_RE, iter_company_names
 
 
 class FlightTicketExtractor(InvoiceExtractor):
@@ -153,6 +153,23 @@ class FlightTicketExtractor(InvoiceExtractor):
             if len(buyer) > 2 and '9141' not in buyer and '统一' not in buyer:
                 return buyer[:30]
 
+        # 策略1c：全电发票新版式——「购买方信息」标签与名称分处两行
+        # 票面形如：购/买/方/信/息（各占一行）→ 公司名 → 名称: → 统一社会信用代码…
+        # 标签被拆成单字，需先压缩全部空白再匹配
+        compact = re.sub(r'\s+', '', self._text or '')
+        match = re.search(
+            r'购买方信息([\u4e00-\u9fa5（）()A-Za-z0-9]{4,40}?)'
+            r'(?:名称|统一社会信用代码|纳税人识别号)',
+            compact
+        )
+        if match:
+            return match.group(1)[:30]
+
+        # 策略1d：按票面公司名的出现顺序取第 1 个（第 1 个即购买方）
+        names = iter_company_names(self._text)
+        if names:
+            return names[0][:30]
+
         # 策略2-4：匹配乘机人/旅客信息
         patterns = [
             r'乘机人[:：]\s*([^\n]+)',
@@ -244,12 +261,27 @@ class FlightTicketExtractor(InvoiceExtractor):
                         if len(seller) > 2 and len(seller) < 30 and '日期' not in seller and not re.match(r'\d{4}年', seller):
                             return seller[:30]
 
-        # 策略2：匹配"销售方"
+        # 策略1d：全电发票新版式——「销售方信息」标签与名称分处两行
+        compact = re.sub(r'\s+', '', self._text or '')
+        match = re.search(
+            r'销售方信息([\u4e00-\u9fa5（）()A-Za-z0-9]{4,40}?)'
+            r'(?:名称|统一社会信用代码|纳税人识别号)',
+            compact
+        )
+        if match:
+            return match.group(1)[:30]
+
+        # 策略1e：按票面公司名的出现顺序取第 2 个（第 2 个即销售方）
+        names = iter_company_names(self._text)
+        if len(names) >= 2:
+            return names[1][:30]
+
+        # 策略2：匹配"销售方"（取值须像公司名，避免取到「（章）」等字样）
         pattern = r'销售方[:：]\s*([^\n]+)'
         match = re.search(pattern, self._text)
         if match:
             seller = match.group(1).strip()
-            if len(seller) > 2:
+            if len(seller) > 2 and COMPANY_SUFFIX_RE.search(seller):
                 return seller[:30]
 
         # 策略3：尝试提取航空公司名称

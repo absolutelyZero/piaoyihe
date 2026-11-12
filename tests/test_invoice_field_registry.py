@@ -32,8 +32,8 @@ from core.invoice_field_registry import (
 _SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_SRC_DIR)
 _BASELINE_PATH = os.path.join(
-    _PROJECT_ROOT, 'openspec', 'changes', 'per-invoice-type-rename-rules',
-    'baseline', 'expected-fields.json'
+    _PROJECT_ROOT, 'openspec', 'changes', 'archive',
+    '2026-11-12-per-invoice-type-rename-rules', 'baseline', 'expected-fields.json'
 )
 
 _COMMON_DISPLAYS = {'发票类型', '开票日期', '发票号码', '金额'}

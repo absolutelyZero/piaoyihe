@@ -24,4 +24,7 @@ tests/fixtures/invoices/**
 .piptmp/
 .openidea/
 .dsh/
+.memsearch/
 
+/tests/data/
+reports/
