@@ -1,14 +1,14 @@
 {
-  "layout": "横向2x2",
+  "layout": "竖向2x2",
   "mode": "普通",
-  "print_checkbox": true,
+  "print_checkbox": false,
   "ignored_version": "0.1.5",
   "save_path": "",
   "sort_by": "list",
   "output_path": "D:/公司文档/05.培训(公共)/报销/2501/02\\output.pdf",
   "rename_rule": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
   "layout_config": {
-    "orientation": "landscape",
+    "orientation": "portrait",
     "rows": 2,
     "cols": 2,
     "rotate": 0,
@@ -19,8 +19,8 @@
       "right": 0
     },
     "show_crop_marks": false,
-    "crop_mark_left": 0,
-    "crop_mark_right": 0
+    "crop_mark_left": 2,
+    "crop_mark_right": 2
   },
   "preview_enabled": true,
   "duplicate_copy": false,

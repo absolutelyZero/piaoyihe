@@ -12,15 +12,34 @@ import time
 import fitz  # PyMuPDF
 from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtWidgets import (
-    QWidget, QTableWidget, QVBoxLayout, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QMenu, QLabel, QFrame
+    QWidget, QTableWidget, QVBoxLayout, QHBoxLayout, QTableWidgetItem,
+    QHeaderView, QAbstractItemView, QMenu, QLabel, QFrame, QWidgetAction
 )
 from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QPoint, QSize
-from PySide6.QtGui import QDesktopServices, QAction, QPixmap, QCursor, QIcon, QColor
+from PySide6.QtGui import (
+    QDesktopServices, QAction, QPixmap, QCursor, QIcon, QColor
+)
 from core.invoice_service import InvoiceService
 from core.pdf_handler import is_image_file
 from core.ofd_converter import is_ofd_file, render_ofd_pages
 from ui.theme import AppTheme
+from ui.tokens import numeric_font, header_font
+
+
+class DangerMenuAction(QWidgetAction):
+    """右键菜单中的危险级条目（删除），样式由全局 QSS 统一提供。"""
+
+    def __init__(self, text, parent=None):
+        super().__init__(parent)
+        widget = QWidget()
+        box = QHBoxLayout(widget)
+        box.setContentsMargins(10, 6, 10, 6)
+        box.setSpacing(8)
+        caption = QLabel(text)
+        caption.setObjectName("dangerMenuLabel")
+        box.addWidget(caption)
+        box.addStretch(1)
+        self.setDefaultWidget(widget)
 
 
 class PreviewPopup(QFrame):
@@ -47,13 +66,14 @@ class PreviewPopup(QFrame):
         # 设置属性，使窗口不获取焦点，不拦截鼠标事件
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         
-        # 设置样式 - 使用白色背景
-        self.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border: 2px solid #2196F3;
+        # 设置样式 - 消费设计系统令牌，避免硬编码色值（深色模式可读）
+        _t = AppTheme().tokens
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {_t['surface']};
+                border: 1px solid {_t['border_strong']};
                 border-radius: 8px;
-            }
+            }}
         """)
         
         # 创建布局
@@ -64,7 +84,7 @@ class PreviewPopup(QFrame):
         # 创建图片标签
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setStyleSheet("border: none; background-color: white;")
+        self.image_label.setStyleSheet("border: none; background-color: transparent;")
         layout.addWidget(self.image_label)
         
         # 设置固定大小（增大尺寸以获得更清晰的预览）
@@ -228,6 +248,8 @@ class FileListPanel(QWidget):
         self._duplicate_check_timer.timeout.connect(self._check_duplicates_async)
         self._executor = ThreadPoolExecutor(max_workers=2)
         self._duplicate_codes = set()
+        # v2：重复发票涉及的行数，供台账标题栏显示「N 组 / M 张」
+        self.duplicate_row_count = 0
 
         # 连接内部信号到更新方法
         self._duplicate_check_result.connect(self._update_duplicate_display)
@@ -278,6 +300,8 @@ class FileListPanel(QWidget):
         # 增加列数到9，新增发票号码列（放在文件名列前面）和税额列（放在金额列后面）
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels(["", "发票号码", "文件名", "金额", "税额", "开票日期", "路径", "修改日期", "大小"])
+        # 设计稿：表头为次级灰（#5A6B7F）常规字重，仅「金额」列头为主色加粗（标识当前排序列）
+        self._apply_header_colors()
 
         # 设置选择行为
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -297,59 +321,67 @@ class FileListPanel(QWidget):
 
         # 设置交替行颜色
         self.table.setAlternatingRowColors(True)
-        self.table.setShowGrid(True)
+        self.table.setShowGrid(False)
+        # 设计稿：单元格单行省略，不做换行（换行会撑出两行、破坏 38px 行高）
+        self.table.setWordWrap(False)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.table.verticalHeader().setVisible(False)
+        # 设计稿：数据行高 38、表头高 34（表头高度由 QSS min-height 控制）
+        self.table.verticalHeader().setDefaultSectionSize(38)
+        self.table.verticalHeader().setMinimumSectionSize(38)
 
-        # 设置列宽调整模式
+        # 设置列宽调整模式（按设计稿 req/ui/01 的实测列边界固定，路径列吸收剩余宽度）
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # 预览图标列固定宽度
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # 发票号码列
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # 文件名列
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # 金额列
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # 税额列
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # 开票日期列
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # 路径列
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # 修改日期列
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)  # 大小列
+        # 设计稿实测：表头文字与同列数据同向对齐——
+        # 眼睛列居中；文本列（发票号码/文件名/开票日期/路径/修改日期）左对齐；
+        # 数值列（金额/税额/大小）右对齐。
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        header_align = {
+            0: Qt.AlignmentFlag.AlignCenter,
+            1: Qt.AlignmentFlag.AlignLeft,
+            2: Qt.AlignmentFlag.AlignLeft,
+            3: Qt.AlignmentFlag.AlignRight,
+            4: Qt.AlignmentFlag.AlignRight,
+            5: Qt.AlignmentFlag.AlignLeft,
+            6: Qt.AlignmentFlag.AlignLeft,
+            7: Qt.AlignmentFlag.AlignLeft,
+            8: Qt.AlignmentFlag.AlignRight,
+        }
+        for column, align in header_align.items():
+            header_item = self.table.horizontalHeaderItem(column)
+            if header_item is not None:
+                header_item.setTextAlignment(align | Qt.AlignmentFlag.AlignVCenter)
+        # 列宽取自设计稿 01 的列边界（左列 976 宽）：眼睛 33 / 发票号码 162 /
+        # 文件名 191 / 金额 88 / 税额 83 / 开票日期 89 / 路径 148(自适应) /
+        # 修改日期 95 / 大小 84
+        # 发票号码列由设计稿的 151px 微调到 162px：启用 Inter + OpenType tnum
+        # 后 20 位等宽数字在 11px 下实测宽 140px，叠加 delegate 文本边距与
+        # QSS padding 后 151px 会触发 ElideRight 省略号。增加的 11px 由路径列
+        # （Stretch）自动吸收，总列宽与 9 列结构不变。
+        fixed_widths = {0: 33, 1: 162, 2: 191, 3: 88, 4: 83, 5: 89, 7: 95, 8: 84}
+        for column in range(9):
+            if column == 6:
+                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)  # 路径列吸收余量
+            else:
+                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+                self.table.setColumnWidth(column, fixed_widths[column])
         
         # 连接排序信号，当用户点击列标题排序时同步更新self.files列表
         header.sortIndicatorChanged.connect(self._on_sort_changed)
         
-        # 设置预览图标列宽度
-        self.table.setColumnWidth(0, 40)
+        # 首列（预览图标列）居中显示眼睛图标
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item is not None:
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # 设置表格样式，确保在 Windows 深色模式下文字/背景颜色始终可见
-        self.table.setStyleSheet(f"""
-            QTableWidget {{
-                background-color: {self.theme.card_bg};
-                color: {self.theme.text_primary};
-                gridline-color: {self.theme.border};
-                border: none;
-                outline: none;
-            }}
-            QHeaderView::section {{
-                background-color: {self.theme.bg};
-                color: {self.theme.text_primary};
-                border: 1px solid {self.theme.border};
-                padding: 4px;
-                font-weight: bold;
-            }}
-            QTableWidget::item {{
-                padding: 4px;
-                border-bottom: 1px solid {self.theme.border};
-            }}
-            QTableWidget::item:selected {{
-                background-color: {self.theme.selected_bg};
-                color: {self.theme.selected_text};
-            }}
-            QTableWidget::item:alternate {{
-                background-color: {self.theme.alt_row};
-            }}
-            QTableWidget::item:focus {{
-                background-color: {self.theme.selected_bg};
-                color: {self.theme.selected_text};
-            }}
-        """)
+        # v2：表格样式统一由 ui.tokens 的全局 QSS 提供（含深浅主题自动映射）。
+        # 保留 9 列，分栏变窄时通过横向滚动查看，不允许裁掉列。
+        self.table.setObjectName("ledgerTable")
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        # 表头最小列宽：默认 36，保护首列图标与数字列不被压扁
+        header.setMinimumSectionSize(36)
         
         # 启用鼠标跟踪（macOS需要）
         self.table.setMouseTracking(True)
@@ -366,6 +398,56 @@ class FileListPanel(QWidget):
         self.table.viewport().installEventFilter(self)
         
         layout.addWidget(self.table)
+
+    def _apply_header_colors(self):
+        """
+        按当前主题刷新表头配色、字体与首列图标
+
+        功能描述:
+            设计稿 req/ui/01：表头为次级灰常规字重，仅「金额」列头为主色加粗
+            （标识当前排序列），首列是眼睛图标。切换深浅主题后需要重新着色，
+            否则会停留在初始化时的浅色值（深色下表头几乎不可读）。
+
+            字体由 ``ui.tokens.header_font()`` 单一来源生成（11px / Noto Sans SC
+            / Regular，金额列 Bold）。QSS 的 ``QHeaderView::section`` 不再声明
+            font-size / font-weight，避免 QSS 与 setFont() 互相覆盖。
+        """
+        header_secondary = QColor(self.theme.tokens["text_secondary"])
+        regular = header_font(False)
+        bold = header_font(True)
+        for column in range(self.table.columnCount()):
+            header_item = self.table.horizontalHeaderItem(column)
+            if header_item is None:
+                continue
+            is_amount_column = column == 3
+            header_item.setForeground(
+                QColor(self.theme.tokens["accent"]) if is_amount_column
+                else header_secondary
+            )
+            header_item.setFont(bold if is_amount_column else regular)
+        eye_header = self.table.horizontalHeaderItem(0)
+        if eye_header is not None:
+            eye_icon_path = self._icon_path("预览-打开_preview-open.svg")
+            if os.path.exists(eye_icon_path):
+                eye_header.setIcon(QIcon(eye_icon_path))
+
+    def apply_theme(self, dark=None):
+        """
+        随主窗口切换主题
+
+        功能描述:
+            ``FileListPanel`` 自行持有 ``AppTheme`` 用于表头与财务列的动态着色；
+            主窗口切换深浅模式时必须同步重建，否则表头/金额色会残留上一个主题。
+
+        参数:
+            dark: 是否深色；None 表示按系统自动检测
+        """
+        self.theme = AppTheme(dark)
+        try:
+            self._apply_header_colors()
+            self._apply_financial_cell_style()
+        except Exception:
+            pass
     
     def eventFilter(self, obj, event):
         """
@@ -556,8 +638,8 @@ class FileListPanel(QWidget):
         show_in_folder_action.triggered.connect(lambda: self._show_in_folder(data_row))
         menu.addAction(show_in_folder_action)
 
-        # 添加"删除"动作
-        delete_action = self._action_icon("删除", "关闭_close.svg")
+        # 添加"删除"动作（危险级样式，行为与改造前一致）
+        delete_action = DangerMenuAction("删除", menu)
         delete_action.triggered.connect(self.delete_selected)
         menu.addAction(delete_action)
 
@@ -681,38 +763,63 @@ class FileListPanel(QWidget):
         更新重复发票显示
 
         功能描述:
-            根据重复发票号码集合，更新表格行的背景色
+            按设计稿标记重复行：整行淡琥珀底（首列用更深的琥珀状态条）、
+            发票号码与文件名用警示色，文件名追加「 · 重复」后缀，
+            并在台账标题栏显示重复组数与涉及张数。
+            判定逻辑、300ms 防抖、线程池与 Excel 黄色高亮均保持不变。
 
         参数:
             duplicate_codes: 重复的发票号码集合
         """
-        self._duplicate_codes = duplicate_codes
-        duplicate_count = len(duplicate_codes)
+        self._duplicate_codes = set(duplicate_codes)
+        duplicate_count = len(self._duplicate_codes)
+        warning = QColor(self.theme.warning)
+        row_tint = QColor(self.theme.tokens["warning_row"])
+        duplicate_rows = 0
+        suffix = " · 重复"
+        # 设计稿 01：一组重复里只有「重复的那一份」（第二次及以后出现的行）
+        # 才高亮并追加「 · 重复」；首次出现的那一行保持普通行样式。
+        # 台账标题栏的「N 组 / M 张」仍按整组成员数统计（M 含首次出现的行）。
+        seen_codes = set()
 
-        print(f"[DEBUG] _update_duplicate_display 被调用，重复代码: {duplicate_codes}, 表格行数: {self.table.rowCount()}")
-
-        # 更新每行的背景色
         for row in range(self.table.rowCount()):
-            # 获取该行的发票代码（第1列）
             code_item = self.table.item(row, 1)
-            if code_item:
-                code = code_item.text()
-                is_duplicate = code in duplicate_codes and code != ""
-                print(f"[DEBUG] 行 {row}: 代码='{code}', 是否重复={is_duplicate}")
+            code = code_item.text() if code_item else ""
+            is_duplicate = bool(code) and code in self._duplicate_codes
+            if is_duplicate:
+                duplicate_rows += 1
+            is_marked = is_duplicate and code in seen_codes
+            if is_duplicate:
+                seen_codes.add(code)
 
-                # 设置背景色与前景色，确保重复发票行在任意主题下都清晰可见
-                for col in range(self.table.columnCount()):
-                    item = self.table.item(row, col)
-                    if item:
-                        if is_duplicate:
-                            item.setBackground(QColor("#FF9800"))
-                            item.setForeground(QColor("#212121"))
-                        else:
-                            item.setBackground(Qt.GlobalColor.transparent)
-                            item.setForeground(QColor(self.theme.text_primary))
+            for col in range(self.table.columnCount()):
+                item = self.table.item(row, col)
+                if item is None:
+                    continue
+                # 先清空自定义前景/背景：普通行交给全局 QSS 决定颜色，
+                # 避免在深色主题下被写入浅色文字而不可读。
+                item.setData(Qt.ItemDataRole.BackgroundRole, None)
+                item.setData(Qt.ItemDataRole.ForegroundRole, None)
+                if is_marked:
+                    # 设计稿：重复行整行统一淡琥珀底（含最左眼睛列），
+                    # 不再给首列加深色状态条。
+                    item.setBackground(row_tint)
+                    if col in (1, 2):
+                        item.setForeground(warning)
 
-        # 发出重复数量变化信号
-        print(f"[DEBUG] 发出 duplicate_count_changed 信号: {duplicate_count}")
+            # 文件名后缀标记：重复行追加「 · 重复」，恢复时去掉
+            name_item = self.table.item(row, 2)
+            if name_item is not None:
+                base_name = name_item.text()
+                if base_name.endswith(suffix):
+                    base_name = base_name[: -len(suffix)]
+                name_item.setText(base_name + suffix if is_marked else base_name)
+
+        # 上面清空了整表的前景角色，这里重放财务列配色：
+        # 金额仍为主色、路径仍为弱化灰（设计稿重复行的金额也是主色蓝）。
+        self._apply_financial_cell_style()
+
+        self.duplicate_row_count = duplicate_rows
         self.duplicate_count_changed.emit(duplicate_count)
     
     def dropEvent(self, event):
@@ -787,11 +894,11 @@ class FileListPanel(QWidget):
             name_item = QTableWidgetItem(file_info['name'])
 
             amount_item = QTableWidgetItem()
-            amount_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info['amount']:.2f}")
+            amount_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info['amount']:,.2f}")
             amount_item.setData(Qt.ItemDataRole.UserRole, file_info['amount'])
 
             tax_item = QTableWidgetItem()
-            tax_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info.get('tax_amount', 0.0):.2f}")
+            tax_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info.get('tax_amount', 0.0):,.2f}")
             tax_item.setData(Qt.ItemDataRole.UserRole, file_info.get('tax_amount', 0.0))
 
             date_item = QTableWidgetItem(file_info['invoice_date'])
@@ -810,6 +917,9 @@ class FileListPanel(QWidget):
             self.table.setItem(row, 6, path_item)
             self.table.setItem(row, 7, mod_item)
             self.table.setItem(row, 8, size_item)
+
+        # v2：财务字段等宽字体 + 数值列右对齐
+        self._apply_financial_cell_style()
 
     @staticmethod
     def build_file_info(pdf_handler, file_path):
@@ -906,11 +1016,11 @@ class FileListPanel(QWidget):
         name_item = QTableWidgetItem(file_name)
 
         amount_item = QTableWidgetItem()
-        amount_item.setData(Qt.ItemDataRole.DisplayRole, f"{amount:.2f}")
+        amount_item.setData(Qt.ItemDataRole.DisplayRole, f"{amount:,.2f}")
         amount_item.setData(Qt.ItemDataRole.UserRole, amount)
 
         tax_item = QTableWidgetItem()
-        tax_item.setData(Qt.ItemDataRole.DisplayRole, f"{tax_amount:.2f}")
+        tax_item.setData(Qt.ItemDataRole.DisplayRole, f"{tax_amount:,.2f}")
         tax_item.setData(Qt.ItemDataRole.UserRole, tax_amount)
 
         date_item = QTableWidgetItem(invoice_date)
@@ -929,6 +1039,9 @@ class FileListPanel(QWidget):
         self.table.setItem(row, 6, path_item)
         self.table.setItem(row, 7, mod_item)
         self.table.setItem(row, 8, size_item)
+
+        # v2：财务字段等宽字体 + 数值列右对齐
+        self._apply_financial_cell_style(row)
 
         # 触发重复发票检查
         self._trigger_duplicate_check()
@@ -1085,6 +1198,46 @@ class FileListPanel(QWidget):
         
         return True
     
+    def _apply_financial_cell_style(self, row=None):
+        """
+        财务字段排版
+
+        功能描述:
+            发票号码、金额、税额、开票日期、修改日期、大小使用设计稿同款 Inter
+            （由 ui.tokens.numeric_font() 启用 OpenType `tnum` 得到等宽数字），
+            金额、税额、大小右对齐，使小数点在同一列对齐。字体随程序打包注册，
+            不再依赖系统是否安装，避免回退到 Arial 造成「字形不同且不清晰」。
+            未指定 row 时对整个表格生效（此前调用方误传循环残留变量，
+            导致只有最后一行被套上等宽字体）。
+
+        参数:
+            row: 可选，仅处理指定行；None 表示处理全部行
+        """
+        # 设计稿：发票号码 20 位数字须完整落在 151px 列内（约 7px/字符），
+        # Inter+tnum 12px 的 20 位达 160px 会被省略成「…」，故发票号码列用 11px；
+        # 金额 / 税额 / 日期 / 修改日期 / 大小列内容短，用 12px 提升清晰度。
+        invoice_no_font = numeric_font(11)
+        financial_font = numeric_font(12)
+
+        right = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        left = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        # 设计稿：金额为主色（标识核心财务列），路径为弱化灰，其余为正文色
+        amount_color = QColor(self.theme.tokens["accent"])
+        path_color = QColor(self.theme.tokens["text_muted"])
+        rows = range(self.table.rowCount()) if row is None else (row,)
+        for current_row in rows:
+            for col in (1, 3, 4, 5, 7, 8):
+                item = self.table.item(current_row, col)
+                if item is None:
+                    continue
+                item.setFont(invoice_no_font if col == 1 else financial_font)
+                item.setTextAlignment(right if col in (3, 4, 8) else left)
+                if col == 3:
+                    item.setForeground(amount_color)
+            path_item = self.table.item(current_row, 6)
+            if path_item is not None:
+                path_item.setForeground(path_color)
+
     def _update_table(self):
         """
         更新表格显示
@@ -1118,11 +1271,11 @@ class FileListPanel(QWidget):
             name_item = QTableWidgetItem(file_info['name'])
 
             amount_item = QTableWidgetItem()
-            amount_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info['amount']:.2f}")
+            amount_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info['amount']:,.2f}")
             amount_item.setData(Qt.ItemDataRole.UserRole, file_info['amount'])
 
             tax_item = QTableWidgetItem()
-            tax_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info.get('tax_amount', 0.0):.2f}")
+            tax_item.setData(Qt.ItemDataRole.DisplayRole, f"{file_info.get('tax_amount', 0.0):,.2f}")
             tax_item.setData(Qt.ItemDataRole.UserRole, file_info.get('tax_amount', 0.0))
 
             date_item = QTableWidgetItem(file_info['invoice_date'])
@@ -1141,6 +1294,9 @@ class FileListPanel(QWidget):
             self.table.setItem(row, 6, path_item)
             self.table.setItem(row, 7, mod_item)
             self.table.setItem(row, 8, size_item)
+
+        # v2：财务字段等宽字体 + 数值列右对齐
+        self._apply_financial_cell_style()
 
         # 恢复排序
         self.table.setSortingEnabled(True)

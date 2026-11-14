@@ -28,3 +28,9 @@ tests/fixtures/invoices/**
 
 /tests/data/
 reports/
+rt-test/
+reports/
+ops/
+bis/
+.workbuddy/
+edge-prof/

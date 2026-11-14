@@ -1,0 +1,40 @@
+# Proposal
+
+## Why
+
+票易合 v0.1.15 的界面把提示条、5 张配置卡片、8 个等权按钮和纯预览区堆在一个窗口里，缺少主操作层级、统一状态表达与可复用的视觉令牌；在深浅主题、宽屏和大量票据数据下，信息密度与可读性都不符合主流财务软件「严谨、一致、可靠」的观感。本次以 `req/ui/` 下的新设计稿为依据重做整套 UI，只重排信息架构与视觉系统，不改任何业务能力。
+
+## What Changes
+
+- 用统一设计系统替换现有配色/字体/圆角/描边：单一主色 `#1A56A8`、中性基底、等宽数字、四级按钮（主／次／文字／危险）、4/8/12/16/20/24/32 间距刻度，并保持系统深色/浅色模式自动适配。
+- 主窗口改为五段式结构：标题栏 → 上下文提示条 → 〔左：票据台账 ｜ 右：合并预览 + 排版参数〕→ 输出提交条 → 状态栏；「合并 PDF」成为全窗口唯一主按钮。
+- 票据台账保留全部 9 列（预览图标、发票号码、文件名、金额、税额、开票日期、路径、修改日期、大小），金额类字段等宽右对齐；重复发票由整行涂橙改为琥珀状态标记 + 顶部重复计数；拖放目标明确为台账区投放带。
+- 原左栏散落的排版配置收进右侧分段面板：纸张方向、行列 1–10、四边页边距、裁切线开关与左右距离、处理模式、打印顺序、输出选项，均保持原有控件语义与配置键名。
+- 新增统一的状态与反馈体系：加载进度、预览空态、告警、成功/失败回执；右键菜单、悬停票据浮窗、使用帮助、检查更新、变量说明弹窗沿用同一标题/内容/页脚结构。
+- 批量重命名对话框改为「7 类票种左侧常驻导航 + 规则输入 + 字段芯片 + 使用说明 + 结果回执」，票种规则与字段集行为完全沿用 `per-type-rename-rules`。
+- 界面产物落到 `req/ui/`：`00-设计说明与设计系统.png`、`01-主工作台-完整界面.png`、`02-批量重命名规则.png`、`03-状态与辅助界面.png`、`04-深色模式.png`。
+- 新增功能保留验收：以 51 项功能清单逐项核对，改造后每项均可触发且结果与改造前一致。
+
+**不变更**：任何业务功能、算法、配置键名、字段提取逻辑、MCP Tools、文件对话框过滤器与快捷键。无 BREAKING 变更。
+
+## Capabilities
+
+### New Capabilities
+
+- `finance-ui-design-system`: 统一视觉令牌与深浅双主题映射，保证跨页面、跨控件的视觉一致性。
+- `workspace-structure`: 五段式主窗口结构、单一主操作层级与全局上下文/状态条。
+- `invoice-ledger-ui`: 9 列票据台账的展示、排序、选择、拖放、悬停预览、右键菜单、双击打开与重复发票告警。
+- `merge-configuration-ui`: 排版参数分组、实时合并预览、输出路径与提交条及输出选项。
+- `ui-feedback-and-dialogs`: 加载/空/错误/成功四态、批量重命名对话框与帮助/更新/变量说明等辅助弹窗。
+- `feature-preservation`: 现有 51 个功能点在改造后全量保留、逐项可用且行为一致的验收契约。
+
+### Modified Capabilities
+
+（无。`divider-visibility`、`image-merge-support`、`per-type-rename-rules` 的需求文本不变，本次仅调整承载它们的控件外观与位置。）
+
+## Impact
+
+- **改动代码**：`code/ui/main_frame.py`（窗口结构与布局）、`code/ui/file_list.py`（表头/行样式/告警/投放带）、`code/ui/rename_dialog.py`（票种导航与字段芯片）、`code/ui/theme.py`（令牌扩展，兼容现有 `AppTheme` 属性名）、`code/core/update_checker.py` 中 `UpdateDialog` / `QRCodeDialog` 的视觉对齐（仅样式，不改更新逻辑）；新增 `code/ui/tokens.py` 与可复用组件模块。
+- **不改逻辑**：`code/core/pdf_handler.py`、`ofd_converter.py`、`invoice_service.py`、`invoice_extractors/*` 的业务算法，`code/mcp_server/*`、`code/main.py` 的 CLI/MCP 参数、`code/config.json` 的键名与 `migrate_rename_rules` 迁移逻辑。
+- **文档**：`README.md` 与 `说明文档.md` 需替换界面预览图并补充新 UI 说明；`req/ui/` 新增 5 张设计稿作为验收依据。
+- **兼容性**：Windows / macOS 深浅色自动检测、Win7 + VxKex、PyInstaller 打包（`invoice_tool.spec` / `invoice_tool_win.spec` 若无需新增资源可不改）、MCP Server 的 9 个 Tools 不受影响。

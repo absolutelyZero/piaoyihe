@@ -26,6 +26,10 @@ a = Analysis(
         ('code\\res\\logo3.png', 'res'),
         ('code\\res\\logo3.ico', 'res'),
         ('code\\res\\qrcode.jpg', 'res'),
+        # 设计稿同款字体（SIL OFL 1.1）：随程序分发，QSS / 财务列不再依赖系统字体
+        ('code\\res\\fonts\\Inter-VF.ttf', 'res\\fonts'),
+        ('code\\res\\fonts\\NotoSansSC-VF.ttf', 'res\\fonts'),
+        ('code\\res\\fonts\\OFL-1.1.txt', 'res\\fonts'),
         ('code\\res\\icons\\刷新_refresh.svg', 'res\\icons'),
         ('code\\res\\icons\\笔记_notes.svg', 'res\\icons'),
         ('code\\res\\icons\\加_plus.svg', 'res\\icons'),

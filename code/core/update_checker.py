@@ -15,7 +15,10 @@ from urllib import request
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox, QFrame
+)
+from ui.tokens import build_stylesheet, numeric_font, FONT_SIZE, apply_numeric_text_fonts
 
 
 class UpdateChecker:
@@ -227,28 +230,52 @@ class UpdateDialog(QDialog):
         """
         self.setWindowTitle('发现新版本')
         self.setModal(True)
-        self.setMinimumWidth(300)
-        
-        layout = QVBoxLayout()
-        
-        # 提示文本
+        self.setMinimumWidth(360)
+        self.setStyleSheet(build_stylesheet())
+        apply_numeric_text_fonts(self)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # 统一标题栏
+        header = QFrame()
+        header.setObjectName('dialogHeader')
+        header_box = QHBoxLayout(header)
+        header_box.setContentsMargins(12, 10, 12, 10)
+        title = QLabel('检查更新')
+        title.setObjectName('sectionLabel')
+        header_box.addWidget(title)
+        header_box.addStretch(1)
+        version = QLabel(f"v{self.remote_version}")
+        version.setObjectName('monoLabel')
+        version.setFont(numeric_font(FONT_SIZE['body']))
+        header_box.addWidget(version)
+        layout.addWidget(header)
+
+        # 内容区
         message_label = QLabel(f'发现新版本 v{self.remote_version}，是否查看更新内容？')
         message_label.setWordWrap(True)
         layout.addWidget(message_label)
-        
-        # 按钮布局
-        button_layout = QHBoxLayout()
-        
+
+        # 统一页脚操作区
+        footer = QFrame()
+        footer.setObjectName('dialogFooter')
+        button_layout = QHBoxLayout(footer)
+        button_layout.setContentsMargins(12, 10, 12, 10)
+        button_layout.addStretch(1)
+
         self.view_button = QPushButton('查看更新')
+        self.view_button.setObjectName('primaryButton')
         self.view_button.clicked.connect(self._show_qrcode)
         button_layout.addWidget(self.view_button)
-        
+
         self.ignore_button = QPushButton('忽略当前版本')
+        self.ignore_button.setObjectName('secondaryButton')
         self.ignore_button.clicked.connect(self._ignore_version)
         button_layout.addWidget(self.ignore_button)
-        
-        layout.addLayout(button_layout)
-        self.setLayout(layout)
+
+        layout.addWidget(footer)
     
     def _show_qrcode(self):
         """
@@ -296,30 +323,49 @@ class QRCodeDialog(QDialog):
         """
         self.setWindowTitle('查看更新')
         self.setModal(True)
-        self.setMinimumWidth(300)
-        
-        layout = QVBoxLayout()
-        
-        # 提示文本
+        self.setMinimumWidth(360)
+        self.setStyleSheet(build_stylesheet())
+        apply_numeric_text_fonts(self)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # 统一标题栏
+        header = QFrame()
+        header.setObjectName('dialogHeader')
+        header_box = QHBoxLayout(header)
+        header_box.setContentsMargins(12, 10, 12, 10)
+        title = QLabel('更新日志')
+        title.setObjectName('sectionLabel')
+        header_box.addWidget(title)
+        header_box.addStretch(1)
+        layout.addWidget(header)
+
+        # 内容区
         message_label = QLabel('请扫码查看更新内容和更新方法')
         message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(message_label)
-        
-        # 二维码图片标签
+
         self.qrcode_label = QLabel()
         self.qrcode_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.qrcode_label.setMinimumSize(200, 200)
         layout.addWidget(self.qrcode_label)
-        
+
         # 加载二维码
         self._load_qrcode()
-        
-        # 关闭按钮
+
+        # 统一页脚操作区
+        footer = QFrame()
+        footer.setObjectName('dialogFooter')
+        footer_box = QHBoxLayout(footer)
+        footer_box.setContentsMargins(12, 10, 12, 10)
+        footer_box.addStretch(1)
         close_button = QPushButton('关闭')
+        close_button.setObjectName('secondaryButton')
         close_button.clicked.connect(self.close)
-        layout.addWidget(close_button)
-        
-        self.setLayout(layout)
+        footer_box.addWidget(close_button)
+        layout.addWidget(footer)
     
     def _load_qrcode(self):
         """

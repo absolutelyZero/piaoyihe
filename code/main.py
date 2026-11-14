@@ -154,9 +154,9 @@ def _run_gui_mode(
     """
     from PySide6.QtWidgets import QApplication
     from PySide6.QtCore import Qt, QTimer
-    from PySide6.QtGui import QFont
     from ui.main_frame import MainWindow
     from core.update_checker import check_updates_on_start
+    from ui.tokens import apply_application_style
 
     # 启用高DPI支持
     if hasattr(Qt, 'AA_EnableHighDpiScaling'):
@@ -167,9 +167,8 @@ def _run_gui_mode(
     # 创建应用程序实例
     app = QApplication(sys.argv)
 
-    # 设置应用程序字体
-    font = QFont("Microsoft YaHei", 9)
-    app.setFont(font)
+    # 注入全局 QSS 与中文字体栈（唯一来源：ui/tokens.py）
+    apply_application_style(app)
 
     # 创建主窗口
     window = MainWindow()

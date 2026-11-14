@@ -27,34 +27,42 @@ from core.pdf_handler import PDFHandler, is_supported_file
 from core.invoice_service import InvoiceService, migrate_rename_rules
 from core.update_checker import UpdateChecker, show_update_dialog
 from ui.theme import AppTheme
+from ui.tokens import build_stylesheet, clear_inline_styles, apply_numeric_text_fonts
+from ui.shell import (
+    build_shell, update_status_bar, update_duplicate_chip, show_feedback,
+    create_context_bar, create_ledger_column, create_preview_card,
+    create_layout_card, create_mode_order_card,
+)
 
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), '../config.json')
 VERSION_FILE = os.path.join(os.path.dirname(__file__), '../version.json')
 
 # ============================================================================
-# 配色方案 - 统一的样式常量
+# 配色方案 - 兼容旧代码的样式常量
 # ============================================================================
-# 根据系统主题（深色/浅色）自动选择配色方案
+# v2 UI：唯一色值来源是 ui/tokens.py；这里仅保留旧变量名，避免逐处改写
+# 历史 f-string QSS。新增样式一律通过全局 QSS 的 objectName 选择器实现。
 _theme = AppTheme()
+_T = _theme.tokens
 
-PRIMARY_COLOR = "#2196F3"             # 主色调 - 蓝色
-PRIMARY_HOVER = "#1976D2"             # 主色悬停
-SUCCESS_COLOR = "#4CAF50"             # 成功色 - 绿色
-WARNING_COLOR = "#FF9800"             # 警告色 - 橙色
-DANGER_COLOR = "#F44336"              # 危险色 - 红色
-BG_COLOR = _theme.bg                  # 背景色
-CARD_BG = _theme.card_bg              # 卡片背景色
-BORDER_COLOR = _theme.border          # 边框色
-TEXT_PRIMARY = _theme.text_primary    # 主要文字
-TEXT_SECONDARY = _theme.text_secondary  # 次要文字
-TEXT_MUTED = _theme.text_muted        # 弱化文字
-HOVER_BG = _theme.hover_bg            # 悬停背景色
-PRESSED_BG = _theme.pressed_bg        # 按下背景色
-SELECTED_BG = _theme.selected_bg      # 选中背景色
-SELECTED_TEXT = _theme.selected_text  # 选中文字色
-SCROLL_AREA_BG = _theme.scroll_area_bg  # 滚动区域背景色
-SHADOW_COLOR = "rgba(0, 0, 0, 0.08)"  # 阴影色
+PRIMARY_COLOR = _T["accent"]
+PRIMARY_HOVER = _T["accent_hover"]
+SUCCESS_COLOR = _T["success"]
+WARNING_COLOR = _T["warning"]
+DANGER_COLOR = _T["danger"]
+BG_COLOR = _T["background"]
+CARD_BG = _T["surface"]
+BORDER_COLOR = _T["border"]
+TEXT_PRIMARY = _T["text_primary"]
+TEXT_SECONDARY = _T["text_secondary"]
+TEXT_MUTED = _T["text_muted"]
+HOVER_BG = _T["hover_bg"]
+PRESSED_BG = _T["pressed_bg"]
+SELECTED_BG = _T["selected_bg"]
+SELECTED_TEXT = _T["selected_text"]
+SCROLL_AREA_BG = _T["surface_sunken"]
+SHADOW_COLOR = "rgba(0, 0, 0, 0.08)"
 
 
 class MainWindow(QMainWindow):
@@ -97,369 +105,60 @@ class MainWindow(QMainWindow):
     
     def _init_ui(self):
         """
-        初始化用户界面
-        
+        初始化用户界面（v2 五段式结构）
+
         功能描述:
-            创建所有UI控件并设置布局
-            采用左右分栏布局：左侧功能区（垂直排列），右侧预览区
+            结构、状态组件与样式统一委托给 ui.shell / ui.tokens；
+            所有控件变量名、信号槽与业务 handler 保持不变。
         """
         self.setWindowTitle("票易合 - 发票合并工具")
         self.setMinimumSize(1400, 800)
-        
-        # 设置窗口图标
-        # 支持开发环境和 PyInstaller 打包后的环境
+
         if getattr(sys, 'frozen', False):
-            # PyInstaller 打包后的环境
             base_path = sys._MEIPASS
         else:
-            # 开发环境
             base_path = os.path.dirname(os.path.dirname(__file__))
-        
+
         icon_path = os.path.join(base_path, 'res', 'logo3.ico')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-        
-        # 设置图标目录
         self.icon_dir = os.path.join(base_path, 'res', 'icons')
-        
-        # 设置全局样式表
+
         self._setup_stylesheet()
-        
-        central_widget = QWidget()
-        central_widget.setObjectName("centralWidget")
-        self.setCentralWidget(central_widget)
-        
-        main_layout = QVBoxLayout(central_widget)
-        main_layout.setSpacing(16)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        
-        # 顶部拖放提示区域
-        top_widget = self._create_top_widget()
-        main_layout.addWidget(top_widget)
-        
-        # 主要内容区域 - 使用水平分割器分为左右两列
-        content_splitter = QSplitter(Qt.Orientation.Horizontal)
-        content_splitter.setHandleWidth(8)
-        
-        # 左侧：功能区（垂直排列所有控件）
-        left_widget = self._create_left_functional_area()
-        content_splitter.addWidget(left_widget)
-        
-        # 右侧：预览区
-        right_widget = self._create_right_preview_area()
-        content_splitter.addWidget(right_widget)
-        
-        # 设置分割器比例（左:右 = 6:4）
-        content_splitter.setSizes([840, 560])
-        
-        main_layout.addWidget(content_splitter, 1)
-        
-        # 底部进度条，用于显示文件加载、合并等耗时任务进度
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setObjectName("progressBar")
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.setFormat("准备中 %p%")
-        self.progress_bar.setVisible(False)
-        main_layout.addWidget(self.progress_bar)
-    
+        build_shell(self)
+        # 台账面板在 build_shell 里才创建，创建后必须再同步一次主题，
+        # 否则首帧会残留 FileListPanel 自行探测到的系统主题色。
+        self._sync_list_theme()
+
+    def _sync_list_theme(self):
+        """
+        同步台账面板的主题
+
+        功能描述:
+            ``FileListPanel`` 自行持有 ``AppTheme`` 用于表头与财务列的动态着色；
+            主窗口切换深浅模式时必须同步重建，否则表头/金额色会残留上一个主题，
+            深色模式下表现为表头几乎不可读、重复行底色仍是浅色。
+        """
+        file_list = getattr(self, "file_list", None)
+        if file_list is None:
+            return
+        try:
+            file_list.apply_theme(_theme.dark)
+        except Exception:
+            pass
+
     def _setup_stylesheet(self):
         """
         设置全局样式表
-        
+
         功能描述:
-            配置应用程序的全局样式，包括卡片、按钮、输入框等控件的样式
+            v2 UI 的全部样式由 ui.tokens.build_stylesheet() 依据当前系统主题生成；
+            历史逐控件 setStyleSheet 在 build_shell() 末尾统一清除。
         """
-        self.setStyleSheet(f"""
-            /* 全局样式 */
-            QMainWindow {{
-                background-color: {BG_COLOR};
-            }}
-            
-            QWidget#centralWidget {{
-                background-color: {BG_COLOR};
-            }}
-            
-            /* 卡片样式 */
-            QFrame#card {{
-                background-color: {CARD_BG};
-                border-radius: 8px;
-                border: 1px solid {BORDER_COLOR};
-            }}
-            
-            /* 标签样式 */
-            QLabel {{
-                color: {TEXT_PRIMARY};
-                font-size: 13px;
-            }}
-            
-            QLabel#titleLabel {{
-                font-size: 16px;
-                font-weight: bold;
-                color: {TEXT_PRIMARY};
-            }}
-            
-            QLabel#subtitleLabel {{
-                font-size: 12px;
-                color: {TEXT_SECONDARY};
-            }}
-            
-            QLabel#hintLabel {{
-                font-size: 14px;
-                color: {TEXT_SECONDARY};
-            }}
-            
-            /* 按钮基础样式 */
-            QPushButton {{
-                padding: 8px 16px;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: 500;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                color: {TEXT_PRIMARY};
-            }}
-            
-            QPushButton:hover {{
-                background-color: {HOVER_BG};
-                border-color: {TEXT_MUTED};
-            }}
-            
-            QPushButton:pressed {{
-                background-color: {PRESSED_BG};
-            }}
-            
-            QPushButton:disabled {{
-                background-color: {BG_COLOR};
-                color: {TEXT_MUTED};
-                border-color: {BORDER_COLOR};
-            }}
-            
-            /* 主要按钮样式 */
-            QPushButton#primaryButton {{
-                background-color: {PRIMARY_COLOR};
-                color: white;
-                border: none;
-                font-weight: bold;
-                padding: 10px 24px;
-            }}
-            
-            QPushButton#primaryButton:hover {{
-                background-color: {PRIMARY_HOVER};
-            }}
-            
-            QPushButton#primaryButton:pressed {{
-                background-color: #1565C0;
-            }}
-            
-            QPushButton#primaryButton:disabled {{
-                background-color: #BBDEFB;
-                color: white;
-            }}
-            
-            /* 危险按钮样式 */
-            QPushButton#dangerButton {{
-                background-color: {DANGER_COLOR};
-                color: white;
-                border: none;
-            }}
-            
-            QPushButton#dangerButton:hover {{
-                background-color: #D32F2F;
-            }}
-            
-            QPushButton#dangerButton:pressed {{
-                background-color: #C62828;
-            }}
-            
-            /* 成功按钮样式 */
-            QPushButton#successButton {{
-                background-color: {SUCCESS_COLOR};
-                color: white;
-                border: none;
-            }}
-            
-            QPushButton#successButton:hover {{
-                background-color: #388E3C;
-            }}
-            
-            /* 图标按钮样式 */
-            QPushButton#iconButton {{
-                padding: 6px 12px;
-                border-radius: 4px;
-            }}
-            
-            /* 输入框样式 */
-            QLineEdit {{
-                padding: 8px 12px;
-                border-radius: 6px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 13px;
-                color: {TEXT_PRIMARY};
-            }}
-            
-            QLineEdit:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-            
-            QLineEdit:disabled {{
-                background-color: {HOVER_BG};
-                color: {TEXT_MUTED};
-            }}
-            
-            /* 下拉框样式 */
-            QComboBox {{
-                padding: 8px 12px;
-                border-radius: 6px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 13px;
-                color: {TEXT_PRIMARY};
-                min-width: 120px;
-            }}
-            
-            QComboBox:hover {{
-                border-color: {TEXT_MUTED};
-            }}
-            
-            QComboBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-            
-            QComboBox::drop-down {{
-                border: none;
-                width: 24px;
-            }}
-            
-            QComboBox::down-arrow {{
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 6px solid {TEXT_SECONDARY};
-                width: 0;
-                height: 0;
-            }}
-            
-            QComboBox QAbstractItemView {{
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 6px;
-                background-color: {CARD_BG};
-                selection-background-color: {SELECTED_BG};
-                selection-color: {SELECTED_TEXT};
-            }}
-            
-            /* 单选按钮样式 */
-            QRadioButton {{
-                font-size: 13px;
-                color: {TEXT_PRIMARY};
-                spacing: 6px;
-            }}
-            
-            QRadioButton::indicator {{
-                width: 16px;
-                height: 16px;
-                border-radius: 8px;
-                border: 2px solid {TEXT_MUTED};
-                background-color: {CARD_BG};
-            }}
-            
-            QRadioButton::indicator:checked {{
-                border-color: {PRIMARY_COLOR};
-                background-color: {PRIMARY_COLOR};
-                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIiBmaWxsPSJ3aGl0ZSI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjMiLz48L3N2Zz4=);
-            }}
-            
-            QRadioButton::indicator:hover {{
-                border-color: {PRIMARY_COLOR};
-            }}
-            
-            /* 复选框样式 */
-            QCheckBox {{
-                font-size: 13px;
-                color: {TEXT_PRIMARY};
-                spacing: 6px;
-            }}
-            
-            QCheckBox::indicator {{
-                width: 16px;
-                height: 16px;
-                border-radius: 3px;
-                border: 2px solid {TEXT_MUTED};
-                background-color: {CARD_BG};
-            }}
-            
-            QCheckBox::indicator:checked {{
-                border-color: {PRIMARY_COLOR};
-                background-color: {PRIMARY_COLOR};
-                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIgdmlld0JveD0iMCAwIDEwIDEwIiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0yIDVsMiAyIDQtNCIvPjwvc3ZnPg==);
-            }}
-            
-            QCheckBox::indicator:hover {{
-                border-color: {PRIMARY_COLOR};
-            }}
-            
-            /* 分组框样式 */
-            QGroupBox {{
-                font-size: 13px;
-                font-weight: bold;
-                color: {TEXT_PRIMARY};
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 8px;
-                margin-top: 10px;
-                padding-top: 10px;
-                background-color: {CARD_BG};
-            }}
-            
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 8px;
-                color: {TEXT_SECONDARY};
-                font-weight: normal;
-            }}
-            
-            /* 滚动区域样式 */
-            QScrollArea {{
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 8px;
-                background-color: {SCROLL_AREA_BG};
-            }}
-            
-            /* 分割器样式 */
-            QSplitter::handle {{
-                background-color: {BG_COLOR};
-                border: none;
-            }}
-            
-            QSplitter::handle:disabled {{
-                background-color: {BG_COLOR};
-                border: none;
-            }}
-            
-            QSplitter::handle:horizontal {{
-                width: 2px;
-            }}
-            
-            /* 反馈按钮特殊样式 - 问号图标样式 */
-            QPushButton#feedbackButton {{
-                background-color: transparent;
-                color: {TEXT_SECONDARY};
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 15px;
-                font-weight: bold;
-                font-size: 16px;
-                padding: 0px;
-            }}
-            
-            QPushButton#feedbackButton:hover {{
-                background-color: {BG_COLOR};
-                border-color: {PRIMARY_COLOR};
-                color: {PRIMARY_COLOR};
-            }}
-        """)
-    
+        self.setStyleSheet(build_stylesheet(_theme.dark))
+        # 台账面板自行持有 AppTheme（表头/金额列动态着色），需与全局主题同步，
+        # 否则深色模式下会残留浅色表头而几乎不可读。
+        self._sync_list_theme()
     def _icon_path(self, filename):
         """
         获取图标文件完整路径
@@ -533,62 +232,8 @@ class MainWindow(QMainWindow):
         button.setText(text)
 
     def _create_top_widget(self):
-        """
-        创建顶部区域控件
-        
-        功能描述:
-            创建拖放提示标签，使用卡片式背景设计
-        
-        返回值:
-            QWidget: 顶部区域控件
-        """
-        # 创建卡片容器
-        card = QFrame()
-        card.setObjectName("card")
-        card.setFrameShape(QFrame.Shape.StyledPanel)
-        
-        layout = QHBoxLayout(card)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(12)
-        
-        # 图标标签
-        icon_label = self._icon_label("笔记_notes.svg", 20)
-        layout.addWidget(icon_label)
-        
-        # 主提示文本
-        self.drop_label = QLabel("拖入PDF文件到下方列表，右侧预览区域可查看合并效果")
-        self.drop_label.setObjectName("titleLabel")
-        self.drop_label.setStyleSheet(f"font-size: 15px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        layout.addWidget(self.drop_label)
-        layout.addStretch()
-        
-        # 版本号标签
-        self.version_label = QLabel(self._get_version())
-        self.version_label.setObjectName("versionLabel")
-        self.version_label.setStyleSheet(f"""
-            color: {TEXT_SECONDARY};
-            font-size: 12px;
-            padding: 4px 8px;
-            border-radius: 4px;
-            background: transparent;
-            border: none;
-        """)
-        self.version_label.setToolTip("点击检查更新")
-        self.version_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.version_label.mousePressEvent = lambda event: self._on_version_click()
-        layout.addWidget(self.version_label)
-        
-        # 反馈按钮
-        self.feedback_button = QPushButton("?")
-        self.feedback_button.setObjectName("feedbackButton")
-        self.feedback_button.setFixedSize(30, 30)
-        self.feedback_button.setToolTip("使用帮助")
-        self.feedback_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.feedback_button.clicked.connect(self._on_feedback)
-        layout.addWidget(self.feedback_button)
-        
-        return card
-    
+        """兼容旧调用：返回上下文提示条（版本与帮助入口已移至标题栏）。"""
+        return create_context_bar(self)
     def _create_middle_widget(self):
         """
         创建中间主要内容区域
@@ -624,7 +269,6 @@ class MainWindow(QMainWindow):
         
         self.file_list_label = QLabel("文件列表")
         self.file_list_label.setObjectName("titleLabel")
-        self.file_list_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
         file_list_header.addWidget(self.file_list_label)
         file_list_header.addStretch()
         file_list_layout.addLayout(file_list_header)
@@ -654,12 +298,10 @@ class MainWindow(QMainWindow):
         
         preview_label = QLabel("合并预览")
         preview_label.setObjectName("titleLabel")
-        preview_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
         preview_header.addWidget(preview_label)
         
         self.preview_status_label = QLabel("(添加文件后自动更新)")
         self.preview_status_label.setObjectName("subtitleLabel")
-        self.preview_status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px; background: transparent; border: none;")
         preview_header.addWidget(self.preview_status_label)
         preview_header.addStretch()
         
@@ -701,12 +343,7 @@ class MainWindow(QMainWindow):
 
         self.preview_placeholder = QLabel("添加PDF文件后，此处将显示合并后的预览效果\n\n支持实时预览，调整选项后自动更新")
         self.preview_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_placeholder.setStyleSheet(f"""
-            color: {TEXT_SECONDARY};
-            font-size: 14px;
-            background: transparent;
-            border: none;
-        """)
+        self.preview_placeholder.setObjectName("subtitleLabel")
         placeholder_layout.addWidget(self.preview_placeholder)
         
         self.preview_stack.addWidget(placeholder_container)
@@ -754,532 +391,90 @@ class MainWindow(QMainWindow):
         return widget
     
     def _create_layout_widget(self):
-        """
-        创建布局设置区域
-        
-        功能描述:
-            创建包含方向选择、行列数量设置的卡片式布局
-        
-        返回值:
-            QWidget: 布局设置区域控件
-        """
-        # 创建卡片容器
-        card = QFrame()
-        card.setObjectName("card")
-        card.setFrameShape(QFrame.Shape.StyledPanel)
-        
-        layout = QHBoxLayout(card)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(12)
-        
-        # ========== 方向选择区域 ==========
-        orientation_container = QHBoxLayout()
-        orientation_container.setSpacing(8)
-        
-        orientation_title = QLabel("布局:")
-        orientation_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        orientation_container.addWidget(orientation_title)
-        
-        # 方向按钮组
-        self.orientation_button_group = QButtonGroup(self)
-        
-        self.radio_portrait = QRadioButton("竖向")
-        self.radio_portrait.setToolTip("A4纸竖向排列")
-        self.radio_portrait.setMinimumWidth(50)
-        self.radio_portrait.setStyleSheet(f"""
-            QRadioButton {{
-                font-size: 11px;
-                font-weight: 500;
-                spacing: 3px;
-            }}
-            QRadioButton::indicator {{
-                width: 12px;
-                height: 12px;
-                border-radius: 6px;
-                border: 2px solid {TEXT_MUTED};
-                background-color: {CARD_BG};
-            }}
-            QRadioButton::indicator:checked {{
-                border-color: {PRIMARY_COLOR};
-                background-color: {PRIMARY_COLOR};
-            }}
-            QRadioButton::indicator:hover {{
-                border-color: {PRIMARY_COLOR};
-            }}
-            QRadioButton:checked {{
-                color: {PRIMARY_COLOR};
-                font-weight: bold;
-            }}
-        """)
-        self.orientation_button_group.addButton(self.radio_portrait)
-        orientation_container.addWidget(self.radio_portrait)
-        
-        self.radio_landscape = QRadioButton("横向")
-        self.radio_landscape.setToolTip("A4纸横向排列")
-        self.radio_landscape.setMinimumWidth(50)
-        self.radio_landscape.setStyleSheet(f"""
-            QRadioButton {{
-                font-size: 11px;
-                font-weight: 500;
-                spacing: 3px;
-            }}
-            QRadioButton::indicator {{
-                width: 12px;
-                height: 12px;
-                border-radius: 6px;
-                border: 2px solid {TEXT_MUTED};
-                background-color: {CARD_BG};
-            }}
-            QRadioButton::indicator:checked {{
-                border-color: {PRIMARY_COLOR};
-                background-color: {PRIMARY_COLOR};
-            }}
-            QRadioButton::indicator:hover {{
-                border-color: {PRIMARY_COLOR};
-            }}
-            QRadioButton:checked {{
-                color: {PRIMARY_COLOR};
-                font-weight: bold;
-            }}
-        """)
-        self.orientation_button_group.addButton(self.radio_landscape)
-        orientation_container.addWidget(self.radio_landscape)
-        
-        # 默认选中竖向
-        self.radio_portrait.setChecked(True)
-        
-        self.radio_portrait.toggled.connect(lambda checked: checked and self._on_config_changed())
-        self.radio_landscape.toggled.connect(lambda checked: checked and self._on_config_changed())
-        
-        layout.addLayout(orientation_container)
-        
-        # ========== 行列设置区域 ==========
-        grid_container = QHBoxLayout()
-        grid_container.setSpacing(8)
-        
-        # 行数输入框
-        row_label = QLabel("行")
-        row_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
-        grid_container.addWidget(row_label)
-        
-        self.row_spinbox = QSpinBox()
-        self.row_spinbox.setRange(1, 10)
-        self.row_spinbox.setValue(2)
-        self.row_spinbox.setFixedWidth(45)
-        self.row_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.row_spinbox.setStyleSheet(f"""
-            QSpinBox {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 12px;
-            }}
-            QSpinBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-        """)
-        self.row_spinbox.valueChanged.connect(self._on_config_changed)
-        grid_container.addWidget(self.row_spinbox)
-        
-        # 列数输入框
-        col_label = QLabel("列")
-        col_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
-        grid_container.addWidget(col_label)
-        
-        self.col_spinbox = QSpinBox()
-        self.col_spinbox.setRange(1, 10)
-        self.col_spinbox.setValue(2)
-        self.col_spinbox.setFixedWidth(45)
-        self.col_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.col_spinbox.setStyleSheet(f"""
-            QSpinBox {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 12px;
-            }}
-            QSpinBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-        """)
-        self.col_spinbox.valueChanged.connect(self._on_config_changed)
-        grid_container.addWidget(self.col_spinbox)
-        
-        layout.addLayout(grid_container)
-        
-
-               
-        # 标题
-        margin_title = QLabel("页边距（mm）:")
-        margin_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        layout.addWidget(margin_title)
-        
-        # 默认页边距（单位：mm）
-        self.default_margins = {'top': 10, 'bottom': 10, 'left': 10, 'right': 10}
-        
-        # 上
-        top_label = QLabel("上")
-        top_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
-        layout.addWidget(top_label)
-        
-        self.margin_top_spinbox = QSpinBox()
-        self.margin_top_spinbox.setRange(0, 50)
-        self.margin_top_spinbox.setValue(self.default_margins['top'])
-        self.margin_top_spinbox.setFixedWidth(50)
-        self.margin_top_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.margin_top_spinbox.setStyleSheet(f"""
-            QSpinBox {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 12px;
-            }}
-            QSpinBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-        """)
-        self.margin_top_spinbox.valueChanged.connect(self._on_margin_changed)
-        layout.addWidget(self.margin_top_spinbox)
-        
-        # 下
-        bottom_label = QLabel("下")
-        bottom_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
-        layout.addWidget(bottom_label)
-        
-        self.margin_bottom_spinbox = QSpinBox()
-        self.margin_bottom_spinbox.setRange(0, 50)
-        self.margin_bottom_spinbox.setValue(self.default_margins['bottom'])
-        self.margin_bottom_spinbox.setFixedWidth(50)
-        self.margin_bottom_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.margin_bottom_spinbox.setStyleSheet(f"""
-            QSpinBox {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 12px;
-            }}
-            QSpinBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-        """)
-        self.margin_bottom_spinbox.valueChanged.connect(self._on_margin_changed)
-        layout.addWidget(self.margin_bottom_spinbox)
-        
-        # 左
-        left_label = QLabel("左")
-        left_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
-        layout.addWidget(left_label)
-        
-        self.margin_left_spinbox = QSpinBox()
-        self.margin_left_spinbox.setRange(0, 50)
-        self.margin_left_spinbox.setValue(self.default_margins['left'])
-        self.margin_left_spinbox.setFixedWidth(50)
-        self.margin_left_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.margin_left_spinbox.setStyleSheet(f"""
-            QSpinBox {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 12px;
-            }}
-            QSpinBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-        """)
-        self.margin_left_spinbox.valueChanged.connect(self._on_margin_changed)
-        layout.addWidget(self.margin_left_spinbox)
-        
-        # 右
-        right_label = QLabel("右")
-        right_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
-        layout.addWidget(right_label)
-        
-        self.margin_right_spinbox = QSpinBox()
-        self.margin_right_spinbox.setRange(0, 50)
-        self.margin_right_spinbox.setValue(self.default_margins['right'])
-        self.margin_right_spinbox.setFixedWidth(50)
-        self.margin_right_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.margin_right_spinbox.setStyleSheet(f"""
-            QSpinBox {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 12px;
-            }}
-            QSpinBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-        """)
-        self.margin_right_spinbox.valueChanged.connect(self._on_margin_changed)
-        layout.addWidget(self.margin_right_spinbox)
-
-        layout.addStretch()
-        
-        return card
-    
+        """兼容旧调用：返回 v2 紧凑「纸张与布局」参数卡片。"""
+        return create_layout_card(self)
     def _create_mode_order_widget(self):
-        """
-        创建处理模式与排序方式设置区域
-        
-        功能描述:
-            创建包含处理模式选择和打印顺序选择的卡片式布局
-        
-        返回值:
-            QWidget: 模式与排序设置区域控件
-        """
-        # 创建卡片容器
-        card = QFrame()
-        card.setObjectName("card")
-        card.setFrameShape(QFrame.Shape.StyledPanel)
-        
-        layout = QHBoxLayout(card)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(12)
-        
-        # ========== 处理模式区域 ==========
-        mode_container = QHBoxLayout()
-        mode_container.setSpacing(8)
-        
-        mode_title = QLabel("模式:")
-        mode_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        mode_container.addWidget(mode_title)
-        
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["普通", "图像"])
-        self.mode_combo.setToolTip("普通模式保留PDF矢量信息，图像模式转换为图片")
-        self.mode_combo.currentIndexChanged.connect(self._on_config_changed)
-        self.mode_combo.setFixedWidth(60)
-        mode_container.addWidget(self.mode_combo)
-        
-        layout.addLayout(mode_container)
-        
-        # 添加分隔线
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.VLine)
-        separator.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator.setFixedWidth(1)
-        layout.addWidget(separator)
-        
-        # ========== 排序方式区域 ==========
-        order_container = QHBoxLayout()
-        order_container.setSpacing(8)
-        
-        order_title = QLabel("打印顺序:")
-        order_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        order_container.addWidget(order_title)
-        
-        self.order_combo = QComboBox()
-        self.order_combo.addItems(["列表顺序", "开票日期", "开票金额"])
-        self.order_combo.setToolTip("选择发票的打印顺序")
-        self.order_combo.currentIndexChanged.connect(self._on_config_changed)
-        self.order_combo.setFixedWidth(80)
-        order_container.addWidget(self.order_combo)
-        
-        layout.addLayout(order_container)
-
-
-        # 添加分隔线
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.Shape.VLine)
-        separator2.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator2.setFixedWidth(1)
-        layout.addWidget(separator2)
-
-        # ========== 裁切线区域 ==========
-        crop_title = QLabel("裁切线:")
-        crop_title.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        layout.addWidget(crop_title)
-
-        self.crop_mark_checkbox = QCheckBox("显示")
-        self.crop_mark_checkbox.setToolTip("开启后绘制左右两侧的裁切线，便于裁剪")
-        self.crop_mark_checkbox.setStyleSheet(f"""
-            QCheckBox {{
-                font-size: 12px;
-                color: {TEXT_PRIMARY};
-                spacing: 6px;
-            }}
-        """)
-        self.crop_mark_checkbox.stateChanged.connect(self._on_config_changed)
-        layout.addWidget(self.crop_mark_checkbox)
-
-        # 默认裁切线距离（mm）
-        self.default_crop_mark_dist = 0
-
-        # 左裁切线距离
-        left_crop_label = QLabel("左")
-        left_crop_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
-        layout.addWidget(left_crop_label)
-
-        self.crop_mark_left_spinbox = QSpinBox()
-        self.crop_mark_left_spinbox.setRange(0, 50)
-        self.crop_mark_left_spinbox.setValue(self.default_crop_mark_dist)
-        self.crop_mark_left_spinbox.setFixedWidth(50)
-        self.crop_mark_left_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.crop_mark_left_spinbox.setStyleSheet(f"""
-            QSpinBox {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 12px;
-            }}
-            QSpinBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-        """)
-        self.crop_mark_left_spinbox.valueChanged.connect(self._on_config_changed)
-        layout.addWidget(self.crop_mark_left_spinbox)
-
-        # 右裁切线距离
-        right_crop_label = QLabel("右")
-        right_crop_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
-        layout.addWidget(right_crop_label)
-
-        self.crop_mark_right_spinbox = QSpinBox()
-        self.crop_mark_right_spinbox.setRange(0, 50)
-        self.crop_mark_right_spinbox.setValue(self.default_crop_mark_dist)
-        self.crop_mark_right_spinbox.setFixedWidth(50)
-        self.crop_mark_right_spinbox.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.crop_mark_right_spinbox.setStyleSheet(f"""
-            QSpinBox {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid {BORDER_COLOR};
-                background-color: {CARD_BG};
-                font-size: 12px;
-            }}
-            QSpinBox:focus {{
-                border-color: {PRIMARY_COLOR};
-            }}
-        """)
-        self.crop_mark_right_spinbox.valueChanged.connect(self._on_config_changed)
-        layout.addWidget(self.crop_mark_right_spinbox)
-        
-        layout.addStretch()
-        
-        return card
-    
+        """兼容旧调用：返回 v2「处理模式与打印顺序」参数卡片。"""
+        return create_mode_order_card(self)
     def _create_actions_widget(self):
         """
         创建操作按钮区域
-        
+
         功能描述:
-            创建包含添加文件、删除、移动、合并、打印等操作按钮的卡片式布局
-        
+            创建票据台账下方的操作条（设计稿 01 基线）：七个入口均为纯文字按钮，
+            高度 30，按「文件操作｜排序｜重命名｜导出列表」分组，组间用 1px 竖线
+            分隔，最右显示「支持 PDF / 图片 / OFD 混合合并」提示。
+            按钮变量名、信号连接与业务 handler 全部保持与改造前一致。
+
         返回值:
             QWidget: 操作按钮区域控件
         """
-        # 创建卡片容器
         card = QFrame()
-        card.setObjectName("card")
+        card.setObjectName("actionsCard")
         card.setFrameShape(QFrame.Shape.StyledPanel)
-        
+
         layout = QHBoxLayout(card)
-        layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(16)
-        
+        # 设计稿：操作条内容左右各内缩 10px（首按钮左缘距卡片 10px），按钮间距 10px
+        layout.setContentsMargins(10, 9, 10, 9)
+        layout.setSpacing(10)
+
+        def _action(text, tooltip, object_name, slot):
+            button = QPushButton(text)
+            button.setObjectName(object_name)
+            button.setToolTip(tooltip)
+            # 设计稿：操作条按钮统一 30px 高（QSS 的 min/max-height 会被 sizeHint 撑开）
+            button.setFixedHeight(30)
+            button.clicked.connect(slot)
+            layout.addWidget(button)
+            return button
+
+        def _separator():
+            line = QFrame()
+            line.setObjectName("vSeparator")
+            line.setFixedWidth(1)
+            line.setFixedHeight(16)
+            line.setFrameShape(QFrame.Shape.NoFrame)
+            layout.addWidget(line)
+
         # ========== 文件操作组（添加、删除、清空）==========
-        file_ops_layout = QHBoxLayout()
-        file_ops_layout.setSpacing(6)
-        
-        self.add_file_btn = QPushButton("添加")
-        self.add_file_btn.setObjectName("iconButton")
-        self.add_file_btn.setToolTip("添加PDF文件到列表")
-        self.add_file_btn.clicked.connect(self._on_add_file)
-        self._set_btn_icon(self.add_file_btn, "加_plus.svg", "添加")
-        file_ops_layout.addWidget(self.add_file_btn)
+        self.add_file_btn = _action(
+            "添加文件", "添加 PDF / 图片 / OFD 发票到台账", "actionAccent", self._on_add_file
+        )
+        self.del_btn = _action(
+            "删除选中", "删除选中的文件", "dangerButton", self._on_del
+        )
+        self.del_all_btn = _action(
+            "清空全部", "清空所有文件", "dangerButton", self._on_del_all
+        )
+        # 设计稿：危险色只用于「清空全部」，「删除选中」保持白底灰边
+        self.del_all_btn.setProperty("tone", "danger")
 
-        self.del_btn = QPushButton("删除")
-        self.del_btn.setObjectName("iconButton")
-        self.del_btn.setToolTip("删除选中的文件")
-        self.del_btn.clicked.connect(self._on_del)
-        self._set_btn_icon(self.del_btn, "减_minus.svg", "删除")
-        file_ops_layout.addWidget(self.del_btn)
+        _separator()
 
-        self.del_all_btn = QPushButton("清空")
-        self.del_all_btn.setObjectName("iconButton")
-        self.del_all_btn.setToolTip("清空所有文件")
-        self.del_all_btn.clicked.connect(self._on_del_all)
-        self._set_btn_icon(self.del_all_btn, "关闭_close.svg", "清空")
-        file_ops_layout.addWidget(self.del_all_btn)
-        
-        layout.addLayout(file_ops_layout)
-        
-        # 添加分隔线（清空与上移之间）
-        separator1 = QFrame()
-        separator1.setFrameShape(QFrame.Shape.VLine)
-        separator1.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator1.setFixedWidth(1)
-        layout.addWidget(separator1)
-        
         # ========== 排序操作组（上移、下移）==========
-        sort_ops_layout = QHBoxLayout()
-        sort_ops_layout.setSpacing(6)
-        
-        self.move_up_btn = QPushButton("上移")
-        self.move_up_btn.setObjectName("iconButton")
-        self.move_up_btn.setToolTip("将选中的文件上移一位")
-        self.move_up_btn.clicked.connect(self._on_move_up)
-        self._set_btn_icon(self.move_up_btn, "箭头上_arrow-up.svg", "上移")
-        sort_ops_layout.addWidget(self.move_up_btn)
+        self.move_up_btn = _action(
+            "上移", "将选中的文件上移一位", "actionButton", self._on_move_up
+        )
+        self.move_down_btn = _action(
+            "下移", "将选中的文件下移一位", "actionButton", self._on_move_down
+        )
 
-        self.move_down_btn = QPushButton("下移")
-        self.move_down_btn.setObjectName("iconButton")
-        self.move_down_btn.setToolTip("将选中的文件下移一位")
-        self.move_down_btn.clicked.connect(self._on_move_down)
-        self._set_btn_icon(self.move_down_btn, "箭头下_arrow-down.svg", "下移")
-        sort_ops_layout.addWidget(self.move_down_btn)
-        
-        layout.addLayout(sort_ops_layout)
-        
-        # 添加分隔线（下移与重命名之间）
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.Shape.VLine)
-        separator2.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator2.setFixedWidth(1)
-        layout.addWidget(separator2)
-        
-        # ========== 重命名操作组 ==========
-        rename_ops_layout = QHBoxLayout()
-        rename_ops_layout.setSpacing(6)
-        
-        self.rename_btn = QPushButton("重命名")
-        self.rename_btn.setObjectName("iconButton")
-        self.rename_btn.setToolTip("批量重命名文件")
-        self.rename_btn.clicked.connect(self._on_rename)
-        self._set_btn_icon(self.rename_btn, "铅笔_pencil.svg", "重命名")
-        rename_ops_layout.addWidget(self.rename_btn)
-        
-        layout.addLayout(rename_ops_layout)
-        
-        # 添加分隔线（重命名与导出列表之间）
-        separator_export = QFrame()
-        separator_export.setFrameShape(QFrame.Shape.VLine)
-        separator_export.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator_export.setFixedWidth(1)
-        layout.addWidget(separator_export)
-        
-        # ========== 导出列表操作组 ==========
-        export_ops_layout = QHBoxLayout()
-        export_ops_layout.setSpacing(6)
-        
-        self.export_list_btn = QPushButton("导出列表")
-        self.export_list_btn.setObjectName("iconButton")
-        self.export_list_btn.setToolTip("导出文件列表到Excel")
-        self.export_list_btn.clicked.connect(self._on_export_list)
-        self._set_btn_icon(self.export_list_btn, "下载_download-four.svg", "导出列表")
-        export_ops_layout.addWidget(self.export_list_btn)
-        
-        layout.addLayout(export_ops_layout)
-        
-        layout.addStretch()
-        
+        _separator()
+
+        # ========== 重命名与导出操作组（设计稿这两项之间无分隔线）==========
+        self.rename_btn = _action(
+            "批量重命名", "按票种规则批量重命名文件", "actionButton", self._on_rename
+        )
+
+        self.export_list_btn = _action(
+            "导出列表", "导出文件列表到 Excel", "actionButton", self._on_export_list
+        )
+
+        layout.addStretch(1)
+        actions_hint = QLabel("支持 PDF / 图片 / OFD 混合合并")
+        actions_hint.setObjectName("mutedLabel")
+        layout.addWidget(actions_hint)
+
         return card
     
     def _create_bottom_widget(self):
@@ -1303,12 +498,10 @@ class MainWindow(QMainWindow):
         
         # 保存路径标签
         # path_icon = QLabel("💾")
-        # path_icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
         # layout.addWidget(path_icon)
         
         # path_label = QLabel("保存路径:")
         # path_label.setObjectName("titleLabel")
-        # path_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
         # layout.addWidget(path_label)
         
         # 保存路径输入框
@@ -1329,297 +522,11 @@ class MainWindow(QMainWindow):
         return card
     
     def _create_left_functional_area(self):
-        """
-        创建左侧功能区
-        
-        功能描述:
-            创建左侧功能区容器，垂直排列文件列表、配置项、操作按钮、保存路径和版本号
-        
-        返回值:
-            QWidget: 左侧功能区控件
-        """
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
-        
-        # 1. 文件列表区域（占据主要空间）
-        file_list_card = QFrame()
-        file_list_card.setObjectName("card")
-        file_list_card.setFrameShape(QFrame.Shape.StyledPanel)
-        
-        file_list_layout = QVBoxLayout(file_list_card)
-        file_list_layout.setContentsMargins(12, 12, 12, 12)
-        file_list_layout.setSpacing(8)
-        
-        # 文件列表标题
-        file_list_header = QHBoxLayout()
-        # file_list_icon = self._icon_label("文件夹-开_folder-open.svg", 14)
-        # file_list_header.addWidget(file_list_icon)
-        
-        self.file_list_label = QLabel("文件列表")
-        self.file_list_label.setObjectName("titleLabel")
-        self.file_list_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        file_list_header.addWidget(self.file_list_label)
-        file_list_header.addStretch()
-        file_list_layout.addLayout(file_list_header)
-
-        # 文件列表组件
-        self.file_list = FileListPanel(self.pdf_handler, on_file_added=self._on_first_file_added)
-        self.file_list.selection_changed.connect(self._on_list_selection_changed)
-        self.file_list.duplicate_count_changed.connect(self._on_duplicate_count_changed)
-        self.file_list.setStyleSheet(f"background-color: {CARD_BG}; border: none;")
-        file_list_layout.addWidget(self.file_list)
-        
-        layout.addWidget(file_list_card, 1)  # 占据主要空间
-        
-        # 2. 操作按钮区域（单行水平布局）
-        actions_card = self._create_actions_widget()
-        layout.addWidget(actions_card)
-
-        # 3. 布局设置卡片
-        layout_card = self._create_layout_widget()
-        layout.addWidget(layout_card)
-
-        # 4. 模式与排序设置卡片
-        mode_order_card = self._create_mode_order_widget()
-        layout.addWidget(mode_order_card)
-        
-        # 5. 保存路径和版本号区域
-        bottom_card = QFrame()
-        bottom_card.setObjectName("card")
-        bottom_card.setFrameShape(QFrame.Shape.StyledPanel)
-        
-        bottom_layout = QVBoxLayout(bottom_card)
-        bottom_layout.setContentsMargins(12, 12, 12, 12)
-        bottom_layout.setSpacing(8)
-        
-        # 保存路径
-        # path_header = QHBoxLayout()
-        # path_icon = QLabel("💾")
-        # path_icon.setStyleSheet("font-size: 12px; background: transparent; border: none;")
-        # path_header.addWidget(path_icon)
-        # path_label = QLabel("保存路径")
-        # path_label.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {TEXT_PRIMARY};")
-        # path_header.addWidget(path_label)
-        # path_header.addStretch()
-        # bottom_layout.addLayout(path_header)
-
-        path_input_layout = QHBoxLayout()
-        path_input_layout.setSpacing(6)
-
-        self.path_edit = QLineEdit()
-        self.path_edit.setObjectName("pathInput")
-        self.path_edit.setPlaceholderText("选择保存位置...")
-        path_input_layout.addWidget(self.path_edit, 1)
-
-        self.select_path_btn = QPushButton("浏览")
-        self.select_path_btn.setObjectName("iconButton")
-        self.select_path_btn.setToolTip("选择保存位置")
-        self._set_btn_icon(self.select_path_btn, "文件夹-开_folder-open.svg", "浏览")
-        self.select_path_btn.clicked.connect(self._on_select_path)
-        path_input_layout.addWidget(self.select_path_btn)
-        
-        # 添加分隔线（浏览与合并之间）
-        separator_merge = QFrame()
-        separator_merge.setFrameShape(QFrame.Shape.VLine)
-        separator_merge.setStyleSheet(f"background-color: {BORDER_COLOR};")
-        separator_merge.setFixedWidth(1)
-        path_input_layout.addWidget(separator_merge)
-        
-        # 合并按钮
-        self.merge_btn = QPushButton("合并")
-        self.merge_btn.setObjectName("primaryButton")
-        self.merge_btn.setToolTip("合并所有文件并保存")
-        self.merge_btn.setMinimumWidth(100)
-        self.merge_btn.clicked.connect(self._on_merge_all)
-        # self._set_btn_icon(self.merge_btn, "合并单元格_merge-cells.svg", "合并")
-        path_input_layout.addWidget(self.merge_btn)
-
-                # ========== 一式两份配置 ==========
-        self.duplicate_copy_checkbox = QCheckBox("一式两份")
-        self.duplicate_copy_checkbox.setToolTip("合并时生成两份相同的文件")
-        self.duplicate_copy_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
-        self.duplicate_copy_checkbox.stateChanged.connect(self._on_duplicate_copy_changed)
-        self.duplicate_copy_checkbox.setMinimumWidth(80)
-        path_input_layout.addWidget(self.duplicate_copy_checkbox)
-        
-        # 合并后打印复选框
-        self.print_checkbox = QCheckBox("合并后打开")
-        self.print_checkbox.setToolTip("合并后打开文件")
-        self.print_checkbox.setStyleSheet(f"font-size: 12px; color: {TEXT_PRIMARY};")
-        path_input_layout.addWidget(self.print_checkbox)
-        
-        bottom_layout.addLayout(path_input_layout)
-        
-        # 版本号（底部）
-        # version_layout = QHBoxLayout()
-        # version_layout.addStretch()
-        
-        # self.version_label = QLabel(self._get_version())
-        # self.version_label.setObjectName("versionLabel")
-        # self.version_label.setStyleSheet(f"""
-        #     color: {TEXT_SECONDARY};
-        #     font-size: 11px;
-        #     padding: 2px 6px;
-        #     border-radius: 3px;
-        #     background: transparent;
-        # """)
-        # self.version_label.setToolTip("点击检查更新")
-        # self.version_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        # self.version_label.mousePressEvent = lambda event: self._on_version_click()
-        # version_layout.addWidget(self.version_label)
-        
-        # bottom_layout.addLayout(version_layout)
-        layout.addWidget(bottom_card)
-        
-        return widget
-    
+        """兼容旧调用：返回票据台账列（参数卡片已移至右侧设置面板）。"""
+        return create_ledger_column(self)
     def _create_right_preview_area(self):
-        """
-        创建右侧预览区
-        
-        功能描述:
-            创建右侧预览区域，占据整列显示预览内容，包含预览开关
-        
-        返回值:
-            QWidget: 右侧预览区控件
-        """
-        preview_card = QFrame()
-        preview_card.setObjectName("card")
-        preview_card.setFrameShape(QFrame.Shape.StyledPanel)
-        
-        preview_layout = QVBoxLayout(preview_card)
-        preview_layout.setContentsMargins(12, 12, 12, 12)
-        preview_layout.setSpacing(8)
-        
-        # 预览区域标题栏
-        preview_header = QHBoxLayout()
-        preview_icon = self._icon_label("预览-打开_preview-open.svg", 14)
-        preview_header.addWidget(preview_icon)
-        
-        preview_label = QLabel("合并预览")
-        preview_label.setObjectName("titleLabel")
-        preview_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;")
-        preview_header.addWidget(preview_label)
-        
-        self.preview_status_label = QLabel("(添加文件后自动更新)")
-        self.preview_status_label.setObjectName("subtitleLabel")
-        self.preview_status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px; background: transparent; border: none;")
-        preview_header.addWidget(self.preview_status_label)
-        preview_header.addStretch()
-        
-        # 预览开关
-        # self.preview_checkbox = QCheckBox("启用预览")
-        # self.preview_checkbox.setToolTip("关闭后不再渲染预览，提升性能")
-        # self.preview_checkbox.setChecked(True)
-        # self.preview_checkbox.stateChanged.connect(self._on_preview_checkbox_changed)
-        # self.preview_checkbox.setStyleSheet(f"""
-        #     QCheckBox {{
-        #         font-size: 12px;
-        #         color: {TEXT_PRIMARY};
-        #         spacing: 4px;
-        #     }}
-        #     QCheckBox::indicator {{
-        #         width: 14px;
-        #         height: 14px;
-        #         border-radius: 3px;
-        #         border: 2px solid {TEXT_MUTED};
-        #         background-color: {CARD_BG};
-        #     }}
-        #     QCheckBox::indicator:checked {{
-        #         border-color: {PRIMARY_COLOR};
-        #         background-color: {PRIMARY_COLOR};
-        #     }}
-        #     QCheckBox::indicator:hover {{
-        #         border-color: {PRIMARY_COLOR};
-        #     }}
-        # """)
-        # preview_header.addWidget(self.preview_checkbox)
-        
-        # 刷新预览按钮
-        self.refresh_preview_btn = QPushButton("刷新")
-        self.refresh_preview_btn.setObjectName("iconButton")
-        self.refresh_preview_btn.setToolTip("手动刷新预览")
-        self.refresh_preview_btn.clicked.connect(self._update_preview)
-        self.refresh_preview_btn.setEnabled(False)
-        self._set_btn_icon(self.refresh_preview_btn, "刷新_refresh.svg", "刷新")
-        preview_header.addWidget(self.refresh_preview_btn)
-        
-        preview_layout.addLayout(preview_header)
-        
-        # 预览内容区域
-        self.preview_stack = QStackedWidget()
-        
-        # 页面1：提示信息
-        placeholder_container = QFrame()
-        placeholder_container.setObjectName("card")
-        placeholder_container.setStyleSheet(f"""
-            QFrame#card {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 {_theme.placeholder_start},
-                    stop:0.5 {_theme.placeholder_mid},
-                    stop:1 {_theme.placeholder_end});
-                border: 2px dashed {_theme.placeholder_border};
-                border-radius: 12px;
-            }}
-        """)
-        
-        placeholder_layout = QVBoxLayout(placeholder_container)
-        placeholder_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        placeholder_layout.setSpacing(12)
-
-        self.preview_placeholder_icon = self._icon_label("笔记_notes.svg", 48)
-        self.preview_placeholder_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        placeholder_layout.addWidget(self.preview_placeholder_icon)
-
-        self.preview_placeholder = QLabel("添加PDF文件后，此处将显示合并后的预览效果\n\n支持实时预览，调整选项后自动更新")
-        self.preview_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_placeholder.setStyleSheet(f"""
-            color: {TEXT_SECONDARY};
-            font-size: 14px;
-            background: transparent;
-            border: none;
-        """)
-        placeholder_layout.addWidget(self.preview_placeholder)
-        
-        self.preview_stack.addWidget(placeholder_container)
-        
-        # 页面2：图片预览
-        self.preview_scroll = QScrollArea()
-        self.preview_scroll.setWidgetResizable(True)
-        self.preview_scroll.setStyleSheet(f"""
-            QScrollArea {{
-                background-color: {SCROLL_AREA_BG};
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 8px;
-            }}
-        """)
-        
-        # 创建预览容器
-        self.preview_container = QWidget()
-        self.preview_container.setStyleSheet("background-color: transparent;")
-        self.preview_layout = QVBoxLayout(self.preview_container)
-        self.preview_layout.setSpacing(12)
-        self.preview_layout.setContentsMargins(12, 12, 12, 12)
-        self.preview_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        self.preview_scroll.setWidget(self.preview_container)
-        
-        # 初始化预览相关变量
-        self.preview_pixmaps = []
-        self.preview_scale = 0.8
-        self.preview_labels = []
-        
-        # 启用鼠标滚轮事件
-        self.preview_scroll.viewport().installEventFilter(self)
-        
-        self.preview_stack.addWidget(self.preview_scroll)
-        
-        preview_layout.addWidget(self.preview_stack, 1)
-        
-        return preview_card
-    
+        """兼容旧调用：返回合并预览卡片（含空态、页码与缩放状态）。"""
+        return create_preview_card(self)
     def _init_drag_drop(self):
         """
         初始化拖放功能
@@ -1770,6 +677,10 @@ class MainWindow(QMainWindow):
         
         # 保存配置
         self._save_config()
+
+        # v2：同步状态栏、台账统计与预览摘要（构建阶段控件尚未齐备时跳过）
+        if hasattr(self, 'status_left_label'):
+            self._update_status_bar()
     
     def _on_margin_changed(self):
         """
@@ -1889,7 +800,7 @@ class MainWindow(QMainWindow):
                     page_container = QFrame()
                     page_container.setStyleSheet(f"""
                         QFrame {{
-                            background-color: white;
+                            background-color: {CARD_BG};
                             border: 1px solid {BORDER_COLOR};
                             border-radius: 4px;
                         }}
@@ -1901,7 +812,6 @@ class MainWindow(QMainWindow):
                     # 页面编号标签
                     # page_num_label = QLabel(f"第 {i + 1} 页")
                     # page_num_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    # page_num_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 11px;")
                     # page_layout.addWidget(page_num_label)
                     
                     # 图像标签
@@ -2193,6 +1103,9 @@ class MainWindow(QMainWindow):
         self._hide_progress()
         self._update_stats()
         self._update_button_states()
+        self._show_feedback(
+            f"导入完成　·　当前 {len(self.file_list.get_all_files())} 张票据", "success"
+        )
         self.file_load_worker = None
 
     def _on_file_load_error(self, error_message):
@@ -2203,6 +1116,7 @@ class MainWindow(QMainWindow):
             error_message: 错误信息
         """
         self._hide_progress()
+        self._show_feedback(f"导入失败　·　{error_message}", "danger")
         QMessageBox.critical(self, "错误", f"文件加载失败: {error_message}")
         self.file_load_worker = None
 
@@ -2216,6 +1130,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setFormat(f"{text} %p%")
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
+        self._show_feedback(f"{text}　·　任务在后台执行", "info")
 
     def _hide_progress(self):
         """隐藏底部进度条"""
@@ -2315,7 +1230,11 @@ class MainWindow(QMainWindow):
         """
         self.progress_bar.setVisible(False)
         self.merge_btn.setEnabled(True)
-        self.merge_btn.setText("合并")
+        self.merge_btn.setText("合并 PDF")
+        self._show_feedback(
+            "合并完成　·　可打印或打开输出文件" if success else "合并未完成，请检查提示信息",
+            "success" if success else "warning",
+        )
 
         if success:
             QMessageBox.information(self, "成功", message)
@@ -2335,14 +1254,32 @@ class MainWindow(QMainWindow):
         """
         self.progress_bar.setVisible(False)
         self.merge_btn.setEnabled(True)
-        self.merge_btn.setText("合并")
+        self.merge_btn.setText("合并 PDF")
+        self._show_feedback(f"合并失败　·　{error_message}", "danger")
         QMessageBox.critical(self, "错误", f"合并失败: {error_message}")
         self.worker = None
+
+    def _on_open_output(self):
+        """
+        打开上次合并输出文件
+
+        功能描述:
+            输出条右侧「打开文件」入口：优先打开当前输出路径指向的 PDF；
+            若文件不存在则提示用户先完成一次合并。
+
+        参数:
+            无
+        """
+        output_path = self.path_edit.text().strip()
+        if not output_path or not os.path.exists(output_path):
+            self._show_feedback("尚未生成输出文件　·　请先点击「合并 PDF」", "warning")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(output_path))
 
     def _on_select_path(self):
         """
         选择输出路径
-        
+
         功能描述:
             打开保存对话框让用户选择输出文件路径
         """
@@ -2533,21 +1470,14 @@ class MainWindow(QMainWindow):
             if len(result.get('unrecognized_files', [])) > 0:
                 messages.append(f"未能识别: {len(result['unrecognized_files'])} 个文件（可能是图片格式，无法提取文本）")
 
-            # 显示结果
-            if messages:
-                QMessageBox.information(
-                    self,
-                    "重命名完成",
-                    "\n".join(messages)
-                )
-            else:
-                QMessageBox.information(
-                    self,
-                    "重命名完成",
-                    "没有文件需要重命名\n（可能是生成的文件名与原文件名相同）"
-                )
+            # 显示结果（v2：同时写入主界面统一回执）
+            receipt = "　·　".join(messages) if messages else "没有文件需要重命名"
+            self._show_feedback(f"批量重命名完成　·　{receipt}", "success")
+            QMessageBox.information(self, "重命名完成", "\n".join(messages) if messages else
+                                    "没有文件需要重命名\n（可能是生成的文件名与原文件名相同）")
 
         except Exception as e:
+            self._show_feedback(f"批量重命名失败　·　{str(e)}", "danger")
             QMessageBox.critical(self, "错误", f"批量重命名失败: {str(e)}")
     
     def _on_feedback(self):
@@ -2601,34 +1531,16 @@ class MainWindow(QMainWindow):
         重复发票数量变化时的处理
 
         功能描述:
-            当检测到重复发票数量变化时，更新文件列表标签显示
-
-        参数:
-            count: 重复发票号码的数量
+            v2 UI 用台账标题栏的琥珀状态标签表达重复组数与涉及张数，
+            行内由 FileListPanel 使用警示色标记；不再拼接标题文字或整行涂色。
         """
-        # 获取文件数量和总金额
-        file_count = self.file_list.table.rowCount()
-        total_amount = 0.0
-        for row in range(file_count):
-            amount_item = self.file_list.table.item(row, 3)
-            if amount_item:
-                amount = amount_item.data(Qt.ItemDataRole.UserRole)
-                if amount and isinstance(amount, (int, float)):
-                    total_amount += amount
-
-        if count > 0:
-            self.file_list_label.setText(f"文件列表  文件数量:{file_count}  总金额:{total_amount:.2f}  重复发票数量:{count}")
-            # 设置警告颜色（橙色）
-            self.file_list_label.setStyleSheet(
-                f"font-size: 14px; font-weight: bold; color: #FF9800; background: transparent; border: none;"
-            )
-        else:
-            self.file_list_label.setText(f"文件列表  文件数量:{file_count}  总金额:{total_amount:.2f}")
-            # 恢复默认颜色
-            self.file_list_label.setStyleSheet(
-                f"font-size: 14px; font-weight: bold; color: {TEXT_PRIMARY}; background: transparent; border: none;"
-            )
-
+        update_duplicate_chip(self, count)
+        if hasattr(self, 'status_left_label'):
+            self._update_status_bar()
+        try:
+            self.file_list_label.setText("票据台账")
+        except Exception:
+            pass
     def dragEnterEvent(self, event):
         """
         拖放进入事件
@@ -2703,6 +1615,10 @@ class MainWindow(QMainWindow):
             self.preview_status_label.setText("(添加文件后自动更新)")
             self.refresh_preview_btn.setEnabled(False)
             self.preview_stack.setCurrentIndex(0)
+
+        # v2：同步台账统计、预览摘要与状态栏
+        if hasattr(self, 'status_left_label'):
+            self._update_status_bar()
     
     def _update_button_states(self):
         """
@@ -2721,6 +1637,14 @@ class MainWindow(QMainWindow):
         self.move_up_btn.setEnabled(has_selection)
         self.move_down_btn.setEnabled(has_selection)
         self.merge_btn.setEnabled(has_files)
+        self.merge_btn.setToolTip(
+            "按当前布局合并全部发票并保存"
+            if has_files else "请先添加发票文件后再合并"
+        )
+        if hasattr(self, 'context_status_label') and not has_files:
+            self.context_status_label.setText("请先添加发票文件　·　配置已自动保存")
+        if hasattr(self, 'status_left_label'):
+            self._update_status_bar()
     
     def _load_config(self):
         """
@@ -2852,7 +1776,8 @@ class MainWindow(QMainWindow):
 
                 # 版本号从 version.json 读取，不在 config.json 中存储
                 # 避免覆盖 _get_version() 获取的正确版本号
-                pass
+                if hasattr(self, 'status_left_label'):
+                    self._update_status_bar()
 
         except Exception as e:
             print(f"加载配置失败: {e}")
@@ -3031,6 +1956,8 @@ class MainWindow(QMainWindow):
         zoom_percent = int(self.preview_scale * 100)
         files = self.file_list.get_all_files()
         self.preview_status_label.setText(f"(预览全部页面，共{len(files)}个文件，缩放{zoom_percent}%)")
+        if hasattr(self, 'preview_zoom_label'):
+            self.preview_zoom_label.setText(f"{zoom_percent}%")
     
     def _reset_preview_zoom(self):
         """
@@ -3052,6 +1979,15 @@ class MainWindow(QMainWindow):
         """
         self._save_config()
         event.accept()
+
+
+    def _update_status_bar(self):
+        """刷新台账统计、预览摘要与底部状态栏。"""
+        update_status_bar(self)
+
+    def _show_feedback(self, text, state="info"):
+        """显示统一的结果回执（info / success / warning / danger）。"""
+        show_feedback(self, text, state)
 
 
 class FeedbackDialog(QDialog):
@@ -3082,28 +2018,16 @@ class FeedbackDialog(QDialog):
         layout.setSpacing(16)
         layout.setContentsMargins(20, 20, 20, 20)
         
-        # 标题
-        title = QLabel("📖 使用帮助")
-        title.setStyleSheet(f"""
-            font-size: 20px;
-            font-weight: bold;
-            color: {TEXT_PRIMARY};
-        """)
+        # 标题（v2：由全局 QSS 的 sectionLabel 提供字号与颜色）
+        title = QLabel("使用帮助")
+        title.setObjectName("sectionLabel")
         layout.addWidget(title)
         
         # 帮助内容区域
         help_text = QTextEdit()
         help_text.setReadOnly(True)
-        help_text.setStyleSheet(f"""
-            QTextEdit {{
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 8px;
-                background-color: {CARD_BG};
-                padding: 12px;
-                font-size: 13px;
-                line-height: 1.6;
-            }}
-        """)
+        # 字体/边框/底色统一由 tokens.build_stylesheet() 的 QTextEdit / #helpText 提供
+        help_text.setObjectName("helpText")
         
         help_content = """<h3>快速开始</h3>
 <ol>
@@ -3163,7 +2087,7 @@ class FeedbackDialog(QDialog):
         # 添加分隔线
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet(f"background-color: {BORDER_COLOR};")
+        separator.setObjectName("hSeparator")
         separator.setFixedHeight(1)
         layout.addWidget(separator)
         
@@ -3185,54 +2109,26 @@ class FeedbackDialog(QDialog):
                 qrcode_label.setPixmap(qrcode_pixmap)
             else:
                 qrcode_label.setText("图片加载失败")
-                qrcode_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px; border: 1px solid {BORDER_COLOR}; border-radius: 4px;")
+                qrcode_label.setObjectName("qrcodePlaceholder")
         else:
             qrcode_label.setText("二维码")
-            qrcode_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px; border: 1px solid {BORDER_COLOR}; border-radius: 4px;")
+            qrcode_label.setObjectName("qrcodePlaceholder")
         qrcode_label.setFixedSize(120, 120)
         qrcode_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         qrcode_layout.addWidget(qrcode_label)
         
         # 提示文字
         qrcode_text = QLabel("有其他问题可以扫码反馈")
-        qrcode_text.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 13px;")
+        qrcode_text.setObjectName("qrcodeHint")
         qrcode_layout.addWidget(qrcode_text)
         
         layout.addLayout(qrcode_layout)
         
-        # 设置样式
+        # 设置样式（v2：统一令牌 + 清除历史内联样式）
         self._setup_stylesheet()
+        clear_inline_styles(self)
+        apply_numeric_text_fonts(self)
     
     def _setup_stylesheet(self):
-        """
-        设置对话框样式表
-        """
-        self.setStyleSheet(f"""
-            QDialog {{
-                background-color: {BG_COLOR};
-            }}
-            QLabel {{
-                color: {TEXT_PRIMARY};
-                font-size: 14px;
-            }}
-            QPushButton {{
-                padding: 10px 20px;
-                border: 1px solid {BORDER_COLOR};
-                border-radius: 6px;
-                background-color: {CARD_BG};
-                color: {TEXT_PRIMARY};
-                font-size: 14px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: {BG_COLOR};
-            }}
-            QPushButton#primaryButton {{
-                background-color: {PRIMARY_COLOR};
-                color: white;
-                border: none;
-            }}
-            QPushButton#primaryButton:hover {{
-                background-color: {PRIMARY_HOVER};
-            }}
-        """)
+        """使用帮助对话框同样消费 ui.tokens 生成的全局 QSS。"""
+        self.setStyleSheet(build_stylesheet(_theme.dark))
