@@ -1,0 +1,16 @@
+程序启动失败: No module named 'openpyxl'
+Traceback (most recent call last):
+  File "D:\minipro\piaoyihe\piaoyihe\code\main.py", line 291, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "D:\minipro\piaoyihe\piaoyihe\code\main.py", line 286, in main
+    return _run_gui_mode()
+  File "D:\minipro\piaoyihe\piaoyihe\code\main.py", line 158, in _run_gui_mode
+    from ui.main_frame import MainWindow
+  File "D:\minipro\piaoyihe\piaoyihe\code\ui\main_frame.py", line 22, in <module>
+    from ui.file_list import FileListPanel
+  File "D:\minipro\piaoyihe\piaoyihe\code\ui\file_list.py", line 20, in <module>
+    from core.invoice_service import InvoiceService
+  File "D:\minipro\piaoyihe\piaoyihe\code\core\invoice_service.py", line 15, in <module>
+    from openpyxl import Workbook
+ModuleNotFoundError: No module named 'openpyxl'

@@ -5,7 +5,7 @@
   "ignored_version": "0.1.5",
   "save_path": "",
   "sort_by": "list",
-  "output_path": "",
+  "output_path": "D:/公司文档/05.培训(公共)/报销/2501/02\\output.pdf",
   "rename_rule": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
   "layout_config": {
     "orientation": "landscape",
@@ -15,13 +15,22 @@
     "margins": {
       "top": 0,
       "bottom": 0,
-      "left": 10,
+      "left": 0,
       "right": 0
     },
-    "show_crop_marks": true,
-    "crop_mark_left": 10,
+    "show_crop_marks": false,
+    "crop_mark_left": 0,
     "crop_mark_right": 0
   },
   "preview_enabled": true,
-  "duplicate_copy": true
+  "duplicate_copy": false,
+  "rename_rules": {
+    "vat_invoice": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
+    "train_ticket": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}-{出发站}-{到达站}",
+    "flight_ticket": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}-{航班号}-{航空公司}",
+    "vehicle_invoice": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
+    "taxi_invoice": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
+    "fixed_amount_invoice": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
+    "toll_invoice": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}"
+  }
 }

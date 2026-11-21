@@ -8,7 +8,8 @@
 import re
 import os
 import time
-from .base import InvoiceExtractor
+from typing import Any, Dict
+from .base import InvoiceExtractor, iter_company_names
 
 
 class TollInvoiceExtractor(InvoiceExtractor):
@@ -22,6 +23,8 @@ class TollInvoiceExtractor(InvoiceExtractor):
     """
 
     INVOICE_TYPE_KEYWORDS = ['通行费', 'ETC', '过路费', '收费公路']
+
+    TYPE_KEY = "toll_invoice"
 
     def extract_amount(self) -> float:
         """
@@ -140,6 +143,13 @@ class TollInvoiceExtractor(InvoiceExtractor):
                 if len(buyer) > 2:
                     return buyer[:30]
 
+        # 策略4：旧版纸质发票把「购/买/方」拆成竖排单字，
+        # 「名　　　　称:」中间夹全角空格，上面的标签全都不匹配，
+        # 改为按票面公司名的出现顺序推断（第 1 个为购买方，第 2 个为销售方）
+        names = iter_company_names(self._text)
+        if names:
+            return names[0][:30]
+
         return ""
 
     def extract_invoice_code(self) -> str:
@@ -166,7 +176,20 @@ class TollInvoiceExtractor(InvoiceExtractor):
         if match:
             return match.group(1).strip()
 
-        # 策略3：匹配20位数字代码格式
+        # 策略3：旧版纸质发票版式——12 位发票代码 + 8 位发票号码
+        # 两者可能各占一行（值区），也可能带标签同行（如「发票代码: 023002300111 … 发票号码: 02621811」）
+        # 统一拼成 20 位，便于存储与查重（机器编号 499098461547 后接中文大写，不会误中）
+        old_layouts = [
+            r'发票代码[:：]?\s*(\d{12})\s*(\d{8})(?!\d)',
+            r'发票代码[:：]?\s*(\d{12})[\s\S]{0,200}?发票号码[:：]?\s*(\d{8})',
+            r'(?<!\d)(\d{12})\s*\n\s*(\d{8})(?!\d)',
+        ]
+        for code_pattern in old_layouts:
+            match = re.search(code_pattern, self._text)
+            if match:
+                return (match.group(1) + match.group(2)).strip()
+
+        # 策略4：匹配20位数字代码格式
         code_pattern = r'\b(\d{20})\b'
         matches = re.findall(code_pattern, self._text)
         for code in matches:
@@ -197,6 +220,11 @@ class TollInvoiceExtractor(InvoiceExtractor):
                 seller = match.group(1).strip()
                 if len(seller) > 2:
                     return seller[:30]
+
+        # 策略3：同 extract_buyer_name 的说明，按公司名出现顺序取第 2 个
+        names = iter_company_names(self._text)
+        if len(names) >= 2:
+            return names[1][:30]
 
         return ""
 
@@ -253,3 +281,67 @@ class TollInvoiceExtractor(InvoiceExtractor):
                     pass
 
         return 0.0
+
+    def extract_extra_fields(self) -> Dict[str, Any]:
+        """
+        提取通行费发票特有字段：入口、出口、路段
+
+        注意：不改变现有 extract_product_type() 的取值口径，
+        这里只补充独立的入口/出口/路段字段。
+
+        Returns:
+            Dict[str, Any]: toll_entry / toll_exit / toll_section
+        """
+        text = self._text or ""
+        entry = ""
+        exit_ = ""
+        section = ""
+
+        # 入口-出口：同一段文本内匹配
+        match = re.search(
+            r'入\s*口[:：]?\s*([^\n]{1,20}?)\s*(?:出\s*口[:：]?\s*([^\n]{1,20}?))?(?:\n|$)',
+            text
+        )
+        if match:
+            entry = (match.group(1) or '').strip()[:20]
+            exit_ = (match.group(2) or '').strip()[:20]
+
+        # 旧版纸质发票版式：车辆与站点写在同一行，形如
+        # 「黑A14T6T 哈尔滨机场站入 哈尔滨机场出 2024-12-26 06:53:46」
+        # 「吉林龙嘉机场收费站入 吉林长春东收费站出 2025-01-19 13:38:13」
+        if not entry or not exit_:
+            match = re.search(
+                r'([\u4e00-\u9fa5A-Za-z0-9]{2,15}站)入\s+'
+                r'([\u4e00-\u9fa5A-Za-z0-9]{2,15}?站?)出',
+                text
+            )
+            if match:
+                if not entry:
+                    entry = match.group(1).strip()[:20]
+                if not exit_:
+                    exit_ = match.group(2).strip()[:20]
+
+        # 单独匹配出口（入口未带出出口时）
+        if not exit_:
+            match = re.search(r'出\s*口[:：]?\s*([^\n]{1,20})', text)
+            if match:
+                exit_ = match.group(1).strip()[:20]
+
+        # 路段（标签后必须是实际路名，不能是「无路段信息」这类否定描述的残留）
+        match = re.search(r'路\s*段[:：]?\s*([^\n]{1,20})', text)
+        if match:
+            candidate = match.group(1).strip()[:20]
+            # 排除「无路段」等否定描述与纯表头词
+            if candidate and not candidate.startswith(('无', '信息', '：', ':')) \
+                    and '无路' not in match.group(0)[:6]:
+                section = candidate
+
+        # 清洗：去掉残留的「出口」标签文字
+        entry = re.sub(r'出\s*口[:：]?', '', entry).strip()
+        exit_ = re.sub(r'入\s*口[:：]?', '', exit_).strip()
+
+        return {
+            'toll_entry': entry,
+            'toll_exit': exit_,
+            'toll_section': section,
+        }

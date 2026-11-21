@@ -232,8 +232,8 @@ class PDFHandler:
             current_page = output_doc.new_page(width=page_width, height=page_height)
             page_count = 0
 
-            # 如果是多发票页面，绘制分割线
-            if layout_config['rows'] * layout_config['cols'] > 1:
+            # 如果是多发票页面且已勾选裁切线，绘制分割线
+            if layout_config['rows'] * layout_config['cols'] > 1 and layout_config.get('show_crop_marks', False):
                 self._draw_dividers(
                     current_page,
                     layout_config,
