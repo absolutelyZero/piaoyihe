@@ -128,14 +128,14 @@ RADIUS = {"card": 8, "control": 6, "chip": 4}
 #   中文 Noto Sans SC（Regular 13 / Medium 14 / SemiBold 16 / Bold 20，行高 22，字距 0）
 #   数字用 Inter，并启用 OpenType `tnum` 得到等宽数字后右对齐（见 file_list.py）。
 # 设计稿 .op 源文件中数字节点的 fontFamily 正是 "Inter"，而非此前代码写的 Geist Mono。
-# Geist Mono / JetBrains Mono 在目标机器上并不存在，会静默回退到 Arial（比例数字、
-# 字形与设计稿不一致），这是「字体不是同一种、看起来不清晰」的根因。
 # 因此把设计稿同款可变字体（Inter-VF.ttf / NotoSansSC-VF.ttf，均 SIL OFL 1.1）
 # 随程序打包，启动时由 register_bundled_fonts() 注册，不再依赖系统是否安装。
+# 等宽栈也只保留这两项：任何指向目标机不存在的字体（Geist Mono / JetBrains Mono /
+# Consolas）都会让 Qt 回退到 Arial，并触发一次字体别名扫描拖慢启动。
 FONT_CN_STACK = '"Noto Sans SC","Source Han Sans SC","Source Han Sans CN","Microsoft YaHei","PingFang SC","SimHei","DengXian",sans-serif'
-FONT_MONO_STACK = '"Inter","JetBrains Mono","Consolas","Cascadia Mono","Noto Sans SC",monospace'
+FONT_MONO_STACK = '"Inter","Noto Sans SC",monospace'
 FONT_CN_FAMILIES = ("Noto Sans SC", "Source Han Sans SC", "Source Han Sans CN", "Microsoft YaHei", "PingFang SC", "SimHei", "DengXian")
-FONT_MONO_FAMILIES = ("Inter", "JetBrains Mono", "Consolas", "Cascadia Mono", "Noto Sans SC")
+FONT_MONO_FAMILIES = ("Inter", "Noto Sans SC")
 
 # 设计稿正文 Regular 13px / 行高 22；应用级默认字号必须与之对齐，
 # 此前 apply_application_style() 用 QFont(family, 9) = 12px，未被 QSS 覆盖的控件偏小。
@@ -257,20 +257,24 @@ def resolve_font_family(preferred: Iterable[str] = FONT_CN_FAMILIES) -> str:
     return next(iter(preferred))
 
 
+def _res_dir() -> str:
+    """返回随程序分发的资源根目录：打包后在 _MEIPASS/res，开发时在 code/res。"""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        base = sys._MEIPASS
+    else:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, "res")
+
+
 def _icon_url(filename: str) -> str:
     """把 ``code/res/icons`` 下的 SVG 转成 QSS ``url(...)`` 可用的路径。"""
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path = os.path.join(base, "res", "icons", filename)
+    path = os.path.join(_res_dir(), "icons", filename)
     return "url(" + path.replace(os.sep, "/") + ")"
 
 
 def _fonts_dir() -> str:
     """返回随程序分发的字体目录：打包后在 _MEIPASS/res/fonts，开发时在 code/res/fonts。"""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        base = sys._MEIPASS
-    else:
-        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base, "res", "fonts")
+    return os.path.join(_res_dir(), "fonts")
 
 
 def register_bundled_fonts() -> int:
@@ -392,8 +396,7 @@ QDialog {{
 
 /* ---- 结构容器 ---- */
 QFrame#card, QFrame#ledgerCard, QFrame#previewCard, QFrame#settingsCard,
-QFrame#actionsCard, QFrame#fileListCard,
-QFrame#titleBar, QFrame#statusBar {{
+QFrame#actionsCard, QFrame#fileListCard, QFrame#statusBar {{
     background-color: {t['surface']};
     border: 1px solid {t['border']};
     border-radius: {RADIUS['card']}px;
@@ -454,18 +457,12 @@ QSpinBox#bareSpin {{
     color: {t['text_primary']};
 }}
 QSpinBox#bareSpin:focus {{ background: transparent; border: none; }}
-QFrame#contextBar {{
-    background-color: {t['accent_tint']};
-    border: none;
-    border-radius: 0px;
-}}
-QFrame#outputBar, QFrame#titleBar, QFrame#statusBar {{
+QFrame#outputBar, QFrame#statusBar {{
     border-radius: 0px;
     border-left: none;
     border-right: none;
     border-top: none;
 }}
-QFrame#titleBar {{ border-bottom: 1px solid {t['border']}; }}
 QFrame#outputBar {{ border-top: 1px solid {t['border']}; }}
 QFrame#statusBar {{
     background-color: {t['surface_alt']};
@@ -499,11 +496,9 @@ QLabel {{
     border: none;
 }}
 QLabel#titleLabel {{ font-size: {S['heading']}px; font-weight: {W['bold']}; }}
-QLabel#contextLabel {{ font-size: {S['base']}px; color: {t['text_primary']}; }}
 QLabel#sectionLabel {{ font-size: {S['heading']}px; font-weight: {W['bold']}; }}
 /* 设计稿：「合并预览」「排版与输出参数」为 14px/700（ink 高 13px），比台账标题小一档 */
 QLabel#cardTitleLabel {{ font-size: {S['subhead']}px; font-weight: {W['bold']}; }}
-QLabel#brandTitle {{ font-size: {S['title']}px; font-weight: {W['bold']}; }}
 QLabel#subtitleLabel, QLabel#hintLabel, QLabel#statusLabel {{
     font-size: {S['caption']}px;
     color: {t['text_secondary']};
@@ -685,13 +680,29 @@ QPushButton#secondaryButton {{
     min-height: 26px;
     max-height: 34px;
 }}
+/* 文字按钮：默认 24px（预览头、对话框标题栏等 24px 内层条带直接用）。
+   高度一律写在这里而不是代码里 setFixedHeight()——QSS 的 min/max-height 会覆盖
+   setFixedHeight，两边都写时以 QSS 为准，容易误判；也不给上下 padding，否则内容高 +
+   上下各 4px 会撑到 32px，在 32px 高的状态栏里下沉被裁。状态栏需要 22px，见下方作用域规则。 */
 QPushButton#textButton {{
     background-color: transparent;
     color: {t['accent']};
     border: none;
     font-size: {S['body']}px;
-    padding: 4px 8px;
+    padding: 0px 8px;
     min-height: 24px;
+    max-height: 24px;
+}}
+/* 状态栏行高：32px 栏高减上下各 4px 内边距与 1px 上边框后内层只有 23px，
+   而文字按钮默认 24px 会被压到 24px 并下沉——cocoa 实测「使用帮助」墨迹中线比
+   相邻 11px 文本低 2px。把这一条带的文字项与文字按钮统一钉到 22px（墨迹中线极差
+   0.5px）；versionLabel 自带 1px 边框与 3px 内边距，故内容高取 14px 以凑满 22px。 */
+QFrame#statusBar QLabel#statusBarLabel {{ min-height: 22px; max-height: 22px; }}
+QFrame#statusBar QPushButton#textButton {{ min-height: 22px; max-height: 22px; }}
+QFrame#statusBar QLabel#versionLabel {{
+    padding: 3px 8px;
+    min-height: 14px;
+    max-height: 14px;
 }}
 QPushButton#textButton:hover {{ background-color: {t['accent_tint']}; }}
 /* 操作条中的「删除选中」按设计稿为白底灰边；「清空全部」用 [tone=danger] 呈现浅红 */

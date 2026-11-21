@@ -11,16 +11,21 @@ from PyInstaller.utils.hooks import collect_data_files
 
 # ofd2pdf 内置的 ofd-cli 可执行文件（OFD 渲染依赖）
 try:
+    import ofd2pdf  # noqa: F401
     ofd2pdf_datas = collect_data_files('ofd2pdf')
+    ofd2pdf_hiddenimports = ['ofd2pdf', 'ofd2pdf.ofd_cli', 'ofd2pdf.converter']
 except Exception:
     ofd2pdf_datas = []
+    ofd2pdf_hiddenimports = []
 
 block_cipher = None
 
 # 分析项目依赖
 a = Analysis(
     ['code\\main.py'],
-    pathex=['d:\\minipro\\piaoyihe\\piaoyihe', 'd:\\minipro\\piaoyihe\\piaoyihe\\code'],
+    # pathex 由 scripts/patch_spec.py 在打包前写入当前仓库的绝对路径
+    # （ui/core 是 code/ 下的顶层包，缺少 code 目录会打出 No module named 'ui'）
+    pathex=[],
     binaries=[],
     datas=[
         ('code\\res\\logo3.png', 'res'),
@@ -30,16 +35,8 @@ a = Analysis(
         ('code\\res\\fonts\\Inter-VF.ttf', 'res\\fonts'),
         ('code\\res\\fonts\\NotoSansSC-VF.ttf', 'res\\fonts'),
         ('code\\res\\fonts\\OFL-1.1.txt', 'res\\fonts'),
-        ('code\\res\\icons\\刷新_refresh.svg', 'res\\icons'),
-        ('code\\res\\icons\\笔记_notes.svg', 'res\\icons'),
-        ('code\\res\\icons\\加_plus.svg', 'res\\icons'),
-        ('code\\res\\icons\\减_minus.svg', 'res\\icons'),
-        ('code\\res\\icons\\关闭_close.svg', 'res\\icons'),
-        ('code\\res\\icons\\箭头上_arrow-up.svg', 'res\\icons'),
-        ('code\\res\\icons\\箭头下_arrow-down.svg', 'res\\icons'),
-        ('code\\res\\icons\\铅笔_pencil.svg', 'res\\icons'),        
-        ('code\\res\\icons\\下载_download-four.svg', 'res\\icons'),        
-        ('code\\res\\icons\\预览-打开_preview-open.svg', 'res\\icons'),
+        # 图标整目录打包：代码按文件名引用，避免新增图标漏打包
+        ('code\\res\\icons', 'res\\icons'),
         ('code\\version.json', 'code'),
         *ofd2pdf_datas,
     ],
@@ -82,13 +79,10 @@ a = Analysis(
         'core.invoice_extractors.fixed_amount_invoice',
         'core.invoice_extractors.toll_invoice',
         'core.invoice_service',
-        'core.rename_engine',
         'core.ofd_converter',
 
-        # OFD 渲染依赖（ofd2pdf 及其内置 ofd-cli）
-        'ofd2pdf',
-        'ofd2pdf.ofd_cli',
-        'ofd2pdf.converter',
+        # OFD 渲染依赖（ofd2pdf 及其内置 ofd-cli），仅平台可用时打包
+        *ofd2pdf_hiddenimports,
 
         # GUI 界面模块（namespace 包无法被自动收集，必须显式列出）
         'ui',

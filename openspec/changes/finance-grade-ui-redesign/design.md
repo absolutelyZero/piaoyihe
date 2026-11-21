@@ -20,7 +20,7 @@
 **Goals:**
 
 - 建立单一色值/字体/尺寸来源，消除三个 UI 文件各自硬编码的配色。
-- 用五段式结构重排主窗口，确立唯一主操作与状态可审计的表达方式。
+- 用三段式结构重排主窗口（主体 → 输出提交条 → 状态栏），确立唯一主操作，并把全部全局状态与入口收敛到底部状态栏这一处。
 - 让 6 份新增能力规格（`finance-ui-design-system`、`workspace-structure`、`invoice-ledger-ui`、`merge-configuration-ui`、`ui-feedback-and-dialogs`、`feature-preservation`）逐条可验收。
 - 51 项功能改造前后行为一致，浅色/深色两套视觉都通过截图回归。
 
@@ -48,9 +48,9 @@
 
 在 `QApplication` 级别注入一份由令牌生成的 QSS，按 `objectName` / 类选择器定义四级按钮、输入框、分段控件、卡片、状态标签与表格；新增 `ui/components.py` 提供 `primary_button()` / `secondary_button()` / `text_button()` / `danger_button()` / `status_chip()` / `section_card()` 等工厂，控件只设置 `objectName`。现有内联 `setStyleSheet` 随重构逐步删除，避免选择器优先级互相覆盖。
 
-### D4 — 主窗口用现有 `QSplitter` 重排为五段式，不引入 Dock 体系
+### D4 — 主窗口用现有 `QSplitter` 重排为三段式，不引入 Dock 体系
 
-标题栏、上下文条、主体、输出提交条、状态栏用嵌套 `QVBoxLayout`；主体继续用 `QSplitter(Qt.Horizontal)` 承载左台账 / 右「预览 + 参数」，右侧用 `QVBoxLayout` 上下分。预览空态继续由 `QStackedWidget` 在占位页与图像页间切换。备选 `QMainWindow` + `QDockWidget`：否决，会让标题栏/提交条脱离固定位置，也增加用户误拖动导致的布局漂移。
+主体、输出提交条、状态栏用嵌套 `QVBoxLayout`；主体继续用 `QSplitter(Qt.Horizontal)` 承载左台账 / 右「预览 + 参数」，右侧用 `QVBoxLayout` 上下分。预览空态继续由 `QStackedWidget` 在占位页与图像页间切换。原「标题栏 + 上下文提示条」两个区段取消：品牌标记与副标题直接删除，就绪/运行状态、配置保存状态、版本号、使用帮助入口全部迁入底部状态栏，状态栏因此由 25px 单行扩展为 32px 单行（左：就绪状态 + 模式 + 布局摘要 + 文件数；右：临时消息位 + 配置保存状态 + 使用帮助 + 版本号）。合并去重规则是「以状态栏既有文案为准」——统一用「就绪」（弃用「已就绪」）、「配置自动保存」（弃用「配置已自动保存」），版本号「票易合 {版本号}」只保留状态栏一处；检查更新不再单独设按钮，改为点击版本号直接触发，与既有 `_on_version_click()` 行为一致；常驻拖放引导文案删除，拖放入口说明由台账空态投放带承担。备选 `QMainWindow` + `QDockWidget`：否决，会让输出提交条与状态栏脱离固定位置，也增加用户误拖动导致的布局漂移。
 
 ### D5 — 业务逻辑零改动，控件只重连既有 handler
 
@@ -66,14 +66,15 @@
 
 ### D8 — 设计稿作为验收基线，配套 51 项清单
 
-`req/ui/00-设计说明与设计系统.png` 中的功能保留矩阵即验收清单；`01`–`04` 提供浅色主界面、重命名、状态弹窗与深色模式的像素级参照。每完成一个 UI 分组用截图比对，避免主观反复打磨。
+`req/ui/00-设计说明与设计系统.png` 中的功能保留矩阵即验收清单；`01`–`04` 提供浅色主界面、重命名、状态弹窗与深色模式的像素级参照。每完成一个 UI 分组用截图比对，避免主观反复打磨。**注意**：设计稿 `01` 仍是五段式（含标题栏与上下文提示条），本规格已改为三段式，结构验收以 `workspace-structure` 的三段式需求为准，`01` 仅作为色值、间距、控件形态的参照，不作为区段数量的依据。
 
 ## Risks / Trade-offs
 
 - **[QSS 优先级混乱]** 新旧样式并存期间局部 `setStyleSheet` 会覆盖全局 QSS → 分阶段替换，先生成全局表再逐文件删除内联样式；每次替换后按 `01`/`04` 截图比对。
-- **[中文字体缺失]** macOS / Win7 未必有 Noto Sans SC → 字体栈回退 `Noto Sans SC → Source Han Sans SC → Source Han Sans CN → Microsoft YaHei → PingFang SC → SimHei → DengXian → system sans`，数字栈回退 `Inter → JetBrains Mono → Consolas → Cascadia Mono → Noto Sans SC → monospace`；并把设计稿同款 `Inter-VF.ttf` / `NotoSansSC-VF.ttf`（SIL OFL 1.1）随程序打包、启动时由 `register_bundled_fonts()` 注册，不联网加载，避免离线风险。
+- **[中文字体缺失]** macOS / Win7 未必有 Noto Sans SC → 字体栈回退 `Noto Sans SC → Source Han Sans SC → Source Han Sans CN → Microsoft YaHei → PingFang SC → SimHei → DengXian → system sans`，数字栈回退 `Inter → Noto Sans SC → monospace`（栈内只保留随包分发的字体）；并把设计稿同款 `Inter-VF.ttf` / `NotoSansSC-VF.ttf`（SIL OFL 1.1）随程序打包、启动时由 `register_bundled_fonts()` 注册，不联网加载，避免离线风险。
 - **[深色模式对比不足]** 琥珀警示与蓝色数值在深色底上可能不够清晰 → 令牌表固定深色专用语义色（`#D9A441` / `#4A86D8`），并要求深色截图逐项核对文字对比。
 - **[信号槽漏接]** 重排 3238 行主窗口时可能漏连某个按钮 → 51 项清单逐项手动触发 + 现有 `test_*.py` 回归；`feature-preservation` 提供验收记录要求。
+- **[设计稿与规格区段数不一致]** `req/ui/01` 仍是五段式，规格已改为三段式，直接按图比对会误判缺项 → 结构验收以 `workspace-structure` 的三段式需求与 `test_ui_shell.py` 的 `test_01` 为准，`01` 只用于色值/间距/控件形态比对；A 组 6 项按「落点变化、项数不变」口径核对（标题栏入口 → 状态栏、拖放提示 → 台账投放带、检查更新 → 版本号）。
 - **[窄窗口 9 列被裁]** 分栏拖动后列宽不足 → 表格启用水平滚动与最小列宽，禁止通过隐藏列来适配；`workspace-structure` 明确要求列不被裁切。
 - **[异步任务与重绘竞态]** 预览刷新、重复检查、文件加载与界面重建并发 → 保留现有 `QTimer` 防抖、`ThreadPoolExecutor` 与 Qt 信号切回主线程的机制，重构期间不改这些线程的生命周期。
 - **[打包资源]** 新增的 `Inter-VF.ttf` / `NotoSansSC-VF.ttf` / `OFL-1.1.txt` 已同步补入 `invoice_tool_win.spec` 与 `invoice_tool.spec` 的 `datas`（目标 `res/fonts/`），并复制到已构建的 `dist/票易合/_internal/res/fonts/`；`_fonts_dir()` 在打包后指向 `sys._MEIPASS/res/fonts`、开发时指向 `code/res/fonts`，须在 Windows/macOS 打包后各验一次字体确实注册成功。
@@ -82,8 +83,8 @@
 ## Migration Plan
 
 1. **令牌层**：新增 `ui/tokens.py`；改造 `ui/theme.py` 使 `AppTheme` 从令牌取值且属性名不变；生成全局 QSS 并在 `code/main.py` 的 `QApplication` 创建后注入（只加一行，不动 CLI/MCP 参数解析）。验证：浅色/深色启动后现有界面配色统一、无报错。
-2. **结构层**：在 `main_frame.py` 中把控件按五段式重排，保持所有控件变量名与信号连接不变；引入 `ui/components.py` 工厂替换按钮创建。验证：51 项清单中 A/C/E 组入口全部可见可点。
-3. **台账层**：`file_list.py` 表头/行样式改为全局 QSS；新增投放带空态、状态标记式重复告警与标题栏统计；右键菜单、悬停浮窗、双击、列头排序保持原样。验证：B 组 9 项 + `image-merge-support` 场景回归。
+2. **结构层**：在 `main_frame.py` 中把控件按三段式重排，保持所有控件变量名与信号连接不变；删除 `shell.py` 的 `create_title_bar()` / `create_context_bar()`（`brand_mark()` 随之删除），把 `version_label`、`feedback_button` 与状态文案迁入 `create_status_bar()`，`context_status_label` 变量名保留但改作状态栏临时消息位；同步清理 `tokens.py` 中 `#titleBar` / `#contextBar` / `#contextLabel` / `#brandTitle` 选择器并更新 `test_ui_shell.py` / `test_ui_tokens.py` / `test_font_alignment.py` 的相关断言。引入 `ui/components.py` 工厂替换按钮创建。验证：51 项清单中 A/C/E 组入口全部可见可点。
+3. **台账层**：`file_list.py` 表头/行样式改为全局 QSS；新增投放带空态（台账为空时投放带占满列表区表头以下空间、保留九列表头，导入首个文件后让位给表格）、状态标记式重复告警与标题栏统计；右键菜单、悬停浮窗、双击、列头排序保持原样。验证：B 组 9 项 + `image-merge-support` 场景回归。
 4. **参数与预览层**：把方向/行列/页边距/裁切线/模式/顺序控件搬入右侧分组面板，预览状态与缩放显示接入状态组件。验证：D/F 组 + `divider-visibility` 场景回归，输出 PDF 与改造前一致。
 5. **弹窗层**：`rename_dialog.py` 与 `update_checker.py` 的 `UpdateDialog` / `QRCodeDialog` 对齐统一结构；补齐变量说明、使用帮助、结果回执与四态反馈。验证：G/H 组 + `per-type-rename-rules` 场景回归。
 6. **验收与文档**：按 `feature-preservation` 逐项记录浅色/深色结果，替换 `README.md` / `说明文档.md` 中的界面预览图，执行 MCP 9 Tools 与 CLI 参数回归、Windows/macOS 打包验证。

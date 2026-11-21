@@ -44,6 +44,11 @@ def main() -> int:
     )
 
     if new_content == content:
+        # 幂等：spec 已经是当前工作目录时无需改动，视为成功（重复执行打包脚本不会失败）。
+        # 只有 spec 里根本找不到 pathex 才算失败。
+        if "pathex=" in content:
+            print(f"Already patched {spec_file} -> {cwd}")
+            return 0
         print("Warning: no pathex found in spec file, check format")
         return 1
 

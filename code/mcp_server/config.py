@@ -36,6 +36,38 @@ def setup_logging() -> None:
     )
 
 
+def _version_candidates() -> list:
+    """
+    列出 version.json 的可能位置
+
+    功能描述:
+        源码运行时 version.json 位于 code/ 下，即本文件上一级；
+        PyInstaller 打包后 datas 把 version.json 放到 `_MEIPASS/code/`，
+        此时 `__file__` 指向 `_MEIPASS/mcp_server/`，上一级拼出的
+        `_MEIPASS/version.json` 并不存在，必须额外尝试 `code/` 子目录，
+        否则 MCP Server 会静默回落到兜底版本号。
+
+    返回值:
+        list: 候选路径列表，按优先级排列
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(here, '..', 'version.json'),
+        os.path.join(here, '..', 'code', 'version.json'),
+    ]
+    meipass = getattr(sys, '_MEIPASS', None)
+    if meipass:
+        candidates.append(os.path.join(meipass, 'version.json'))
+        candidates.append(os.path.join(meipass, 'code', 'version.json'))
+    if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
+        candidates.append(os.path.join(exe_dir, 'version.json'))
+        candidates.append(os.path.join(exe_dir, 'code', 'version.json'))
+    candidates.append(os.path.join(os.getcwd(), 'version.json'))
+    candidates.append(os.path.join(os.getcwd(), 'code', 'version.json'))
+    return candidates
+
+
 def _load_version() -> str:
     """
     从 version.json 加载当前版本号
@@ -43,13 +75,16 @@ def _load_version() -> str:
     返回值:
         str: 版本号字符串，读取失败返回 "0.2.0"
     """
-    version_file = os.path.join(os.path.dirname(__file__), '..', 'version.json')
-    try:
-        with open(version_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            return data.get('version', '0.2.0')
-    except Exception:
-        return '0.2.0'
+    for version_file in _version_candidates():
+        try:
+            with open(version_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                version = data.get('version')
+                if version:
+                    return version
+        except Exception:
+            continue
+    return '0.2.0'
 
 
 # MCP Server 名称

@@ -1,14 +1,14 @@
 {
-  "layout": "竖向2x2",
+  "layout": "横向2x2",
   "mode": "普通",
   "print_checkbox": false,
   "ignored_version": "0.1.5",
   "save_path": "",
   "sort_by": "list",
-  "output_path": "D:/公司文档/05.培训(公共)/报销/2501/02\\output.pdf",
+  "output_path": "/Users/xieyonggao/Downloads/金额错误发票/output.pdf",
   "rename_rule": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
   "layout_config": {
-    "orientation": "portrait",
+    "orientation": "landscape",
     "rows": 2,
     "cols": 2,
     "rotate": 0,
@@ -25,7 +25,7 @@
   "preview_enabled": true,
   "duplicate_copy": false,
   "rename_rules": {
-    "vat_invoice": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
+    "vat_invoice": "",
     "train_ticket": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}-{出发站}-{到达站}",
     "flight_ticket": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}-{航班号}-{航空公司}",
     "vehicle_invoice": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",

@@ -30,7 +30,7 @@ from ui.theme import AppTheme
 from ui.tokens import build_stylesheet, clear_inline_styles, apply_numeric_text_fonts
 from ui.shell import (
     build_shell, update_status_bar, update_duplicate_chip, show_feedback,
-    create_context_bar, create_ledger_column, create_preview_card,
+    create_ledger_column, create_preview_card,
     create_layout_card, create_mode_order_card,
 )
 
@@ -231,9 +231,6 @@ class MainWindow(QMainWindow):
         button.setIconSize(QSize(icon_size, icon_size))
         button.setText(text)
 
-    def _create_top_widget(self):
-        """兼容旧调用：返回上下文提示条（版本与帮助入口已移至标题栏）。"""
-        return create_context_bar(self)
     def _create_middle_widget(self):
         """
         创建中间主要内容区域
@@ -1641,8 +1638,7 @@ class MainWindow(QMainWindow):
             "按当前布局合并全部发票并保存"
             if has_files else "请先添加发票文件后再合并"
         )
-        if hasattr(self, 'context_status_label') and not has_files:
-            self.context_status_label.setText("请先添加发票文件　·　配置已自动保存")
+        # 空态引导由台账投放带与主按钮 tooltip 承担，状态栏临时消息位只放一次性回执
         if hasattr(self, 'status_left_label'):
             self._update_status_bar()
     

@@ -2,21 +2,34 @@
 
 import sys
 import os
+import json
 
 from PyInstaller.utils.hooks import collect_data_files
 
 # ofd2pdf 内置的 ofd-cli 可执行文件（OFD 渲染依赖）
 # macOS 官方未提供平台 wheel，缺失时打包不影响其余功能（OFD 能力降级）
 try:
+    import ofd2pdf  # noqa: F401
     ofd2pdf_datas = collect_data_files('ofd2pdf')
+    ofd2pdf_hiddenimports = ['ofd2pdf', 'ofd2pdf.ofd_cli', 'ofd2pdf.converter']
 except Exception:
+    # macOS 官方无 wheel：OFD 能力降级，不打包 ofd2pdf 相关模块
     ofd2pdf_datas = []
+    ofd2pdf_hiddenimports = []
+
+try:
+    with open('code/version.json', encoding='utf-8') as _vf:
+        _APP_VERSION = json.load(_vf).get('version', '0.0.0')
+except Exception:
+    _APP_VERSION = '0.0.0'
 
 block_cipher = None
 
 a = Analysis(
     ['code/main.py'],
-    pathex=[r'D:\minipro\piaoyihe\piaoyihe', r'D:\minipro\piaoyihe\piaoyihe\code'],
+    # pathex 由 scripts/patch_spec.py 在打包前写入当前仓库的绝对路径
+    # （ui/core 是 code/ 下的顶层包，缺少 code 目录会打出 No module named 'ui'）
+    pathex=[r'/Users/xieyonggao/Documents/self/minipro/invoiceTool', r'/Users/xieyonggao/Documents/self/minipro/invoiceTool/code'],
     binaries=[],
     datas=[
         ('code/res/logo3.png', 'res'),
@@ -27,17 +40,9 @@ a = Analysis(
         ('code/res/fonts/OFL-1.1.txt', 'res/fonts'),
         ('code/version.json', 'code'),
         ('code/config.json', 'code'),
-        ('code/res/icons/刷新_refresh.svg', 'res/icons'),
-        ('code/res/icons/笔记_notes.svg', 'res/icons'),
-        ('code/res/icons/加_plus.svg', 'res/icons'),
-        ('code/res/icons/减_minus.svg', 'res/icons'),
-        ('code/res/icons/关闭_close.svg', 'res/icons'),
-        ('code/res/icons/箭头上_arrow-up.svg', 'res/icons'),
-        ('code/res/icons/箭头下_arrow-down.svg', 'res/icons'),
-        ('code/res/icons/铅笔_pencil.svg', 'res/icons'),        
-        ('code/res/icons/下载_download-four.svg', 'res/icons'),        
-        ('code/res/icons/预览-打开_preview-open.svg', 'res/icons'),
-        *ofd2pdf_datas
+        # 图标整目录打包：代码按文件名引用，避免新增图标漏打包
+        ('code/res/icons', 'res/icons'),
+        *ofd2pdf_datas,
     ],
     hiddenimports=[
         # PySide6 核心模块
@@ -48,7 +53,6 @@ a = Analysis(
         'PySide6.QtNetwork',
         # PyMuPDF
         'fitz',
-        'fitz.fitz',
         # Pillow
         'PIL',
         'PIL.Image',
@@ -88,12 +92,10 @@ a = Analysis(
         'core.invoice_extractors.fixed_amount_invoice',
         'core.invoice_extractors.toll_invoice',
         'core.invoice_service',
-        'core.rename_engine',
+        'core.ofd_converter',
 
-        # OFD 渲染依赖（ofd2pdf 及其内置 ofd-cli）
-        'ofd2pdf',
-        'ofd2pdf.ofd_cli',
-        'ofd2pdf.converter',
+        # OFD 渲染依赖（ofd2pdf 及其内置 ofd-cli），仅平台可用时打包
+        *ofd2pdf_hiddenimports,
 
         # GUI 界面模块（namespace 包无法被自动收集，必须显式列出）
         'ui',
@@ -201,8 +203,8 @@ app = BUNDLE(
     info_plist={
         'CFBundleName': '票易合',
         'CFBundleDisplayName': '票易合 - 发票合并工具',
-        'CFBundleShortVersionString': '1.0.0',
-        'CFBundleVersion': '1.0.0',
+        'CFBundleShortVersionString': _APP_VERSION,
+        'CFBundleVersion': _APP_VERSION,
         'NSHighResolutionCapable': True,
         'LSBackgroundOnly': False,
         'LSUIElement': False,

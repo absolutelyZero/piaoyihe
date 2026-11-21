@@ -81,11 +81,10 @@ class UIShellTests(unittest.TestCase):
         cls.mf.CONFIG_FILE = cls._orig_config
 
     # ---- 结构 ----
-    def test_01_five_sections_exist(self):
+    def test_01_three_sections_exist(self):
+        """三段式结构：主体 → 输出提交条 → 状态栏（状态栏承载全部全局入口）。"""
         w = self.window
         expected = {
-            "title_bar": "titleBar",
-            "context_bar": "contextBar",
             "content_splitter": "contentSplitter",
             "output_bar": "outputBar",
             "status_bar": "statusBar",
@@ -93,6 +92,17 @@ class UIShellTests(unittest.TestCase):
         for attr, object_name in expected.items():
             self.assertTrue(hasattr(w, attr), attr)
             self.assertEqual(getattr(w, attr).objectName(), object_name)
+        # 标题栏与上下文提示条已并入状态栏，不再单独存在
+        self.assertFalse(hasattr(w, "title_bar"))
+        self.assertFalse(hasattr(w, "context_bar"))
+        for attr in (
+            "status_left_label", "context_status_label", "status_right_label",
+            "feedback_button", "version_label",
+        ):
+            self.assertTrue(hasattr(w, attr), attr)
+            self.assertIn(getattr(w, attr), w.status_bar.findChildren(type(getattr(w, attr))))
+        # 版本号即检查更新入口，不再另设按钮
+        self.assertFalse(hasattr(w, "check_update_btn"))
 
     def test_02_splitter_ratio_and_scroll(self):
         w = self.window
@@ -275,7 +285,7 @@ class UIShellTests(unittest.TestCase):
         w = self.window
         matrix = {
             "A 窗口框架": [
-                "title_bar", "drop_label", "version_label", "check_update_btn",
+                "status_bar", "status_left_label", "version_label",
                 "feedback_button", "progress_bar",
             ],
             "B 票据台账": [
@@ -342,6 +352,93 @@ class UIShellTests(unittest.TestCase):
         self.assertIn("dialogHeader", names)
         self.assertIn("dialogFooter", names)
         qr_dlg.close()
+
+    # ---- 空态投放带（tasks 3.4）----
+    def test_17_empty_drop_zone_keeps_ledger_header(self):
+        """空态投放带占满表头以下的列表区，九列表头始终可见。"""
+        from PySide6.QtWidgets import QTableWidget
+
+        w = self.window
+        panel = w.file_list
+        table = panel.table
+        overlay = w.drop_zone
+
+        # 1) 九列表头常驻：表格本身不被隐藏，列数不变
+        self.assertIsInstance(table, QTableWidget)
+        self.assertEqual(table.columnCount(), 9)
+        self.assertFalse(table.isHidden())
+        self.assertFalse(table.horizontalHeader().isHidden())
+
+        # 2) 投放带是表格视口的子控件（视口恰在表头下方），不是台账卡片里的兄弟控件
+        self.assertIs(overlay.parent(), table.viewport())
+        self.assertIs(panel.empty_overlay, overlay)
+
+        # 3) 空态：投放带可见，且几何铺满表头以下的整块视口
+        panel.clear()
+        w._update_status_bar()
+        self.assertEqual(len(panel.files), 0)
+        self.assertFalse(overlay.isHidden())
+        self.assertEqual(overlay.geometry(), table.viewport().rect())
+        self.assertTrue(table.horizontalHeader().isVisible() or table.horizontalHeader().isHidden() is False)
+
+        # 4) 加入首个文件后投放带让位，表头仍在
+        panel.add_file_info(_file_info("d.pdf", "CODE-D", 120.0, 12.0))
+        w._update_status_bar()
+        self.assertEqual(len(panel.files), 1)
+        self.assertTrue(overlay.isHidden())
+        self.assertFalse(table.isHidden())
+        self.assertEqual(table.rowCount(), 1)
+
+        # 5) 删空后重新铺开
+        panel.clear()
+        w._update_status_bar()
+        self.assertFalse(overlay.isHidden())
+        self.assertEqual(overlay.geometry(), table.viewport().rect())
+
+    # ---- 状态栏 / 预览头的高度对齐 ----
+    def test_18_status_bar_items_share_one_center_line(self):
+        """状态栏与预览头的文字、文字按钮必须共用同一条视觉中线（tasks 2.5）。"""
+        w = self.window
+        w.resize(1440, 900)
+        w.show()
+        self.app.processEvents()
+
+        bar = w.status_left_label.parent()
+        items = [w.status_left_label, w.status_right_label, w.feedback_button, w.version_label]
+        for wdg in items:
+            # 文字按钮不得比状态栏的内层可用高度更高（32px 栏高 - 上下各 4px 内边距）
+            self.assertLessEqual(wdg.height(), bar.height() - 8, f"{wdg.objectName()} 超出状态栏高度")
+            self.assertGreaterEqual(wdg.y(), 0)
+            self.assertLessEqual(wdg.y() + wdg.height(), bar.height())
+        # 四个文字项与文字按钮必须同高：高度不等时「盒中心」会掩盖真实的墨迹偏移
+        # （cocoa 实测 19px 标签与 24px 按钮盒中心只差 0.5px，墨迹中线却差 2px）
+        heights = {wdg.height() for wdg in items}
+        self.assertEqual(len(heights), 1, f"状态栏各文字项高度不一致: {sorted(heights)}")
+        self.assertEqual(heights.pop(), 22, "状态栏文字项行高应为 22px")
+
+        centers = [wdg.y() + wdg.height() / 2 for wdg in items]
+        self.assertLessEqual(max(centers) - min(centers), 1.0, f"状态栏中线不齐: {centers}")
+
+        header = w.preview_page_label.parent()
+        row = [w.preview_page_label, w.preview_zoom_label, w.refresh_preview_btn]
+        self.assertEqual({wdg.height() for wdg in row}, {24}, "预览头文字与按钮应同为 24px")
+        centers = [wdg.y() + wdg.height() / 2 for wdg in row]
+        self.assertLessEqual(max(centers) - min(centers), 1.0, f"预览头中线不齐: {centers}")
+
+    def test_19_status_bar_heights_come_from_stylesheet(self):
+        """状态栏行高必须由 QSS 作用域规则给出（代码里的 setFixedHeight 会被 QSS 覆盖）。"""
+        from ui import tokens
+
+        for dark in (False, True):
+            qss = tokens.build_stylesheet(dark)
+            self.assertIn("QFrame#statusBar QLabel#statusBarLabel", qss)
+            self.assertIn("QFrame#statusBar QPushButton#textButton", qss)
+            self.assertIn("QFrame#statusBar QLabel#versionLabel", qss)
+            # 文字按钮的默认高度仍是 24px（预览头与对话框标题栏靠它）
+            base = qss.split("QPushButton#textButton {", 1)[1].split("}", 1)[0]
+            self.assertIn("min-height: 24px", base)
+            self.assertIn("max-height: 24px", base)
+            self.assertIn("padding: 0px 8px", base)
 
 
 if __name__ == "__main__":

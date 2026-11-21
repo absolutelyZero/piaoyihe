@@ -73,9 +73,15 @@ class StylesheetTests(unittest.TestCase):
         self.assertIn("#4A86D8", dark_qss)
         self.assertNotIn("#4A86D8", light_qss)
         self.assertIn("QPushButton#primaryButton", light_qss)
-        self.assertIn("QFrame#contextBar", light_qss)
+        self.assertIn("QFrame#statusBar", light_qss)
+        # 标题栏与上下文条已并入状态栏，其选择器不再生成
+        self.assertNotIn("QFrame#titleBar", light_qss)
+        self.assertNotIn("QFrame#contextBar", light_qss)
         self.assertIn("QTableWidget", light_qss)
         self.assertIn("QFrame#dropZone", light_qss)
+        # 状态栏行高：文字项与文字按钮统一 22px，避免「使用帮助」比相邻文本低 2px
+        self.assertIn("QFrame#statusBar QLabel#statusBarLabel { min-height: 22px; max-height: 22px; }", light_qss)
+        self.assertIn("QFrame#statusBar QPushButton#textButton { min-height: 22px; max-height: 22px; }", light_qss)
 
     def test_font_stacks_match_design_system(self):
         # 设计稿（req/ui/00「05 / 字体与数字」）：中文 Noto Sans SC，数字 Inter。

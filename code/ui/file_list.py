@@ -254,6 +254,9 @@ class FileListPanel(QWidget):
         # 连接内部信号到更新方法
         self._duplicate_check_result.connect(self._update_duplicate_display)
 
+        # 空态投放带：作为表格视口的覆盖层，只遮住数据行区、九列表头始终可见
+        self.empty_overlay = None
+
         self._init_ui()
 
     def _icon_path(self, filename):
@@ -399,6 +402,35 @@ class FileListPanel(QWidget):
         
         layout.addWidget(self.table)
 
+    def set_empty_overlay(self, widget):
+        """
+        设置空态投放带
+
+        参数:
+            widget: 覆盖在表格视口上的投放带控件
+        """
+        self.empty_overlay = widget
+        if widget is not None:
+            widget.setParent(self.table.viewport())
+        self.sync_empty_overlay()
+
+    def sync_empty_overlay(self):
+        """
+        同步空态投放带的显隐与几何
+
+        功能描述:
+            台账为空时投放带铺满九列表头下方的整块视口区域（表头保持可见，
+            仅数据行区为空）；有数据时隐藏，让位给数据行
+        """
+        overlay = getattr(self, "empty_overlay", None)
+        if overlay is None:
+            return
+        empty = len(self.files) == 0
+        overlay.setVisible(empty)
+        if empty:
+            overlay.setGeometry(self.table.viewport().rect())
+            overlay.raise_()
+
     def _apply_header_colors(self):
         """
         按当前主题刷新表头配色、字体与首列图标
@@ -465,6 +497,9 @@ class FileListPanel(QWidget):
                 self._handle_mouse_move(event)
             elif event.type() == event.Type.Leave:
                 self._handle_mouse_leave()
+            elif event.type() == event.Type.Resize:
+                # 视口尺寸变化（窗口缩放、列宽调整）时重新铺满投放带
+                self.sync_empty_overlay()
         
         return super().eventFilter(obj, event)
     
@@ -921,6 +956,9 @@ class FileListPanel(QWidget):
         # v2：财务字段等宽字体 + 数值列右对齐
         self._apply_financial_cell_style()
 
+        # 表格重绘后同步空态投放带（表头保持可见）
+        self.sync_empty_overlay()
+
     @staticmethod
     def build_file_info(pdf_handler, file_path):
         """
@@ -1051,6 +1089,9 @@ class FileListPanel(QWidget):
 
         self.file_added.emit(file_path)
 
+        # 首个文件入库后收起空态投放带（表头始终保留）
+        self.sync_empty_overlay()
+
     def add_file(self, file_path):
         """
         添加文件到列表（同步方式）
@@ -1088,6 +1129,9 @@ class FileListPanel(QWidget):
         
         self.files.pop(current_row)
         self.table.removeRow(current_row)
+
+        # 删空后重新铺开空态投放带
+        self.sync_empty_overlay()
         
         # 触发重复发票检查
         self._trigger_duplicate_check()
@@ -1306,6 +1350,9 @@ class FileListPanel(QWidget):
         # 触发重复发票检查
         self._trigger_duplicate_check()
 
+        # 表格重绘后同步空态投放带（表头保持可见）
+        self.sync_empty_overlay()
+
     def update_file_path(self, old_path, new_path):
         """
         更新文件路径
@@ -1368,6 +1415,7 @@ class FileListPanel(QWidget):
         self.table.setRowCount(0)
         self._duplicate_codes = set()
         self.duplicate_count_changed.emit(0)
+        self.sync_empty_overlay()
 
     def _export_file(self):
         """

@@ -15,6 +15,13 @@ if exist dist_build rmdir /s /q dist_build
 
 :: Build to a temporary directory to avoid file locks on the common 'dist' folder
 :: (IDE file watchers / antivirus may hold handles on 'dist' during COLLECT)
+echo Patching spec pathex...
+"E:\tools\pyenv-win\pyenv-win\versions\3.14.4\python3.14.exe" scripts\patch_spec.py invoice_tool_win.spec
+if %ERRORLEVEL% NEQ 0 (
+    echo Spec patch failed
+    pause
+    exit /b 1)
+
 echo Building...
 "E:\tools\pyenv-win\pyenv-win\versions\3.14.4\python3.14.exe" -m PyInstaller -y invoice_tool_win.spec --distpath dist_build --workpath build
 if %ERRORLEVEL% NEQ 0 (

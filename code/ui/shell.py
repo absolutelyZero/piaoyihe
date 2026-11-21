@@ -51,6 +51,7 @@ from ui.file_list import FileListPanel
 from ui.tokens import clear_inline_styles
 
 
+
 # ---------------------------------------------------------------------------
 # 通用图标
 # ---------------------------------------------------------------------------
@@ -84,103 +85,6 @@ def tinted_icon_label(window, filename: str, size: int) -> QLabel:
 # ---------------------------------------------------------------------------
 # 单段构建
 # ---------------------------------------------------------------------------
-def brand_mark(window, size: int = 20) -> QLabel:
-    """
-    品牌标记：设计稿标题栏左侧是主色实心圆角方块 + 三条白色横线（列表意象），
-    与「灰色线条图标」不同，因此本地自绘，像素尺寸随参数缩放。
-    """
-    from PySide6.QtCore import QRectF
-    from PySide6.QtGui import QColor, QPainter, QPainterPath, QPixmap
-
-    from ui.tokens import get_tokens
-
-    theme = getattr(window, "theme", None)
-    accent = theme.tokens["accent"] if theme is not None else get_tokens()["accent"]
-
-    mark = QLabel()
-    mark.setFixedSize(size, size)
-    scale = size / 20.0
-    pixmap = QPixmap(size * 2, size * 2)
-    pixmap.setDevicePixelRatio(2.0)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QColor(accent))
-    painter.drawRoundedRect(QRectF(0, 0, size, size), 5 * scale, 5 * scale)
-    painter.setBrush(QColor("#FFFFFF"))
-    bar_height = 1.6 * scale
-    for offset in (-4.6, 0.0, 4.6):
-        rect = QRectF(
-            4.6 * scale,
-            size / 2 + offset * scale - bar_height / 2,
-            size - 9.2 * scale,
-            bar_height,
-        )
-        path = QPainterPath()
-        path.addRoundedRect(rect, bar_height / 2, bar_height / 2)
-        painter.drawPath(path)
-    painter.end()
-    mark.setPixmap(pixmap)
-    return mark
-
-
-def create_title_bar(window) -> QFrame:
-    """标题栏：品牌、版本号、检查更新、使用帮助（全局入口固定可见）。"""
-    bar = QFrame()
-    bar.setObjectName("titleBar")
-    bar.setFixedHeight(46)
-    box = QHBoxLayout(bar)
-    box.setContentsMargins(16, 8, 16, 8)
-    box.setSpacing(10)
-
-    box.addWidget(brand_mark(window, 20))
-    box.addWidget(label("票易合", "brandTitle"))
-    box.addWidget(label("发票合并排版工具", "mutedLabel"))
-    box.addStretch(1)
-
-    window.version_label = QLabel(window._get_version())
-    window.version_label.setObjectName("versionLabel")
-    window.version_label.setFont(numeric_font(FONT_SIZE["caption"]))
-    window.version_label.setToolTip("点击检查更新")
-    window.version_label.setCursor(Qt.CursorShape.PointingHandCursor)
-    window.version_label.mousePressEvent = lambda event: window._on_version_click()
-    box.addWidget(window.version_label)
-
-    window.check_update_btn = text_button("检查更新")
-    window.check_update_btn.clicked.connect(window._on_version_click)
-    box.addWidget(window.check_update_btn)
-
-    window.feedback_button = text_button("使用帮助")
-    window.feedback_button.setToolTip("使用帮助与反馈")
-    window.feedback_button.clicked.connect(window._on_feedback)
-    box.addWidget(window.feedback_button)
-
-    return bar
-
-
-def create_context_bar(window) -> QFrame:
-    """上下文提示条：拖放引导 + 运行状态（设计稿：13px 常规正文，通栏淡蓝底）。"""
-    bar = QFrame()
-    bar.setObjectName("contextBar")
-    bar.setFixedHeight(50)
-    box = QHBoxLayout(bar)
-    box.setContentsMargins(16, 8, 16, 8)
-    box.setSpacing(10)
-
-    # 设计稿上下文条为通栏淡蓝底、无左侧图标，文字自 18px 处开始
-    window.drop_label = QLabel(
-        "将 PDF / 图片 / OFD 发票拖入下方台账，或点击「添加文件」批量导入　·　支持文件夹递归导入"
-    )
-    window.drop_label.setObjectName("contextLabel")
-    box.addWidget(window.drop_label, 1)
-
-    window.context_status_label = label("已就绪　·　配置已自动保存", "statusLabel")
-    box.addWidget(window.context_status_label)
-
-    return bar
-
-
 def create_ledger_column(window) -> QWidget:
     """左侧主视觉区：票据台账（9 列）+ 空态投放带 + 页脚统计 + 操作条。"""
     column = QWidget()
@@ -234,7 +138,6 @@ def create_ledger_column(window) -> QWidget:
     # --- 虚线投放带 / 空态引导（仅台账为空时显示） ---
     window.drop_zone = QFrame()
     window.drop_zone.setObjectName("dropZone")
-    window.drop_zone.setMinimumHeight(180)
     drop_box = QVBoxLayout(window.drop_zone)
     drop_box.setContentsMargins(24, 24, 24, 24)
     drop_box.setSpacing(8)
@@ -248,7 +151,8 @@ def create_ledger_column(window) -> QWidget:
     drop_box.addWidget(
         label("列表顺序即打印顺序　·　右键可打开 / 在文件夹中显示 / 删除 / 导出列表", "mutedLabel")
     )
-    card_box.addWidget(window.drop_zone, 1)
+    # 投放带挂在表格视口上：只覆盖九列表头下方的数据行区，表头始终可见
+    window.file_list.set_empty_overlay(window.drop_zone)
 
     # --- 台账页脚 ---
     footer = QFrame()
@@ -760,21 +664,49 @@ def create_output_bar(window) -> QFrame:
 
 
 def create_status_bar(window) -> QFrame:
-    """状态栏：模式、布局摘要、文件数量、配置保存状态。"""
+    """状态栏：唯一承载全局状态与入口的区段。
+
+    左侧为常驻运行状态（就绪 / 模式 / 布局摘要 / 文件数量），右侧依次为
+    一次性回执的临时消息位、配置保存状态、使用帮助入口与版本号；版本号
+    本身即「检查更新」入口，不再另设按钮。
+    """
     bar = QFrame()
     bar.setObjectName("statusBar")
-    bar.setFixedHeight(25)
+    bar.setFixedHeight(32)
     box = QHBoxLayout(bar)
-    box.setContentsMargins(10, 2, 10, 2)
+    box.setContentsMargins(10, 4, 10, 4)
+    box.setSpacing(10)
+
     window.status_left_label = label("就绪", "statusBarLabel")
     box.addWidget(window.status_left_label)
     box.addStretch(1)
+
+    # 临时消息位：合并 / 导入等一次性回执，空闲时留空，不重复常驻信息
+    window.context_status_label = label("", "statusBarLabel")
+    box.addWidget(window.context_status_label)
+
+    window.status_right_label = label("配置自动保存", "statusBarLabel")
+    box.addWidget(window.status_right_label)
+
+    window.feedback_button = text_button("使用帮助")
+    window.feedback_button.setToolTip("使用帮助与反馈")
+    window.feedback_button.clicked.connect(window._on_feedback)
+    box.addWidget(window.feedback_button)
+
     try:
         version = window._get_version()
     except Exception:
         version = ""
-    window.status_right_label = label(f"配置自动保存　·　票易合 {version}", "statusBarLabel")
-    box.addWidget(window.status_right_label)
+    window.version_label = QLabel(f"票易合 {version}")
+    window.version_label.setObjectName("versionLabel")
+    window.version_label.setFont(numeric_font(FONT_SIZE["caption"]))
+    window.version_label.setToolTip("点击检查更新")
+    window.version_label.setCursor(Qt.CursorShape.PointingHandCursor)
+    window.version_label.mousePressEvent = lambda event: window._on_version_click()
+    box.addWidget(window.version_label)
+
+    # 行高统一由 tokens.py 的状态栏作用域规则给出（QSS 的 min/max-height 会压过
+    # setFixedHeight，代码里再钉一次没有意义，只会让人误以为生效）。
     return bar
 
 
@@ -814,9 +746,9 @@ def update_status_bar(window) -> None:
         f"共 {count} 条　·　当前选中 {1 if selected else 0} 条　·　列表顺序打印"
     )
 
-    # 台账为空时显示虚线投放带，有文件后让位给表格（设计稿：空态整块引导）
+    # 台账为空时投放带铺满表头以下的列表区（九列表头保持可见）；有文件后让位给数据行
     try:
-        window.drop_zone.setVisible(count == 0)
+        window.file_list.sync_empty_overlay()
     except Exception:
         pass
 
@@ -848,7 +780,7 @@ def show_feedback(window, text: str, state: str = "info") -> None:
     """统一回执：info / success / warning / danger。"""
     set_feedback(window.feedback_label, text, state)
     try:
-        window.context_status_label.setText(text if text else "已就绪　·　配置已自动保存")
+        window.context_status_label.setText(text or "")
     except Exception:
         pass
 
@@ -857,7 +789,7 @@ def show_feedback(window, text: str, state: str = "info") -> None:
 # 外壳装配
 # ---------------------------------------------------------------------------
 def build_shell(window) -> None:
-    """构建五段式主窗口；保持 MainWindow 原有属性与信号槽不变。"""
+    """构建三段式主窗口；保持 MainWindow 原有属性与信号槽不变。"""
     central = QWidget()
     central.setObjectName("centralWidget")
     window.setCentralWidget(central)
@@ -865,12 +797,6 @@ def build_shell(window) -> None:
     root = QVBoxLayout(central)
     root.setContentsMargins(0, 0, 0, 0)
     root.setSpacing(0)
-
-    window.title_bar = create_title_bar(window)
-    root.addWidget(window.title_bar)
-
-    window.context_bar = create_context_bar(window)
-    root.addWidget(window.context_bar)
 
     window.content_splitter = QSplitter(Qt.Orientation.Horizontal)
     window.content_splitter.setObjectName("contentSplitter")

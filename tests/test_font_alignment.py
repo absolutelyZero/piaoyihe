@@ -166,7 +166,7 @@ class NumericFontRuntimeTests(unittest.TestCase):
         a = QLabel("就绪 | 横向 2 × 2 | 4 张票据", root)
         a.setObjectName("statusBarLabel")
         b = QLabel("普通中文", root)
-        b.setObjectName("brandTitle")
+        b.setObjectName("cardTitleLabel")
         root.setStyleSheet(tokens.build_stylesheet(False))
         applied = tokens.apply_numeric_text_fonts(root)
         self.assertGreaterEqual(applied, 1)

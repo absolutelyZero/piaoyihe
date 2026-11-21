@@ -20,7 +20,7 @@
 | 命令 | 结果 |
 | --- | --- |
 | `python -m unittest tests.test_ui_tokens -v` | 10 项通过（令牌键名、色值、QSS、文档一致性、AppTheme 兼容） |
-| `python -m unittest tests.test_ui_shell -v` | 16 项通过（五段式结构、9 列、按钮层级、配置加载、状态同步、重复告警、弹窗、CLI、51 项矩阵） |
+| `python -m unittest tests.test_ui_shell -v` | 16 项通过（三段式结构、9 列、按钮层级、配置加载、状态同步、重复告警、弹窗、CLI、51 项矩阵） |
 | `python -m unittest tests.test_ui_merge_behavior -v` | 3 项通过（裁切线开关、零页边距、PDF/图片混合合并） |
 | 既有业务回归（11 个模块，预导入 PySide6 以避免 fitz/Qt 导入顺序导致的段错误） | **169 项通过，0 失败，0 错误，3 跳过** |
 
@@ -48,7 +48,7 @@
 
 | 组 | 项数 | 证据 | 结论 |
 | --- | --- | --- | --- |
-| A 窗口框架 | 6 | `test_01` 五段 objectName、`test_16` 标题/版本/帮助/进度属性 | 通过 |
+| A 窗口框架 | 6 | `test_01` 三段 objectName（且断言无 `title_bar` / `context_bar` / `check_update_btn`）、`test_16` 状态栏内版本/帮助/进度属性 | 通过 |
 | B 票据台账 | 9 | `test_03` 9 列列名、`test_02` 横向滚动、`test_08` 等宽右对齐、`test_09` 重复状态标记、`test_10` 右键四项槽 | 通过 |
 | C 列表操作 | 6 | `test_16` 七个按钮属性 + `test_04` 危险级样式 | 通过 |
 | D 排版参数 | 5 | `test_05` 方向/行列/模式加载、`test_12` 配置键名与裁切线字段 | 通过 |
@@ -65,10 +65,15 @@
 2. `minimumSectionSize(72)` 把首列预览图标列撑到 72px → 改为 40px 并保留水平滚动，9 列完整可见。
 3. 深色模式下非重复行被写入浅色前景导致不可读 → 改为清空 `ForegroundRole`/`BackgroundRole`，交由全局 QSS 决定颜色。
 4. 离屏环境下强制设置不存在的 `Noto Sans SC` 字体导致中文方框 → `apply_application_style()` 仅在字体确实可用时覆盖应用字体，否则保留 Qt 默认；QSS 内仍使用带回退的字体栈。
-5. 台账空白区过大、投放带偏矮 → 投放带与表格共享剩余空间；浅色/深色截图复查无重叠、无裁切。
+5. 台账空白区过大、投放带偏矮 → ~~投放带与表格共享剩余空间~~ ~~**已修正为投放带独占列表区**（空态隐藏九列表格，投放带与列表同宽同高）~~ → **后续修订：投放带改为表格视口覆盖层**，只铺满九列表头以下的整块列表区，九列表头始终可见（`FileListPanel.set_empty_overlay()` / `sync_empty_overlay()`）；首个文件导入后投放带隐藏、表格占满列表区，表头位置与列宽不跳动。见 `invoice-ledger-ui` 投放带需求与 `tasks.md` 3.4；浅色/深色截图复查无重叠、无裁切。
 6. 回执标签在深色主题下对比不足 → 信息态文字改用 `text_primary`。
 7. 输出提交条固定 76px 导致主按钮下半部被回执条裁切 → 提高到 96px，浅色/深色复查「合并 PDF」完整可见。
 8. `res/icons` 图标固定 `#333` 描边在深色背景下几乎不可见 → `shell.tinted_icon_label()` 渲染时改为中性灰蓝 `#8A97A8`，复用仓库现有 SVG，不新增资源。
+10. 用户两轮反馈状态栏右侧高度不齐（「使用帮助」低于两侧文本）→ 分两步修：
+    - 第一步（不足）：文字按钮 QSS 原为 `padding: 4px 8px; min-height: 24px`，24px 内容高 + 上下各 4px 内边距把按钮撑到 32px，在 32px 高的状态栏里被裁切。改为 `padding: 0px 8px; min-height: 24px; max-height: 24px` 后，**离屏(offscreen)测得已对齐，但真实 cocoa 下按钮仍比相邻文本低 2px**（标签 h=19、按钮 h=24，墨迹中线 14.0 vs 16.0）——离屏与真实平台的字体度量差 2px 以上，此类对齐必须在真实平台按墨迹中线复测。
+    - 第二步（最终）：根因是**各控件行高不统一**（标签由 sizeHint 得 19px、按钮被 QSS 钉 24px），且**QSS 的 `min-height`/`max-height` 会覆盖代码里的 `setFixedHeight()`**（重刷样式即回弹，代码里钉高度无效）。因此在 `tokens.py` 增加三条作用域规则统一状态栏行高：`QFrame#statusBar QLabel#statusBarLabel`、`QFrame#statusBar QPushButton#textButton` 均 `min-height/max-height: 22px`，`QFrame#statusBar QLabel#versionLabel` 因自带 1px 边框 + 3px 内边距改为 `padding: 3px 8px; min-height/max-height: 14px`（内容高 14 + 边距 = 22）。`QPushButton#textButton` 默认 24px 保留给预览头与对话框标题栏。
+    - 结果：cocoa（dpr=2）实测五项 h 全为 22、y 全为 5，墨迹中线 spread 0.5px，且在 light / repolish / dark / light again 四种状态下稳定；预览头三项 h 全为 24、spread 0.25px 未受影响。新增 `test_18`（断言状态栏四项同高且为 22px、盒中心极差 ≤ 1px、不超出栏高）与 `test_19`（断言浅/深两套 QSS 都含三条作用域规则），`tests/test_ui_tokens.py` 同步断言这两条选择器。
+
 9. 用户反馈「字体与设计稿不是同一种、不清晰」→ 数字字体 `Geist Mono` 在目标机器不存在、静默回退 `Arial`（比例数字、字形不同），应用级字号 `9pt`=12px 小于设计稿 13px。改为随程序打包设计稿同款 `Inter-VF.ttf` / `NotoSansSC-VF.ttf` 并在启动时注册；财务列改用 `ui.tokens.numeric_font()`（Inter + `tnum` 等宽），发票号码列 11px、其余财务列 12px；应用级默认字号改为 13px。两 VF 均为 SIL OFL 1.1，许可证随包分发。
 
 ## 4b. 第二轮「逐一核实」：按 `req/ui/` 原型图逐区域像素比对后修复
@@ -99,7 +104,7 @@
 `python -m unittest tests.test_ui_shell tests.test_ui_tokens tests.test_ui_merge_behavior tests.test_invoice_field_registry tests.test_rename_rules_by_type` → **Ran 85 tests, OK**。
 全量回归（12 个测试模块、需显式 `PYTHONPATH=.pylibs;code` 以避免 `fitz` 导入顺序问题）：
 **Ran 207 tests, OK（skipped=3）**。
-浅色主窗口 6 个关键区域众数色与设计稿逐点一致：标题栏 `#FFFFFF`、上下文条 `#EAF1FB`、页面间隙 `#F4F6F9`、台账头部 `#FFFFFF`、表头 `#F8FAFC`、状态栏 `#F8FAFC`。
+浅色主窗口关键区域众数色与设计稿逐点一致：页面间隙 `#F4F6F9`、台账头部 `#FFFFFF`、表头 `#F8FAFC`、状态栏 `#F8FAFC`。原记录中的「标题栏 `#FFFFFF`、上下文条 `#EAF1FB`」两处已随标题栏/上下文提示条合并进状态栏而失效（对应区段已从窗口结构中删除）。
 
 ## 5. 与设计稿的差异（剩余，已逐项核实）
 
@@ -118,8 +123,74 @@
 | 右键菜单实际弹出、系统默认程序打开、系统打印对话框 | 需要桌面交互 |
 | 真实发票的合并预览渲染、缩放与多页显示 | 需要真实发票样本 |
 | 检查更新网络请求、更新弹窗与二维码扫描 | 需要外网与显示设备 |
-| GUI + SSE 共存实测 | 本机缺少 `mcp` / `uvicorn` 包，无法启动 SSE 服务 |
-| Windows `package_win.bat` 与 macOS `package_macos.sh` 打包运行 | 本机无 PyInstaller，且无 macOS 环境 |
+| ~~GUI + SSE 共存实测~~ | **已完成**：源码模式与冻结包均实测 SSE 200，见 §6 / §7 |
+| ~~macOS `package_macos.sh` 打包运行~~ | **已完成**：`dist/票易合.app` + ZIP 产出并实测通过，见 §7 |
+| Windows `package_win.bat` 打包运行 | 本机为 macOS，无 Windows 主机可执行 |
 | 浅色/深色各 51 项完整人工点击走查 | 需人工按矩阵逐项点击确认；本轮已完成结构/像素级自动核实（见 4b），但点击交互仍需人工 |
 
 上述项对应 `tasks.md` 的 6.1 / 6.2 / 6.3。6.1 的**自动核实部分已完成并记入本文件第 4b 节**，但完整人工点击走查未完成，故 6.1 仍不勾选；完成前不应归档本变更。
+
+## 6. MCP 9 Tools 与 CLI 参数回归（对应 `tasks.md` 6.2，已完成）
+
+环境：`./clean_venv/bin/python`（Python 3.14、PySide6 6.11.0、mcp 1.28.1、uvicorn）。
+
+| 项 | 命令 / 方法 | 结果 |
+| --- | --- | --- |
+| MCP 单元回归 | `PYTHONPATH=code python -m unittest tests.test_mcp_tools` | **Ran 30 tests, OK** |
+| Tool 数量与必需参数 | `mcp.list_tools()` 逐项读取 `inputSchema.required` | **9 个**，与改造前一致（见下表） |
+| Tool 实调返回结构 | 用 `tests/fixtures/invoices/` 前 3 个 PDF 逐个调用，输出到临时目录 | 9 个全部 `success=True`，返回键集合与改造前完全一致 |
+| GUI + SSE 共存 | `python code/main.py --mcp-server --transport sse --host 127.0.0.1 --port 8766`，随后 `curl -H "Accept: text/event-stream" .../sse` | **HTTP 200**；日志 `MCP Server 启动中: name=piaoyihe, version=0.1.15, transport=sse`、`Uvicorn running on http://127.0.0.1:8766` |
+| CLI 5 参数解析 | `tests.test_ui_shell.test_13_cli_args_unchanged` | 通过（`--mcp-server --transport sse --host --port --cors-origins`） |
+
+| Tool | 必需参数 | 返回键 |
+| --- | --- | --- |
+| `merge_invoices` | pdf_paths, output_path, layout | message, output_path, success |
+| `extract_invoice_info` | pdf_path | info, message, success |
+| `batch_extract_invoice_info` | pdf_paths | message, results, success |
+| `batch_rename_invoices` | pdf_paths | dry_run, failed_count, message, renamed_count, renamed_map, skipped_unconfigured_count, success, unrecognized_files |
+| `export_invoice_list` | pdf_infos, output_path | message, output_path, success |
+| `export_invoice_list_from_paths` | pdf_paths, output_path | message, output_path, success |
+| `get_supported_layouts` | — | layouts |
+| `get_supported_fields` | — | fields, types |
+| `get_server_info` | — | name, version, tools |
+
+> 说明：`get_server_info` 的 `version` 在冻结包中曾回落到兜底值 `0.2.0`（见 §7 缺陷 5），修复后源码与冻结包均返回 `0.1.15`。
+
+## 7. macOS 打包回归（对应 `tasks.md` 6.3，macOS 侧完成）
+
+环境：`./clean_venv/bin/python`（PyInstaller 6.19.0）、`PYINSTALLER_CONFIG_DIR=/tmp/pyi_cache`（默认缓存目录在本机不可写）。
+
+产物：`dist/票易合.app`（COLLECT）+ `dist/票易合_macos_0.1.15.zip`（91 MB）。构建日志 **0 条 ERROR**。
+
+### 7.1 本次打包暴露并已修复的 7 处真实缺陷
+
+| # | 缺陷 | 影响 | 修复 |
+| --- | --- | --- | --- |
+| 1 | 两份 spec 的 `pathex` 硬编码 `D:\minipro\piaoyihe\...`，且本地打包脚本未调用 `scripts/patch_spec.py` | 打出的包启动即 `ModuleNotFoundError: No module named 'ui'`，GUI 与 MCP 全部不可用 | 两份 spec 的 `pathex` 改为 `[]` 占位；`package_macos.sh` 与 `package_win.bat` 在 pyinstaller 前调用 `scripts/patch_spec.py` 写入当前仓库绝对路径 |
+| 2 | `scripts/patch_spec.py` 在 spec 已是当前路径时返回 1 | 打包脚本第二次运行必然失败（`spec 路径修正失败`） | 改为幂等：`pathex=` 存在即视为成功并打印 `Already patched` |
+| 3 | `package_macos.sh` 用 `"$APP" -c "import ..."` 校验 MCP 依赖 | 冻结入口不解析 `-c`，必然 `unrecognized arguments: -c`，脚本 exit 1 | 改用项目已提供的 `"$APP" --verify-imports`（输出 `mcp deps ok`），与 `package_win.bat` 一致 |
+| 4 | spec 的 `datas` 只列 10 个 SVG，代码实际引用 14 个 | 冻结包缺 `勾选_check-white` / `箭头下_chevron-light` / `文件夹-开_folder-open` / `保存硬盘_save-one`，勾选框、下拉箭头、右键菜单与浏览按钮图标空白 | 两份 spec 改为整目录打包 `('code/res/icons', 'res/icons')`，现包内 21 个图标全部就位 |
+| 5 | `code/mcp_server/config.py` 的 `_load_version()` 只拼 `__file__/../version.json` | 冻结后 `__file__` 在 `_MEIPASS/mcp_server/`，而 datas 把 `version.json` 放到 `_MEIPASS/code/`，MCP 静默回落到 `0.2.0` | 改为多候选路径查找（含 `_MEIPASS/code/`、可执行文件目录、cwd），源码与冻结包均正确返回 `0.1.15` |
+| 6 | `code/ui/tokens.py` 的 `_icon_url()` / `_fonts_dir()` 用 `__file__` 定位 `res/` | 冻结后指向 `Contents/Frameworks/res/`，Qt 报 `Cannot open file '.../Frameworks/res/icons/...'`（4 条） | 新增 `_res_dir()`：`sys.frozen` 时用 `sys._MEIPASS`，否则回退到源码目录 |
+| 7 | spec 的 `hiddenimports` 含 4 个已不存在/不可用的模块（`fitz.fitz`、`core.rename_engine`、`ofd2pdf.ofd_cli`、`ofd2pdf.converter`） | 构建日志 4 条 `ERROR: Hidden import ... not found` 噪声，掩盖真实问题；macOS 无 ofd2pdf wheel 时这两条必然失败 | 删除 `fitz.fitz` / `core.rename_engine`（补入实际存在的 `core.ofd_converter`）；ofd2pdf 两条改为按平台条件化（`try: import ofd2pdf` 成功才加入） |
+
+附带修正：`invoice_tool.spec` 的 `BUNDLE.info_plist` 原本硬编码 `CFBundleShortVersionString = 1.0.0`，改为从 `code/version.json` 读取（现为 `0.1.15`）；`FONT_MONO_STACK` 去掉目标机不存在的 `JetBrains Mono` / `Consolas` / `Cascadia Mono`，只保留随包分发的 `Inter` 与 `Noto Sans SC`，消除启动时 `Populating font family aliases` 告警。
+
+### 7.2 冻结包实测
+
+| 项 | 方法 | 结果 |
+| --- | --- | --- |
+| 依赖导入 | `票易合 --verify-imports` | `mcp deps ok` |
+| CLI 参数 | `票易合 --mcp-server --help` | 5 个参数正常列出 |
+| 版本号 | `PlistBuddy -c "Print :CFBundleShortVersionString"` / MCP 日志 | 均为 `0.1.15` |
+| SSE 服务 | `票易合 --mcp-server --transport sse --host 127.0.0.1 --port 8796` + `curl` | **HTTP 200**，日志 `version=0.1.15` |
+| GUI 启动 | `QT_QPA_PLATFORM=offscreen 票易合` | 进程存活，日志无 `Traceback` / `Cannot open file` / 字体告警 |
+| 图标完整性 | `ls dist/票易合.app/Contents/Resources/res/icons` | 21 个，含此前缺失的 4 个 |
+| 源码回归 | `tests.test_ui_tokens tests.test_font_alignment tests.test_ui_shell tests.test_ui_merge_behavior tests.test_mcp_tools` | **Ran 73 tests, OK** |
+
+### 7.3 未完成项
+
+- **Windows 侧未验证**：`package_win.bat` 已按同一口径修复（补 `patch_spec.py` 调用），但本机为 macOS，无法执行打包与「启动/合并/预览/重命名/导出」回归。
+- **DMG 未产出**：本机沙箱禁止 `hdiutil create`（`目录非空` / `操作不被允许`，最小目录与 `pkill diskimages-helper` 均无效），属环境限制而非脚本缺陷；`.app` 与 ZIP 不受影响，CI `.github/workflows/build.yml` 已对 DMG 失败做 3 次重试并降级为 warning。
+- **spec 变更偏离任务原文**：6.3 原写「无需改动 spec 时确认 `invoice_tool*.spec` 未变更」，实际必须改动（缺陷 1/4/7），已在 `tasks.md` 6.3 记录该偏差。
+
