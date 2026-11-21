@@ -1,0 +1,400 @@
+{
+  "_meta": {
+    "purpose": "按票种重命名规则的实测基准。由 AI 直接读取 PDF 票面文本整理而成，供重命名结果比对使用。",
+    "source_dir_default": "D:\\minipro\\piaoyihe\\piaoyihe_test",
+    "source_dir_note": "该目录在 git 仓库之外，不进版本控制；实测时通过路径参数指定，默认指向此路径。",
+    "extracted_on": "2026-11-12",
+    "extraction_method": "直接解析 PDF 内容流与字体 ToUnicode CMap（标准库实现，不依赖 PyMuPDF）；对 7 个顶层文件仅部分字段可解，其字段值以文件名（应用自身重命名产物）为准",
+    "coverage": {
+      "covered_types": [
+        "vat_invoice",
+        "train_ticket",
+        "flight_ticket"
+      ],
+      "missing_types": [
+        "vehicle_invoice",
+        "taxi_invoice",
+        "fixed_amount_invoice",
+        "toll_invoice"
+      ],
+      "covered_ratio": "3/7"
+    },
+    "excluded_from_baseline": {
+      "output.pdf": "应用自身合并产物（多页拼版），非单张发票，不参与字段比对"
+    }
+  },
+  "excluded_files": [
+    {
+      "file": "output.pdf",
+      "reason": "合并产物（多页拼版），非单张发票"
+    },
+    {
+      "file": "发票1.rar",
+      "reason": "压缩包，非 PDF"
+    },
+    {
+      "file": ".uploads/",
+      "reason": "空目录"
+    }
+  ],
+  "invoices": [
+    {
+      "file": "3000.00-专票-2026-07-15-26322000005773293016-纸印未来（成都）包装科技有限公司-苏州因斯福检测有限公司.pdf",
+      "evidence": "filename_is_app_output",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "专票",
+        "amount": 3000.0,
+        "invoice_date": "2026-07-15",
+        "invoice_code": "26322000005773293016",
+        "buyer_name": "纸印未来（成都）包装科技有限公司",
+        "seller_name": "苏州因斯福检测有限公司",
+        "product_type": "生产生活服务"
+      },
+      "text_verified": [
+        "纸印未来（成都）包装科技有限公司",
+        "91510182MAEUUQNF3T",
+        "苏州因斯福检测有限公司",
+        "91320505MA24UYCU2U",
+        "叁仟圆整"
+      ],
+      "note": "买/销方名称与金额大写经票面文本核实；类型、日期、号码取自文件名"
+    },
+    {
+      "file": "3600.00-专票-2026-07-30-26512000003288249556-纸印未来（成都）包装科技有限公司-郫都区勇士建筑机具租赁部.pdf",
+      "evidence": "filename_is_app_output",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "专票",
+        "amount": 3600.0,
+        "invoice_date": "2026-07-30",
+        "invoice_code": "26512000003288249556",
+        "buyer_name": "纸印未来（成都）包装科技有限公司",
+        "seller_name": "郫都区勇士建筑机具租赁部",
+        "product_type": "生产生活服务"
+      },
+      "text_verified": [
+        "纸印未来（成都）包装科技有限公司",
+        "郫都区勇士建筑机具租赁部",
+        "92510124L14399721D",
+        "叁仟陆佰圆整"
+      ]
+    },
+    {
+      "file": "5570.00-专票-2026-06-08-26512000002390495596-纸印未来（成都）包装科技有限公司-彭州市濛阳镇晏氏建材经营部.pdf",
+      "evidence": "filename_is_app_output",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "专票",
+        "amount": 5570.0,
+        "invoice_date": "2026-06-08",
+        "invoice_code": "26512000002390495596",
+        "buyer_name": "纸印未来（成都）包装科技有限公司",
+        "seller_name": "彭州市濛阳镇晏氏建材经营部",
+        "product_type": "黑色金属冶炼压延品"
+      },
+      "text_verified": [
+        "纸印未来（成都）包装科技有限公司",
+        "彭州市濛阳镇晏氏建材经营部",
+        "伍仟伍佰柒拾圆整"
+      ]
+    },
+    {
+      "file": "6400.00-专票-2026-08-10-26512000003453709051-纸印未来（成都）包装科技有限公司-郫都区勇士建筑机具租赁部.pdf",
+      "evidence": "filename_is_app_output",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "专票",
+        "amount": 6400.0,
+        "invoice_date": "2026-08-10",
+        "invoice_code": "26512000003453709051",
+        "buyer_name": "纸印未来（成都）包装科技有限公司",
+        "seller_name": "郫都区勇士建筑机具租赁部",
+        "product_type": "生产生活服务"
+      },
+      "text_verified": [
+        "纸印未来（成都）包装科技有限公司",
+        "郫都区勇士建筑机具租赁部",
+        "陆仟肆佰圆整"
+      ]
+    },
+    {
+      "file": "69000.00-专票-2026-05-07-26512000001870983781-纸印未来（成都）包装科技有限公司-成都金键机电设备有限公司.pdf",
+      "evidence": "filename_is_app_output",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "专票",
+        "amount": 69000.0,
+        "invoice_date": "2026-05-07",
+        "invoice_code": "26512000001870983781",
+        "buyer_name": "纸印未来（成都）包装科技有限公司",
+        "seller_name": "成都金键机电设备有限公司",
+        "product_type": "塑料制品"
+      },
+      "text_verified": [
+        "纸印未来（成都）包装科技有限公司",
+        "成都金键机电设备有限公司",
+        "915101065972849227",
+        "陆万玖仟圆整"
+      ]
+    },
+    {
+      "file": "92168.52-专票-2026-05-27-26512000002194376146-纸印未来（成都）包装科技有限公司-彭州市濛阳镇晏氏建材经营部.pdf",
+      "evidence": "filename_is_app_output",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "专票",
+        "amount": 92168.52,
+        "invoice_date": "2026-05-27",
+        "invoice_code": "26512000002194376146",
+        "buyer_name": "纸印未来（成都）包装科技有限公司",
+        "seller_name": "彭州市濛阳镇晏氏建材经营部",
+        "product_type": "黑色金属冶炼压延品"
+      },
+      "text_verified": [
+        "纸印未来（成都）包装科技有限公司",
+        "彭州市濛阳镇晏氏建材经营部",
+        "玖万贰仟壹佰陆拾捌圆伍角贰分"
+      ]
+    },
+    {
+      "file": "9964.00-专票-2026-07-28-26512000003249976261-纸印未来（成都）包装科技有限公司-彭州市濛阳镇晏氏建材经营部.pdf",
+      "evidence": "filename_is_app_output",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "专票",
+        "amount": 9964.0,
+        "invoice_date": "2026-07-28",
+        "invoice_code": "26512000003249976261",
+        "buyer_name": "纸印未来（成都）包装科技有限公司",
+        "seller_name": "彭州市濛阳镇晏氏建材经营部",
+        "product_type": "黑色金属冶炼压延品"
+      },
+      "text_verified": [
+        "纸印未来（成都）包装科技有限公司",
+        "彭州市濛阳镇晏氏建材经营部",
+        "玖仟玖佰陆拾肆圆整"
+      ]
+    },
+    {
+      "file": "专票/7.pdf",
+      "evidence": "text_fully_parsed",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "专票",
+        "amount": 168.96,
+        "invoice_date": "2026-03-27",
+        "invoice_code": "26952000001253901736",
+        "buyer_name": "郑州衡量科技股份有限公司",
+        "seller_name": "深圳市航嘉创源科技有限公司",
+        "product_type": "计算机配套产品",
+        "tax_amount": 19.43
+      },
+      "text_verified": [
+        "电子发票（增值税专用发票）",
+        "26952000001253901736",
+        "2026年03月27日",
+        "郑州衡量科技股份有限公司",
+        "91410100587087458H",
+        "深圳市航嘉创源科技有限公司",
+        "91440300774130992H",
+        "¥¥149.53",
+        "¥¥19.43",
+        "壹佰陆拾捌圆玖角陆分",
+        "¥¥168.96",
+        "*计算机配套产品*"
+      ]
+    },
+    {
+      "file": "专票/7 - 副本.pdf",
+      "evidence": "text_fully_parsed",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "专票",
+        "amount": 168.96,
+        "invoice_date": "2026-03-27",
+        "invoice_code": "26952000001253901736",
+        "buyer_name": "郑州衡量科技股份有限公司",
+        "seller_name": "深圳市航嘉创源科技有限公司",
+        "product_type": "计算机配套产品",
+        "tax_amount": 19.43
+      },
+      "text_verified": [
+        "与 专票/7.pdf 票面完全一致"
+      ],
+      "note": "与 7.pdf 内容相同、文件名不同，用于验证同名冲突时的 (n) 后缀与重名文件处理"
+    },
+    {
+      "file": "普票/5.pdf",
+      "evidence": "text_fully_parsed",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "普票",
+        "amount": 20.05,
+        "invoice_date": "2026-03-13",
+        "invoice_code": "26952000001022590516",
+        "buyer_name": "郑州衡量科技股份有限公司",
+        "seller_name": "深圳市电电来新能源发展有限公司",
+        "product_type": "供电",
+        "tax_amount": 2.31
+      },
+      "text_verified": [
+        "电子发票（普通发票）",
+        "¥17.74",
+        "¥2.31",
+        "贰拾圆零伍分",
+        "¥ 20.05",
+        "26952000001022590516",
+        "2026年03月13日",
+        "郑州衡量科技股份有限公司",
+        "深圳市电电来新能源发展有限公司",
+        "*供电*充电服务费"
+      ]
+    },
+    {
+      "file": "普票/4.pdf",
+      "evidence": "text_fully_parsed",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "普票",
+        "amount": 24.27,
+        "invoice_date": "2026-04-01",
+        "invoice_code": "26952000001331049211",
+        "buyer_name": "郑州衡量科技股份有限公司",
+        "seller_name": "深圳市玖凌智创科技有限责任公司",
+        "product_type": "纺织产品",
+        "tax_amount": 0.24
+      },
+      "text_verified": [
+        "电子发票（普通发票）",
+        "发票号码：26952000001331049211",
+        "开票日期：2026年04月01日",
+        "郑州衡量科技股份有限公司",
+        "91410100587087458H",
+        "深圳市玖凌智创科技有限责任公司",
+        "91440300MADX8T29X5",
+        "¥24.03",
+        "¥0.24",
+        "贰拾肆圆贰角柒分",
+        "¥24.27",
+        "*纺织产品*大疆无人机遥控器挂绳"
+      ],
+      "note": "product_type 取税收分类名「纺织产品」（现有 *星号* 提取逻辑的既定行为），而非商品全名「大疆无人机遥控器挂绳」"
+    },
+    {
+      "file": "普票/6.pdf",
+      "evidence": "text_fully_parsed",
+      "expected": {
+        "invoice_type_key": "vat_invoice",
+        "invoice_type": "普票",
+        "amount": 19.9,
+        "invoice_date": "2026-03-21",
+        "invoice_code": "26327000000570980824",
+        "buyer_name": "郑州衡量科技股份有限公司",
+        "seller_name": "江苏京东海元贸易有限公司",
+        "product_type": "文具",
+        "tax_amount": 2.29
+      },
+      "text_verified": [
+        "电子发票(普通发票)",
+        "26327000000570980824",
+        "2026年03月21日",
+        "郑州衡量科技股份有限公司",
+        "91410100587087458H",
+        "江苏京东海元贸易有限公司",
+        "91321311MA1MR5UY93",
+        "¥17.61",
+        "¥2.29",
+        "壹拾玖圆玖角",
+        "¥19.90",
+        "*文具*文具耗材"
+      ],
+      "note": "该票面排版特殊（买卖方名称与税号错位），但 PyMuPDF 可正常解析；金额取价税合计 19.90"
+    },
+    {
+      "file": "其他票据/2.pdf",
+      "evidence": "text_fully_parsed",
+      "expected": {
+        "invoice_type_key": "flight_ticket",
+        "invoice_type": "飞机票",
+        "amount": 760.0,
+        "invoice_date": "2026-04-29",
+        "invoice_code": "26958479211028976318",
+        "buyer_name": "郑州衡量科技股份有限公司",
+        "seller_name": "上海华程西南国际旅行社有限公司",
+        "product_type": "",
+        "tax_amount": 58.62,
+        "flight_number": "ZH8377",
+        "airline": "深航"
+      },
+      "text_verified": [
+        "电子发票（航空运输电子客票行程单）",
+        "26958479211028976318",
+        "郭涛",
+        "410521********2519",
+        "深航",
+        "ZH8377",
+        "CNY 633.03",
+        "CNY 18.35",
+        "9%",
+        "CNY 58.62",
+        "CNY 50.00",
+        "CNY 0.00",
+        "CNY 760.00",
+        "上海华程西南国际旅行社有限公司",
+        "2026年04月29日",
+        "郑州衡量科技股份有限公司",
+        "郑州 新郑",
+        "惠州 平潭",
+        "2026年03月09日"
+      ],
+      "note": "金额取「合计」760.00；开票日期取「填开日期」2026-04-29；乘机日期 2026-03-09。特有字段：航班号 ZH8377、航空公司 深航"
+    },
+    {
+      "file": "其他票据/3.pdf",
+      "evidence": "text_fully_parsed",
+      "expected": {
+        "invoice_type_key": "train_ticket",
+        "invoice_type": "火车票",
+        "amount": 496.0,
+        "invoice_date": "2026-04-29",
+        "invoice_code": "26959124659000073279",
+        "buyer_name": "郭涛",
+        "seller_name": "中国铁路",
+        "product_type": "",
+        "tax_amount": 0.0,
+        "train_number": "G636",
+        "departure_station": "河源东站",
+        "arrival_station": "太湖南站"
+      },
+      "text_verified": [
+        "电子发票（铁路电子客票）",
+        "发票号码:26959124659000073279",
+        "开票日期:2026年04月29日",
+        "河源东站",
+        "G636",
+        "太湖南站",
+        "2026年03月28日 07:56",
+        "05车03A号",
+        "二等座",
+        "4105211990****2519",
+        "郭涛",
+        "购买方名称:郑州衡量科技股份有限公司",
+        "票价: ￥496.00"
+      ],
+      "note": "发票号码为 20 位（26959124659000073279）；开票日期 2026-04-29 与乘车日期 2026-03-28 不同，按 TrainTicketExtractor 现行逻辑优先取「开票日期」字段。特有字段：车次 G636、出发站 河源东站、到达站 太湖南站"
+    },
+    {
+      "file": "其他票据/1.pdf",
+      "evidence": "no_text_layer",
+      "expected": null,
+      "text_verified": [],
+      "note": "纯图片扫描件，无文本层与字体对象，无法提取任何字段。用于验证「识别不出票种的文件」的处理路径，不作为字段比对样本"
+    }
+  ],
+  "regression_baseline": {
+    "description": "顶层 7 个文件名即现行单一规则 {金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字} 的产物，可作为「旧配置迁移到 7 票种后行为不变」的比对基准。",
+    "rule": "{金额}-{发票类型}-{开票日期}-{发票号码}-{买方名字}-{销方名字}",
+    "expected_after_migration": "用迁移后的 vat_invoice 规则对同 7 个文件重命名，应得到与现有文件名完全一致的名称（幂等）"
+  }
+}

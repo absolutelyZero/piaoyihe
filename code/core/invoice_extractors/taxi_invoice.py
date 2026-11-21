@@ -8,6 +8,7 @@
 import re
 import os
 import time
+from typing import Any, Dict
 from .base import InvoiceExtractor
 
 
@@ -22,6 +23,8 @@ class TaxiInvoiceExtractor(InvoiceExtractor):
     """
 
     INVOICE_TYPE_KEYWORDS = ['出租车', '出租汽车', '的士']
+
+    TYPE_KEY = "taxi_invoice"
 
     # 新版旅客运输服务电子发票使用标准「电子发票（普通发票）」版式，
     # 票面存在「价税合计」字段；旧版出租车机打/定额发票无此字段，据此区分版式。
@@ -223,3 +226,35 @@ class TaxiInvoiceExtractor(InvoiceExtractor):
                 return tax_amount
 
         return 0.0
+
+    def extract_extra_fields(self) -> Dict[str, Any]:
+        """
+        提取出租车发票特有字段：车牌号
+
+        车牌号形如「粤B12345」（省份简称 + 字母 + 5~6 位字母数字）。
+
+        提取策略：
+        1. 匹配「车牌号:」标签后的车牌
+        2. 全文匹配车牌号格式
+
+        Returns:
+            Dict[str, Any]: plate_number
+        """
+        text = self._text or ""
+        plate_number = ""
+
+        # 策略1：按标签
+        match = re.search(
+            r'车\s*牌\s*号?[:：]?\s*([\u4e00-\u9fa5][A-Z][A-Z0-9]{5,6})', text
+        )
+        if match:
+            plate_number = match.group(1).strip()
+        else:
+            # 策略2：全文匹配车牌格式
+            match = re.search(
+                r'(?<![A-Z0-9])([\u4e00-\u9fa5][A-Z][A-Z0-9]{5,6})(?![A-Z0-9])', text
+            )
+            if match:
+                plate_number = match.group(1).strip()
+
+        return {'plate_number': plate_number}

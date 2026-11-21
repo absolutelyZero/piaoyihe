@@ -16,10 +16,73 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill
 
 from core.pdf_handler import is_image_file, is_ofd_file
+from core.invoice_field_registry import (
+    ALL_FIELD_KEYS,
+    INVOICE_TYPE_KEYS,
+    get_fields,
+    get_type_label,
+)
 
 
 # 模块级日志器
 logger = logging.getLogger(__name__)
+
+
+def migrate_rename_rules(config: Dict[str, Any]) -> bool:
+    """
+    把旧版单一重命名规则迁移为按票种的规则集合
+
+    功能描述:
+        当配置中不存在有效的 rename_rules 字典、且存在非空的旧版
+        rename_rule 字符串时，把该字符串复制到全部 7 类票种，
+        使升级前后的重命名行为保持一致。
+
+        若 rename_rules 已存在（是字典），一律不覆盖。
+
+    参数:
+        config: 配置字典（原地修改）
+
+    返回值:
+        bool: 是否发生了迁移（True 表示已写入 rename_rules）
+    """
+    if not isinstance(config, dict):
+        return False
+
+    existing = config.get('rename_rules')
+    if isinstance(existing, dict):
+        # 已有按票种规则集合，不覆盖
+        return False
+
+    legacy = config.get('rename_rule')
+    if not isinstance(legacy, str) or not legacy.strip():
+        # 无旧版规则，不生成空规则
+        return False
+
+    config['rename_rules'] = {key: legacy for key in INVOICE_TYPE_KEYS}
+    return True
+
+
+def normalize_rename_rules(raw: Any) -> Dict[str, str]:
+    """
+    把任意来源的规则集合规整为「7 个票种键齐全」的字典
+
+    功能描述:
+        仅保留 7 个合法票种键，值为字符串；缺失的票种补空串，
+        使「未配置」与「配置了空串」语义唯一。
+
+    参数:
+        raw: 原始规则集合，可为 None / dict / 其他类型
+
+    返回值:
+        Dict[str, str]: 7 个票种键齐全的规则字典
+    """
+    result = {key: '' for key in INVOICE_TYPE_KEYS}
+    if isinstance(raw, dict):
+        for key in INVOICE_TYPE_KEYS:
+            value = raw.get(key)
+            if isinstance(value, str):
+                result[key] = value.strip()
+    return result
 
 
 class InvoiceService:
@@ -34,17 +97,6 @@ class InvoiceService:
     """
 
     INVALID_CHARS = r'[<>:"/\\|?*]'
-
-    # 重命名规则中可用的字段映射（中文占位符 -> info 字典键）
-    RENAME_FIELD_MAPPING = {
-        '发票类型': 'invoice_type',
-        '商品类型': 'product_type',
-        '开票日期': 'invoice_date',
-        '发票号码': 'invoice_code',
-        '买方名字': 'buyer_name',
-        '销方名字': 'seller_name',
-        '金额': 'amount',
-    }
 
     def __init__(self, pdf_handler):
         """
@@ -92,19 +144,21 @@ class InvoiceService:
 
         return results
 
-    def batch_rename(self, pdf_paths: List[str], rule: str,
+    def batch_rename(self, pdf_paths: List[str], rules: Dict[str, str],
                      on_progress: Optional[Callable[[int, int], None]] = None,
                      dry_run: bool = False) -> Dict[str, Any]:
         """
-        根据规则批量重命名发票 PDF 文件
+        根据按票种的规则批量重命名发票 PDF 文件
 
         功能描述:
-            提取每个 PDF 的发票字段，应用规则生成新文件名，处理文件名冲突后执行或预览重命名。
+            逐个文件识别其票种，套用该票种自己的规则生成新文件名，
+            处理文件名冲突后执行或预览重命名。
             图片与 OFD 类型文件不参与重命名，分别计入 skipped_image_count、skipped_ofd_count。
+            票种规则为空（未配置）的文件保持原文件名，计入 skipped_unconfigured_count。
 
         参数:
             pdf_paths: 需要重命名的 PDF 文件路径列表
-            rule: 重命名规则字符串，支持 {发票类型}、{开票日期} 等占位符
+            rules: 票种标识 -> 重命名规则字符串。（空串表示该票种未配置）
             on_progress: 进度回调函数，签名为 on_progress(current, total)
             dry_run: 是否为预览模式；为 True 时不实际重命名文件，仅返回预计映射
 
@@ -115,6 +169,7 @@ class InvoiceService:
                 - unrecognized_files: 无法识别（info 为 None）的文件名列表
                 - skipped_image_count: 被跳过的图片文件数量
                 - skipped_ofd_count: 被跳过的 OFD 文件数量
+                - skipped_unconfigured_count: 因票种未配置规则而跳过的文件数量
                 - renamed_map: 旧路径 -> 新路径 的映射字典
         """
         renamed_count = 0
@@ -122,8 +177,12 @@ class InvoiceService:
         unrecognized_files = []
         skipped_image_count = 0
         skipped_ofd_count = 0
+        skipped_unconfigured_count = 0
         renamed_map = {}
         total = len(pdf_paths)
+
+        # 规整规则集合：只保留合法票种键，值为字符串
+        normalized_rules = normalize_rename_rules(rules)
 
         # 预览模式下用于模拟文件名冲突的已占用名称集合
         used_names = set(os.path.basename(p) for p in pdf_paths) if dry_run else None
@@ -146,7 +205,16 @@ class InvoiceService:
                     unrecognized_files.append(os.path.basename(file_path))
                     continue
 
-                new_name = self.apply_rule(rule, file_info)
+                # 按识别出的票种选择对应规则
+                type_key = file_info.get('invoice_type_key')
+                rule = normalized_rules.get(type_key, '') if type_key else ''
+
+                if not rule:
+                    # 该票种未配置规则：保持原文件名
+                    skipped_unconfigured_count += 1
+                    continue
+
+                new_name = self.apply_rule(rule, file_info, type_key=type_key)
                 if not new_name:
                     failed_count += 1
                     continue
@@ -197,6 +265,7 @@ class InvoiceService:
             'unrecognized_files': unrecognized_files,
             'skipped_image_count': skipped_image_count,
             'skipped_ofd_count': skipped_ofd_count,
+            'skipped_unconfigured_count': skipped_unconfigured_count,
             'renamed_map': renamed_map,
         }
 
@@ -291,16 +360,25 @@ class InvoiceService:
             return False
 
     @staticmethod
-    def apply_rule(rule: str, file_info: Dict[str, Any]) -> Optional[str]:
+    def apply_rule(rule: str, file_info: Dict[str, Any],
+                   type_key: Optional[str] = None) -> Optional[str]:
         """
         应用重命名规则生成新文件名
 
         功能描述:
             将规则字符串中的中文占位符替换为 file_info 中对应的字段值，并清理非法字符。
 
+            字段集按票种取：传入 type_key 时使用该票种的字段集，
+            未传或未知票种时退回全部字段（兼容旧调用）。
+
+            未识别字段的处理：值为 None、缺失、或空白字符串时，
+            保留 {占位符} 原文而不替换为空，便于用户从文件名看出未识别。
+            数值字段（如金额）即使为 0 也按数值格式替换，因为 0 是有效值。
+
         参数:
             rule: 重命名规则字符串，如 "{买方名字}-{开票日期}-{商品类型}"
             file_info: 发票信息字典，包含 invoice_type、invoice_date 等字段
+            type_key: 票种标识，用于确定可用字段集；None 表示使用全部字段
 
         返回值:
             Optional[str]: 清理后的文件名（不含扩展名），规则为空时返回 None
@@ -309,14 +387,36 @@ class InvoiceService:
             return None
 
         result = rule
+        fields = get_fields(type_key) if type_key else get_fields(None)
 
-        for field_name, field_key in InvoiceService.RENAME_FIELD_MAPPING.items():
+        # 按票种字段集替换；若规则里出现该票种字段集之外的占位符，
+        # 再尝试用全部字段兜底（保持旧规则可用）
+        field_pairs = list(fields)
+        _known = {name for name, _ in field_pairs}
+        for name, key in get_fields(None):
+            if name not in _known:
+                field_pairs.append((name, key))
+
+        for field_name, field_key in field_pairs:
             placeholder = f"{{{field_name}}}"
-            if placeholder in result:
-                value = file_info.get(field_key, '')
-                if field_key == 'amount' and isinstance(value, (int, float)):
-                    value = f"{value:.2f}"
-                result = result.replace(placeholder, str(value))
+            if placeholder not in result:
+                continue
+
+            value = file_info.get(field_key)
+
+            # 数值字段：0 也是有效值，按两位小数替换
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                result = result.replace(placeholder, f"{value:.2f}")
+                continue
+
+            # 缺失/空白：保留占位符原文
+            if value is None:
+                continue
+            text = str(value)
+            if not text.strip():
+                continue
+
+            result = result.replace(placeholder, text)
 
         result = InvoiceService.sanitize_filename(result)
         return result
@@ -342,14 +442,36 @@ class InvoiceService:
         return sanitized
 
     @staticmethod
-    def get_available_fields() -> List[Dict[str, str]]:
+    def get_available_fields() -> Dict[str, Any]:
         """
-        获取重命名规则中可用的字段列表
+        获取重命名规则中可用的字段列表（按票种分组）
 
         返回值:
-            List[Dict[str, str]]: 每个元素包含 display（显示名）和 key（字典键）
+            Dict[str, Any]:
+                - types: 7 个票种分组，每项含 key / label / fields
+                         （fields 为 [{display, key}, ...]）
+                - fields: 全部字段的扁平并集，保留以兼容既有调用方
         """
-        return [
-            {"display": display, "key": key}
-            for display, key in InvoiceService.RENAME_FIELD_MAPPING.items()
+        types = []
+        for type_key in INVOICE_TYPE_KEYS:
+            types.append({
+                'key': type_key,
+                'label': get_type_label(type_key),
+                'fields': [
+                    {'display': display, 'key': field_key}
+                    for display, field_key in get_fields(type_key)
+                ],
+            })
+
+        # 扁平并集：按 ALL_FIELD_KEYS 顺序，显示名取首次出现
+        display_by_key: Dict[str, str] = {}
+        for item in types:
+            for field in item['fields']:
+                display_by_key.setdefault(field['key'], field['display'])
+
+        flat = [
+            {'display': display_by_key[key], 'key': key}
+            for key in ALL_FIELD_KEYS
         ]
+
+        return {'types': types, 'fields': flat}

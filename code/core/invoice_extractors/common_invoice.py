@@ -25,6 +25,9 @@ class CommonInvoiceExtractor(InvoiceExtractor):
 
     INVOICE_TYPE_KEYWORDS = ["发票"]
 
+    # 普票与专票同属「增值税发票」一类，共用一条重命名规则
+    TYPE_KEY = "vat_invoice"
+
     def extract_amount(self) -> float:
         """
         提取金额
@@ -220,14 +223,23 @@ class CommonInvoiceExtractor(InvoiceExtractor):
         # 策略2：查找第一个包含公司关键词的"名称:"
         name_pattern = r'名[\n\s]*称[：:]\s*([\u4e00-\u9fa5a-zA-Z0-9（）()]+)'
         matches = re.findall(name_pattern, self._text)
-        company_keywords = ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室', '部']
+        company_keywords = [
+            '公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室', '部',
+            '宾馆', '酒店', '饭店', '旅行社', '经营部', '租赁部', '合作社', '事务所', '研究院',
+        ]
         for buyer in matches:
             buyer = buyer.strip().replace('\n', '').replace(' ', '')
             if len(buyer) > 4 and any(keyword in buyer for keyword in company_keywords):
                 return buyer[:30]
 
         # 策略3：查找第一个公司名称
-        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室|部)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        company_pattern = (
+            r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*'
+            r'(?:股份有限公司|有限责任公司|有限公司|分公司|旅行社|集团公司|集团|'
+            r'宾馆|酒店|饭店|经营部|租赁部|合作社|事务所|研究院|医院|'
+            r'公司|企业|股份|有限|厂|店|中心|工作室|部)'
+            r'[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        )
         matches = re.findall(company_pattern, self._text)
         for buyer in matches:
             buyer = buyer.strip().replace('\n', '').replace(' ', '')
@@ -256,7 +268,13 @@ class CommonInvoiceExtractor(InvoiceExtractor):
 
         seller_labels = ['销', '售方', '销售方']
         buyer_labels = ['购', '买方', '购买方']
-        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室|部)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        company_pattern = (
+            r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*'
+            r'(?:股份有限公司|有限责任公司|有限公司|分公司|旅行社|集团公司|集团|'
+            r'宾馆|酒店|饭店|经营部|租赁部|合作社|事务所|研究院|医院|'
+            r'公司|企业|股份|有限|厂|店|中心|工作室|部)'
+            r'[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        )
 
         for words in self._words:
             if not words:
@@ -350,7 +368,13 @@ class CommonInvoiceExtractor(InvoiceExtractor):
                 return seller[:30]
 
         # 策略3：查找最后一个公司名称
-        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室|部)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        company_pattern = (
+            r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*'
+            r'(?:股份有限公司|有限责任公司|有限公司|分公司|旅行社|集团公司|集团|'
+            r'宾馆|酒店|饭店|经营部|租赁部|合作社|事务所|研究院|医院|'
+            r'公司|企业|股份|有限|厂|店|中心|工作室|部)'
+            r'[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        )
         matches = re.findall(company_pattern, self._text)
         if matches:
             seller = matches[-1].strip().replace('\n', '').replace(' ', '')
