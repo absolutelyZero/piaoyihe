@@ -8,6 +8,7 @@
 import re
 import os
 import time
+from typing import Any, Dict
 from .base import InvoiceExtractor
 
 
@@ -23,18 +24,47 @@ class TaxiInvoiceExtractor(InvoiceExtractor):
 
     INVOICE_TYPE_KEYWORDS = ['出租车', '出租汽车', '的士']
 
+    TYPE_KEY = "taxi_invoice"
+
+    # 新版旅客运输服务电子发票使用标准「电子发票（普通发票）」版式，
+    # 票面存在「价税合计」字段；旧版出租车机打/定额发票无此字段，据此区分版式。
+    E_INVOICE_KEYWORD = '价税合计'
+
+    def _is_e_invoice(self) -> bool:
+        """
+        判断是否为新版旅客运输服务电子发票版式
+
+        新版旅客运输服务（如网约车/出租车出行）电子发票为标准的
+        「电子发票（普通发票）」版式，票面含「价税合计」字段且包含
+        税率/征收率与税额列；旧版出租车机打/定额发票无该字段。
+
+        Returns:
+            bool: True 表示新版电子发票版式，False 表示旧版出租车发票
+        """
+        return self.E_INVOICE_KEYWORD in (self._text or '')
+
     def extract_amount(self) -> float:
         """
         提取金额
 
         提取策略：
-        1. 匹配"金额"字段
-        2. 匹配"¥"符号后的数字
-        3. 匹配"元"单位
+        1. 新版电子发票：取「价税合计（小写）」金额（即含税总额）
+        2. 旧版出租车发票：匹配"金额"字段
+        3. 匹配"¥"符号后的数字
+        4. 匹配"元"单位
 
         Returns:
             float: 金额，失败返回0.0
         """
+        # 新版电子发票：金额口径为「价税合计（小写）」，避免误取明细行不含税金额
+        if self._is_e_invoice():
+            match = re.search(r'（小写）\s*[¥￥]?\s*(\d+(?:,\d{3})*(?:\.\d+)?)', self._text)
+            if match:
+                try:
+                    return float(match.group(1).replace(',', ''))
+                except ValueError:
+                    pass
+
         patterns = [
             r'金额[:：]\s*[¥￥]?\s*(\d+(?:\.\d+)?)',
             r'[¥￥]\s*(\d+(?:\.\d+)?)',
@@ -165,9 +195,66 @@ class TaxiInvoiceExtractor(InvoiceExtractor):
 
     def extract_tax_amount(self) -> float:
         """
-        出租车发票没有税额
+        提取税额
+
+        提取策略：
+        1. 新版电子发票：取合计行「¥金额合计 ¥税额合计」中的税额
+           （部分版式「合 计」字样与两个金额分行显示，故不依赖「合计」字样定位）
+        2. 合理性校验：税额应小于价税合计，否则以「价税合计 - 金额合计」兜底
+        3. 旧版出租车发票没有税额，返回0.0
 
         Returns:
-            float: 0.0
+            float: 税额，无则返回0.0
         """
+        if self._is_e_invoice():
+            # 合计行金额对，形如：¥18.50  ¥0.56；跨行时 \\s+ 亦可匹配
+            match = re.search(
+                r'[¥￥]\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s+[¥￥]\s*(\d+(?:,\d{3})*(?:\.\d+)?)',
+                self._text,
+            )
+            if match:
+                try:
+                    net_amount = float(match.group(1).replace(',', ''))
+                    tax_amount = float(match.group(2).replace(',', ''))
+                except ValueError:
+                    return 0.0
+
+                total_amount = self.extract_amount()
+                # 税额必须小于价税合计；若第二值不满足则说明并非税额列，改用差额兜底
+                if total_amount > 0 and tax_amount >= total_amount:
+                    return round(total_amount - net_amount, 2)
+                return tax_amount
+
         return 0.0
+
+    def extract_extra_fields(self) -> Dict[str, Any]:
+        """
+        提取出租车发票特有字段：车牌号
+
+        车牌号形如「粤B12345」（省份简称 + 字母 + 5~6 位字母数字）。
+
+        提取策略：
+        1. 匹配「车牌号:」标签后的车牌
+        2. 全文匹配车牌号格式
+
+        Returns:
+            Dict[str, Any]: plate_number
+        """
+        text = self._text or ""
+        plate_number = ""
+
+        # 策略1：按标签
+        match = re.search(
+            r'车\s*牌\s*号?[:：]?\s*([\u4e00-\u9fa5][A-Z][A-Z0-9]{5,6})', text
+        )
+        if match:
+            plate_number = match.group(1).strip()
+        else:
+            # 策略2：全文匹配车牌格式
+            match = re.search(
+                r'(?<![A-Z0-9])([\u4e00-\u9fa5][A-Z][A-Z0-9]{5,6})(?![A-Z0-9])', text
+            )
+            if match:
+                plate_number = match.group(1).strip()
+
+        return {'plate_number': plate_number}

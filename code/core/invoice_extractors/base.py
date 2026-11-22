@@ -7,7 +7,104 @@
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
+import re
 import fitz
+
+# 公司名后缀：用于从票面文本中识别「像公司名」的片段
+COMPANY_SUFFIX_RE = re.compile(
+    r'(?:股份有限公司|有限责任公司|有限公司|分公司|旅行社|集团公司|集团|'
+    r'宾馆|酒店|饭店|经营部|租赁部|合作社|事务所|研究院|医院|中心|厂|店)$'
+)
+
+# 出现这些字样的行不是公司名（开户行、税务机关、标签行、密码区等）
+COMPANY_LINE_EXCLUDE = (
+    '银行', '支行', '分行', '信用社', '税务局', '识别号', '信用代码',
+    '发票', '监制', '校验码', '机器编号', '密码区',
+)
+
+# 公司名前可能粘连的标签残余（全电发票的「购买方信息」「名称:」、旧版的「购 名称：」等）
+COMPANY_LABEL_PREFIXES = (
+    '购买方信息', '销售方信息', '购买方名称', '销售方名称',
+    '购买方', '销售方', '名称', '信息', '购买', '销售',
+    '购', '买', '方', '信', '息', '名', '称', '销', '售',
+    ':', '：', ' ',
+)
+
+# 公司名主干：非贪婪前缀 + 公司类后缀（后缀之后可能还有「有限公司」被切开，另行补齐）
+_COMPANY_RE = re.compile(
+    r'([\u4e00-\u9fa5（）()A-Za-z0-9]{2,40}?'
+    r'(?:股份有限公司|有限责任公司|有限公司|分公司|旅行社|集团公司|集团|'
+    r'宾馆|酒店|饭店|经营部|租赁部|合作社|事务所|研究院|医院|中心|厂|店))'
+)
+
+# 名称被版式切开的补齐片段（如「…集团」+「有限公司」）
+_TAIL_CONTINUE_RE = re.compile(r'\s*(公司|有限公司|分公司|集团公司|集团)')
+
+# 换行后的分公司/子公司名（如「哈尔滨市城投投资控股有限公司」+「机场专用路分公司」）
+_TAIL_BRANCH_RE = re.compile(r'\s*([\u4e00-\u9fa5]{2,20}(?:分公司|公司|中心|店))(?=\s|$)')
+
+
+def _strip_label_prefix(name: str) -> str:
+    """去掉公司名前粘连的标签字（如「名称:」「购 名称：」）。"""
+    changed = True
+    while changed and name:
+        changed = False
+        for prefix in COMPANY_LABEL_PREFIXES:
+            if name.startswith(prefix) and len(name) > len(prefix):
+                name = name[len(prefix):]
+                changed = True
+                break
+    return name
+
+
+def iter_company_names(text: str) -> List[str]:
+    """按出现顺序返回文本中「像公司名」的片段（去重、长度 4~60）。
+
+    全电发票新版式把「购买方信息」「销售方信息」等标签与名称值分置不同行，
+    旧版纸质发票则把「购/买/方」拆成竖排单字、「名　　　　称:」中间夹全角空格，
+    这些版式下标签无法直接取值，只能按票面中公司名的出现顺序推断：
+    第 1 个为购买方，第 2 个为销售方。
+
+    Args:
+        text: 票面文本
+
+    Returns:
+        List[str]: 公司名列表，按文本出现顺序
+    """
+    text = text or ''
+    names: List[str] = []
+    consumed = 0
+    for match in _COMPANY_RE.finditer(text):
+        if match.start() < consumed:
+            # 已被上一个公司名合并进来的分支片段（如「机场专用路分公司」），跳过
+            continue
+        name = match.group(1)
+        end = match.end()
+
+        # 补齐被版式切开的尾部（「…集团」+「有限公司」）
+        while True:
+            tail = _TAIL_CONTINUE_RE.match(text, end)
+            if not tail:
+                break
+            name += tail.group(1)
+            end = tail.end()
+
+        # 合并换行后的分支机构（「…有限公司」+「机场专用路分公司」）
+        if name.endswith('公司'):
+            branch = _TAIL_BRANCH_RE.match(text, end)
+            if branch:
+                name += branch.group(1)
+                end = branch.end()
+
+        consumed = end
+        name = _strip_label_prefix(name).strip()
+        if len(name) < 4 or len(name) > 60:
+            continue
+        if any(token in name for token in COMPANY_LINE_EXCLUDE):
+            continue
+        if name not in names:
+            names.append(name)
+    return names
 
 
 class InvoiceExtractor(ABC):
@@ -19,13 +116,13 @@ class InvoiceExtractor(ABC):
 
     Attributes:
         INVOICE_TYPE_KEYWORDS: 类属性，用于识别票种的关键词列表
-        pdf_path: PDF文件路径
-        _doc: fitz.Document对象，在上下文管理器中打开
-        _text: PDF全文文本缓存
-        _pages: PDF页面列表缓存
+        TYPE_KEY: 类属性，票种标识（与 invoice_field_registry.INVOICE_TYPE_KEYS 对应）
     """
 
     INVOICE_TYPE_KEYWORDS: List[str] = []
+
+    # 票种标识，供重命名层按票种选择规则。子类必须赋值。
+    TYPE_KEY: str = ""
 
     def __init__(self, pdf_path: str):
         """
@@ -166,11 +263,25 @@ class InvoiceExtractor(ABC):
         """
         pass
 
+    def extract_extra_fields(self) -> Dict[str, Any]:
+        """
+        提取该票种特有的字段
+
+        非抽象钩子：默认无特有字段。需要特有字段的票种覆写此方法，
+        返回 {file_info 键: 值} 的字典，键应使用英文 snake_case。
+
+        返回值:
+            Dict[str, Any]: 特有字段字典，默认为空
+        """
+        return {}
+
     def extract_all(self) -> Dict[str, Any]:
         """
         一次性提取所有字段
 
-        调用各字段提取方法，返回完整信息字典
+        调用各字段提取方法，返回完整信息字典。
+        特有字段（extract_extra_fields 的返回值）会合并进结果，
+        并附带票种标识 invoice_type_key。
 
         Returns:
             Dict[str, Any]: 包含所有字段的字典
@@ -180,8 +291,12 @@ class InvoiceExtractor(ABC):
                 - product_type: 商品类型
                 - buyer_name: 购买方名称
                 - seller_name: 销售方名称
+                - invoice_code: 发票号码
+                - tax_amount: 税额
+                - invoice_type_key: 票种标识（7 类票种之一）
+                - 以及各票种特有字段
         """
-        return {
+        info = {
             'amount': self.extract_amount(),
             'invoice_date': self.extract_invoice_date(),
             'invoice_type': self.extract_invoice_type(),
@@ -191,3 +306,15 @@ class InvoiceExtractor(ABC):
             'invoice_code': self.extract_invoice_code(),
             'tax_amount': self.extract_tax_amount(),
         }
+
+        # 合并票种特有字段
+        try:
+            info.update(self.extract_extra_fields() or {})
+        except Exception:
+            # 特有字段提取失败不应影响通用字段
+            pass
+
+        # 票种标识（重命名层据此选择规则）
+        info['invoice_type_key'] = self.TYPE_KEY
+
+        return info

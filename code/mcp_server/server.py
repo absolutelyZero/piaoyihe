@@ -96,20 +96,24 @@ def batch_extract_invoice_info(pdf_paths: List[str]) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def batch_rename_invoices(pdf_paths: List[str], rule: str, dry_run: bool = False) -> Dict[str, Any]:
+def batch_rename_invoices(pdf_paths: List[str], rule: str = "", dry_run: bool = False,
+                          rules: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """
-    MCP Tool：按规则批量重命名发票 PDF 文件
+    MCP Tool：按规则批量重命名发票 PDF 文件（支持按票种分别指定规则）
 
     参数:
         pdf_paths: 需要重命名的 PDF 文件路径列表
-        rule: 重命名规则字符串，支持 {发票类型}、{开票日期} 等占位符
+        rule: 单一重命名规则字符串，应用于全部票种（兼容旧调用）
         dry_run: 是否为预览模式，默认 False；为 True 时不真正重命名文件
+        rules: 按票种指定的规则，格式 {"train_ticket": "{车次}-{开票日期}", ...}，
+               优先于 rule；合法票种标识见 get_supported_fields
 
     返回值:
         Dict[str, Any]: 包含 success、renamed_count、failed_count、
-                       unrecognized_files、renamed_map、dry_run 和 message 的字典
+                       unrecognized_files、skipped_unconfigured_count、
+                       renamed_map、dry_run 和 message 的字典
     """
-    return handle_batch_rename_invoices(pdf_paths, rule, dry_run=dry_run)
+    return handle_batch_rename_invoices(pdf_paths, rule, dry_run=dry_run, rules=rules)
 
 
 @mcp.tool()

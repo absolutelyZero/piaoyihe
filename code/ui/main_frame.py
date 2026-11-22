@@ -24,7 +24,7 @@ from ui.rename_dialog import RenameDialog
 from ui.merge_worker import MergeWorker
 from ui.file_load_worker import FileLoadWorker
 from core.pdf_handler import PDFHandler, is_supported_file
-from core.invoice_service import InvoiceService
+from core.invoice_service import InvoiceService, migrate_rename_rules
 from core.update_checker import UpdateChecker, show_update_dialog
 from ui.theme import AppTheme
 
@@ -2433,19 +2433,44 @@ class MainWindow(QMainWindow):
     def _on_rename(self):
         """
         批量重命名按钮点击处理
-        
+
         功能描述:
-            打开重命名对话框，配置重命名规则并执行批量重命名
+            打开重命名对话框，按票种配置重命名规则并执行批量重命名。
+            打开前先把旧版单一规则迁移为按票种规则集合（若需要）。
         """
         files = self.file_list.get_all_files()
         if not files:
             QMessageBox.warning(self, "警告", "请先添加PDF文件")
             return
-        
+
+        # 打开对话框前执行旧配置迁移
+        self._migrate_rename_rules_if_needed()
+
         # 打开重命名对话框
         dialog = RenameDialog(self, config_file=CONFIG_FILE)
         dialog.rename_executed.connect(self._perform_batch_rename)
         dialog.exec()
+
+    def _migrate_rename_rules_if_needed(self):
+        """
+        迁移旧版单一重命名规则到按票种规则集合
+
+        功能描述:
+            读取配置，调用 migrate_rename_rules；发生迁移时立即落盘，
+            使升级用户的既有规则自动作用于全部 7 类票种。
+        """
+        try:
+            if not os.path.exists(CONFIG_FILE):
+                return
+
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+
+            if migrate_rename_rules(config):
+                with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"迁移重命名规则失败: {e}")
 
     def _on_export_list(self):
         """
@@ -2462,17 +2487,18 @@ class MainWindow(QMainWindow):
         # 调用file_list的_export_file方法，传入-1表示导出整个列表
         self.file_list._export_file()
 
-    def _perform_batch_rename(self, rule):
+    def _perform_batch_rename(self, rules):
         """
         执行批量重命名
 
         功能描述:
-            调用 InvoiceService 对文件列表中的文件进行批量重命名，并刷新界面显示
+            调用 InvoiceService 按票种规则对文件列表中的文件进行批量重命名，
+            并刷新界面显示
 
         参数:
-            rule: 重命名规则字符串
+            rules: 票种标识 -> 重命名规则字符串的字典
         """
-        if not rule:
+        if not rules:
             return
 
         files = self.file_list.get_all_files()
@@ -2480,7 +2506,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            result = self.invoice_service.batch_rename(files, rule)
+            result = self.invoice_service.batch_rename(files, rules)
 
             # 同步更新文件列表中的路径
             for old_path, new_path in result.get('renamed_map', {}).items():
@@ -2496,6 +2522,10 @@ class MainWindow(QMainWindow):
                 messages.append(f"成功重命名 {result['renamed_count']} 个文件")
             if result.get('failed_count', 0) > 0:
                 messages.append(f"失败: {result['failed_count']} 个")
+            if result.get('skipped_unconfigured_count', 0) > 0:
+                messages.append(
+                    f"跳过未配置规则的 {result['skipped_unconfigured_count']} 个文件"
+                )
             if result.get('skipped_image_count', 0) > 0:
                 messages.append(f"跳过 {result['skipped_image_count']} 个图片文件")
             if result.get('skipped_ofd_count', 0) > 0:

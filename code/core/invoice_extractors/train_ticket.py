@@ -9,6 +9,7 @@
 import re
 import os
 import time
+from typing import Any, Dict
 from .base import InvoiceExtractor
 
 
@@ -27,6 +28,8 @@ class TrainTicketExtractor(InvoiceExtractor):
     """
 
     INVOICE_TYPE_KEYWORDS = ['火车票', '铁路电子客票', '列车票']
+
+    TYPE_KEY = "train_ticket"
 
     def extract_amount(self) -> float:
         """
@@ -201,3 +204,83 @@ class TrainTicketExtractor(InvoiceExtractor):
             float: 0.0
         """
         return 0.0
+
+    def extract_extra_fields(self) -> Dict[str, Any]:
+        """
+        提取火车票特有字段：车次、出发站、到达站
+
+        票面版式（铁路电子客票）：
+            河源东站太湖南站G636
+            HeyuandongTaihunan
+        即「出发站 + 到达站 + 车次」在同一行连续出现。
+
+        提取策略：
+        1. 匹配「XX站XX站 + 车次号」的行内组合（最可靠）
+        2. 分别按「车次:」标签匹配车次
+        3. 分别按「出发站:」「到达站:」标签匹配站点
+
+        Returns:
+            Dict[str, Any]: train_number / departure_station / arrival_station
+        """
+        text = self._text or ""
+        train_number = ""
+        departure = ""
+        arrival = ""
+
+        # 策略1：出发站 + 车次 + 到达站（铁路电子客票典型排版）
+        #   票面如「河源东站    G636    太湖南站」
+        #   也兼容「河源东站太湖南站G636」这种连写
+        match = re.search(
+            r'([\u4e00-\u9fa5]{2,7}?站)\s*([GDCZTK]\d{1,4})\s*([\u4e00-\u9fa5]{2,7}?站)',
+            text
+        )
+        if match:
+            departure = match.group(1).strip()
+            train_number = match.group(2).strip()
+            arrival = match.group(3).strip()
+        else:
+            # 策略1b：站名连写 + 车次（如「河源东站太湖南站G636」）
+            match = re.search(
+                r'([\u4e00-\u9fa5]{2,7}?站)([\u4e00-\u9fa5]{2,7}?站)([GDCZTK]\d{1,4})',
+                text
+            )
+            if match:
+                departure = match.group(1).strip()
+                arrival = match.group(2).strip()
+                train_number = match.group(3).strip()
+            else:
+                # 策略2：仅站名连写，不带车次
+                match = re.search(
+                    r'([\u4e00-\u9fa5]{2,7}?站)\s*([\u4e00-\u9fa5]{2,7}?站)', text
+                )
+                if match:
+                    departure = match.group(1).strip()
+                    arrival = match.group(2).strip()
+
+        # 补充：按标签匹配（覆盖带标签的版式）
+        if not train_number:
+            match = re.search(r'车\s*次[:：]\s*([GDCZTK]\d{1,4})', text)
+            if match:
+                train_number = match.group(1).strip()
+
+        if not train_number:
+            # 兜底：全文找车次号（字母 + 1~4 位数字）
+            match = re.search(r'(?<![A-Za-z])([GDCZTK]\d{1,4})(?![0-9])', text)
+            if match:
+                train_number = match.group(1).strip()
+
+        if not departure:
+            match = re.search(r'出发站[:：]\s*([\u4e00-\u9fa5]{2,10}站?)', text)
+            if match:
+                departure = match.group(1).strip()
+
+        if not arrival:
+            match = re.search(r'到达站[:：]\s*([\u4e00-\u9fa5]{2,10}站?)', text)
+            if match:
+                arrival = match.group(1).strip()
+
+        return {
+            'train_number': train_number,
+            'departure_station': departure,
+            'arrival_station': arrival,
+        }

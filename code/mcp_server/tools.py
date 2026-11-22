@@ -11,7 +11,8 @@ import os
 from typing import List, Dict, Any, Optional
 
 from core.pdf_handler import PDFHandler, is_supported_file
-from core.invoice_service import InvoiceService
+from core.invoice_service import InvoiceService, normalize_rename_rules
+from core.invoice_field_registry import INVOICE_TYPE_KEYS
 from .config import SERVER_NAME, SERVER_VERSION
 
 
@@ -227,43 +228,64 @@ def handle_batch_extract_invoice_info(pdf_paths: List[str]) -> Dict[str, Any]:
         return {"success": False, "results": [], "message": f"批量提取异常: {str(e)}"}
 
 
-def handle_batch_rename_invoices(pdf_paths: List[str], rule: str, dry_run: bool = False) -> Dict[str, Any]:
+def handle_batch_rename_invoices(pdf_paths: List[str], rule: str = "", dry_run: bool = False,
+                                 rules: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """
-    按规则批量重命名发票 PDF 文件
+    按规则批量重命名发票 PDF 文件（支持按票种分别指定规则）
 
     功能描述:
         调用 InvoiceService.batch_rename 根据规则批量重命名文件。
+        支持两种传参方式：
+        - rule: 单一规则，应用于全部票种（兼容旧调用）
+        - rules: 按票种指定规则（票种标识 -> 规则），优先于 rule
+        两者可同时提供：已指定票种规则的按票种规则，未指定的按 rule。
         支持 dry_run 预览模式，预览模式下不会真正修改文件系统。
 
     参数:
         pdf_paths: 需要重命名的 PDF 文件路径列表
-        rule: 重命名规则字符串，支持 {发票类型}、{开票日期} 等占位符
+        rule: 单一重命名规则字符串，支持 {发票类型}、{开票日期} 等占位符
         dry_run: 是否为预览模式，默认 False
+        rules: 票种标识 -> 规则字符串。合法票种标识见 get_supported_fields
 
     返回值:
         Dict[str, Any]: 包含 success、renamed_count、failed_count、unrecognized_files、
-                       renamed_map、dry_run 和 message 的字典
+                       skipped_unconfigured_count、renamed_map、dry_run 和 message 的字典
     """
     valid, msg = _validate_pdf_paths(pdf_paths)
     if not valid:
         return {"success": False, "renamed_count": 0, "failed_count": 0,
-                "unrecognized_files": [], "renamed_map": {}, "dry_run": dry_run,
-                "message": msg}
+                "unrecognized_files": [], "skipped_unconfigured_count": 0,
+                "renamed_map": {}, "dry_run": dry_run, "message": msg}
 
-    if not rule:
+    # 合并出最终规则映射：rules 优先，rule 填补未指定的票种
+    merged = normalize_rename_rules(None)
+    if isinstance(rules, dict):
+        for key in INVOICE_TYPE_KEYS:
+            value = rules.get(key)
+            if isinstance(value, str) and value.strip():
+                merged[key] = value.strip()
+    if isinstance(rule, str) and rule.strip():
+        for key in INVOICE_TYPE_KEYS:
+            if not merged[key]:
+                merged[key] = rule.strip()
+
+    if not any(merged.values()):
         return {"success": False, "renamed_count": 0, "failed_count": 0,
-                "unrecognized_files": [], "renamed_map": {}, "dry_run": dry_run,
+                "unrecognized_files": [], "skipped_unconfigured_count": 0,
+                "renamed_map": {}, "dry_run": dry_run,
                 "message": "重命名规则为空"}
 
     pdf_paths = _normalize_paths(pdf_paths)
     pdf_handler = _new_pdf_handler()
     service = InvoiceService(pdf_handler)
     try:
-        result = service.batch_rename(pdf_paths, rule, dry_run=dry_run)
+        result = service.batch_rename(pdf_paths, merged, dry_run=dry_run)
         action = "将会重命名" if dry_run else "成功重命名"
         message = f"{action} {result['renamed_count']} 个文件"
         if result['failed_count'] > 0:
             message += f"，失败 {result['failed_count']} 个"
+        if result.get('skipped_unconfigured_count', 0) > 0:
+            message += f"，跳过未配置规则的 {result['skipped_unconfigured_count']} 个"
         if result['unrecognized_files']:
             message += f"，未能识别 {len(result['unrecognized_files'])} 个文件"
 
@@ -272,6 +294,7 @@ def handle_batch_rename_invoices(pdf_paths: List[str], rule: str, dry_run: bool 
             "renamed_count": result['renamed_count'],
             "failed_count": result['failed_count'],
             "unrecognized_files": result['unrecognized_files'],
+            "skipped_unconfigured_count": result.get('skipped_unconfigured_count', 0),
             "renamed_map": result['renamed_map'],
             "dry_run": dry_run,
             "message": message
@@ -279,7 +302,8 @@ def handle_batch_rename_invoices(pdf_paths: List[str], rule: str, dry_run: bool 
     except Exception as e:
         logger.exception("批量重命名异常")
         return {"success": False, "renamed_count": 0, "failed_count": 0,
-                "unrecognized_files": [], "renamed_map": {}, "dry_run": dry_run,
+                "unrecognized_files": [], "skipped_unconfigured_count": 0,
+                "renamed_map": {}, "dry_run": dry_run,
                 "message": f"批量重命名异常: {str(e)}"}
 
 
@@ -441,9 +465,9 @@ def handle_get_supported_layouts() -> Dict[str, Any]:
 
 def handle_get_supported_fields() -> Dict[str, Any]:
     """
-    获取重命名规则中支持的字段列表
+    获取重命名规则中支持的字段列表（按票种分组）
 
     返回值:
-        Dict[str, Any]: 包含 fields（字段列表）的字典
+        Dict[str, Any]: 含 types（7 个票种分组）与 fields（扁平并集）的字典
     """
-    return {"fields": InvoiceService.get_available_fields()}
+    return InvoiceService.get_available_fields()

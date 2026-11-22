@@ -7,10 +7,31 @@ MCP Tool handler 单元测试
 
 import os
 import sys
+import shutil
+import uuid
 import tempfile
 import unittest
+import contextlib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'code'))
+
+
+@contextlib.contextmanager
+def tempfile_dir():
+    """
+    可写的临时目录
+
+    tempfile.TemporaryDirectory 在部分沙箱环境下于清理阶段被拒绝，
+    改用 os.makedirs + uuid 并尽力清理。
+    """
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.testtmp')
+    os.makedirs(base, exist_ok=True)
+    path = os.path.join(base, 'mcp_' + uuid.uuid4().hex[:10])
+    os.makedirs(path, exist_ok=True)
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
 
 from unittest.mock import patch, Mock
 from mcp_server.tools import (
@@ -75,9 +96,16 @@ class TestTools(unittest.TestCase):
 
     @staticmethod
     def _fake_handler(info):
-        """构造返回指定 info 的伪造 PDFHandler"""
+        """构造返回指定 info 的伪造 PDFHandler
+
+        自动补 invoice_type_key（默认 vat_invoice）：按票种的规则选择
+        需要该字段，若调用方显式提供则以其为准。
+        """
+        payload = dict(info) if isinstance(info, dict) else info
+        if isinstance(payload, dict) and 'invoice_type_key' not in payload:
+            payload['invoice_type_key'] = 'vat_invoice'
         handler = Mock()
-        handler.extract_all_invoice_info = Mock(return_value=info)
+        handler.extract_all_invoice_info = Mock(return_value=payload)
         return handler
 
     @patch('mcp_server.tools._new_pdf_handler')
@@ -108,7 +136,7 @@ class TestTools(unittest.TestCase):
     @patch('mcp_server.tools._new_pdf_handler')
     def test_batch_rename_dry_run(self, mock_new):
         """预览模式不应修改文件系统"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             paths = []
             for name in ['a.pdf', 'b.pdf']:
                 p = os.path.join(tmpdir, name)
@@ -138,7 +166,7 @@ class TestTools(unittest.TestCase):
     @patch('mcp_server.tools._new_pdf_handler')
     def test_export_invoice_list_from_paths(self, mock_new):
         """按路径导出应生成 Excel"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             pdf_path = os.path.join(tmpdir, 'a.pdf')
             with open(pdf_path, 'w') as f:
                 pass
@@ -157,7 +185,7 @@ class TestTools(unittest.TestCase):
     @patch('mcp_server.tools._new_pdf_handler')
     def test_merge_invoices_success(self, mock_new):
         """合并成功应返回 output_path"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             pdf_path = os.path.join(tmpdir, 'a.pdf')
             output_path = os.path.join(tmpdir, 'out.pdf')
             with open(pdf_path, 'w') as f:
@@ -178,7 +206,7 @@ class TestTools(unittest.TestCase):
     @patch('mcp_server.tools._new_pdf_handler')
     def test_merge_invoices_failure(self, mock_new):
         """合并失败应返回 success=False"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             pdf_path = os.path.join(tmpdir, 'a.pdf')
             output_path = os.path.join(tmpdir, 'out.pdf')
             with open(pdf_path, 'w') as f:
@@ -197,7 +225,7 @@ class TestTools(unittest.TestCase):
     @patch('mcp_server.tools._new_pdf_handler')
     def test_merge_invoices_with_margins(self, mock_new):
         """合并时传入页边距应透传到 layout 中"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             pdf_path = os.path.join(tmpdir, 'a.pdf')
             output_path = os.path.join(tmpdir, 'out.pdf')
             with open(pdf_path, 'w') as f:
@@ -224,7 +252,7 @@ class TestTools(unittest.TestCase):
     @patch('mcp_server.tools._new_pdf_handler')
     def test_merge_invoices_with_crop_marks(self, mock_new):
         """合并时传入裁切线应透传到 layout 中"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             pdf_path = os.path.join(tmpdir, 'a.pdf')
             output_path = os.path.join(tmpdir, 'out.pdf')
             with open(pdf_path, 'w') as f:
@@ -250,7 +278,7 @@ class TestTools(unittest.TestCase):
     @patch('mcp_server.tools._new_pdf_handler')
     def test_merge_invoices_with_both_params(self, mock_new):
         """同时传入页边距和裁切线都应正确透传"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             pdf_path = os.path.join(tmpdir, 'a.pdf')
             output_path = os.path.join(tmpdir, 'out.pdf')
             with open(pdf_path, 'w') as f:
@@ -279,7 +307,7 @@ class TestTools(unittest.TestCase):
     @patch('mcp_server.tools._new_pdf_handler')
     def test_merge_invoices_exception(self, mock_new):
         """合并异常应返回 success=False 并携带异常信息"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             pdf_path = os.path.join(tmpdir, 'a.pdf')
             output_path = os.path.join(tmpdir, 'out.pdf')
             with open(pdf_path, 'w') as f:
@@ -303,7 +331,7 @@ class TestTools(unittest.TestCase):
 
     def test_export_invoice_list_success(self):
         """直接传入 pdf_infos 应成功导出 Excel"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             output_path = os.path.join(tmpdir, 'out.xlsx')
             pdf_infos = [{
                 'name': 'a.pdf',
@@ -352,11 +380,18 @@ class TestTools(unittest.TestCase):
         self.assertIn('cols', layout)
 
     def test_get_supported_fields(self):
-        """应返回非空字段列表"""
+        """应返回非空字段列表（按票种分组 + 扁平并集）"""
         result = handle_get_supported_fields()
         self.assertIn('fields', result)
         self.assertIsInstance(result['fields'], list)
         self.assertTrue(any(f['key'] == 'amount' for f in result['fields']))
+        # 新增的按票种分组视图
+        self.assertIn('types', result)
+        self.assertEqual(len(result['types']), 7)
+        for item in result['types']:
+            self.assertIn('key', item)
+            self.assertIn('label', item)
+            self.assertTrue(item['fields'])
 
 
 class TestEnsureOutputDir(unittest.TestCase):
@@ -364,7 +399,7 @@ class TestEnsureOutputDir(unittest.TestCase):
 
     def test_ensure_output_dir_create(self):
         """父目录不存在时应创建"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             output_path = os.path.join(tmpdir, 'new_dir', 'out.xlsx')
             valid, msg = _ensure_output_dir(output_path)
             self.assertTrue(valid)
@@ -384,14 +419,17 @@ class TestBatchRenameReal(unittest.TestCase):
 
     @staticmethod
     def _fake_handler(info):
+        payload = dict(info) if isinstance(info, dict) else info
+        if isinstance(payload, dict) and 'invoice_type_key' not in payload:
+            payload['invoice_type_key'] = 'vat_invoice'
         handler = Mock()
-        handler.extract_all_invoice_info = Mock(return_value=info)
+        handler.extract_all_invoice_info = Mock(return_value=payload)
         return handler
 
     @patch('mcp_server.tools._new_pdf_handler')
     def test_batch_rename_real(self, mock_new):
         """实际重命名应修改文件系统"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile_dir() as tmpdir:
             paths = []
             for name in ['a.pdf', 'b.pdf']:
                 p = os.path.join(tmpdir, name)
@@ -416,6 +454,111 @@ class TestBatchRenameReal(unittest.TestCase):
             self.assertEqual(result['renamed_count'], 2)
             self.assertTrue(os.path.exists(os.path.join(tmpdir, '普票-2024-01-01.pdf')))
             self.assertTrue(os.path.exists(os.path.join(tmpdir, '普票-2024-01-01(1).pdf')))
+
+
+class TestBatchRenameByTypeRules(unittest.TestCase):
+    """测试按票种规则参数（rules）的三种组合"""
+
+    @staticmethod
+    def _handler(info):
+        payload = dict(info)
+        payload.setdefault('invoice_type_key', 'vat_invoice')
+        handler = Mock()
+        handler.extract_all_invoice_info = Mock(return_value=payload)
+        return handler
+
+    @patch('mcp_server.tools._new_pdf_handler')
+    def test_rules_only(self, mock_new):
+        """只传 rules：按票种规则重命名"""
+        with tempfile_dir() as tmpdir:
+            p = os.path.join(tmpdir, 'a.pdf')
+            open(p, 'w').close()
+
+            mock_new.return_value = self._handler({
+                'invoice_type': '火车票',
+                'invoice_type_key': 'train_ticket',
+                'train_number': 'G636',
+                'invoice_date': '2024-01-01',
+            })
+            result = handle_batch_rename_invoices(
+                [p], dry_run=True, rules={'train_ticket': '{车次}'}
+            )
+            self.assertTrue(result['success'])
+            self.assertEqual(result['renamed_count'], 1)
+
+    @patch('mcp_server.tools._new_pdf_handler')
+    def test_rule_only_backward_compatible(self, mock_new):
+        """只传 rule：应用于全部票种（旧行为）"""
+        with tempfile_dir() as tmpdir:
+            p = os.path.join(tmpdir, 'a.pdf')
+            open(p, 'w').close()
+
+            mock_new.return_value = self._handler({
+                'invoice_type': '普票',
+                'invoice_date': '2024-01-01',
+            })
+            result = handle_batch_rename_invoices(
+                [p], '{发票类型}-{开票日期}', dry_run=True
+            )
+            self.assertTrue(result['success'])
+            self.assertEqual(result['renamed_count'], 1)
+
+    @patch('mcp_server.tools._new_pdf_handler')
+    def test_both_provided_rules_take_priority(self, mock_new):
+        """同时传 rule 与 rules：已指定的票种按 rules，未按 rule"""
+        with tempfile_dir() as tmpdir:
+            p1 = os.path.join(tmpdir, 'a.pdf')
+            p2 = os.path.join(tmpdir, 'b.pdf')
+            open(p1, 'w').close()
+            open(p2, 'w').close()
+
+            handler = Mock()
+            handler.extract_all_invoice_info = Mock(side_effect=[
+                {'invoice_type_key': 'train_ticket', 'train_number': 'G1',
+                 'invoice_type': '火车票', 'invoice_date': '2024-01-01'},
+                {'invoice_type_key': 'vat_invoice', 'invoice_type': '普票',
+                 'invoice_date': '2024-02-02'},
+            ])
+            mock_new.return_value = handler
+
+            result = handle_batch_rename_invoices(
+                [p1, p2],
+                rule='{发票类型}',
+                dry_run=True,
+                rules={'train_ticket': '{车次}'}
+            )
+            self.assertTrue(result['success'])
+            self.assertEqual(result['renamed_count'], 2)
+
+    @patch('mcp_server.tools._new_pdf_handler')
+    def test_empty_both_rejected(self, mock_new):
+        """rule 与 rules 都为空：返回错误"""
+        with tempfile_dir() as tmpdir:
+            p = os.path.join(tmpdir, 'a.pdf')
+            open(p, 'w').close()
+            result = handle_batch_rename_invoices([p])
+            self.assertFalse(result['success'])
+            self.assertIn('为空', result['message'])
+            mock_new.assert_not_called()
+
+    @patch('mcp_server.tools._new_pdf_handler')
+    def test_unconfigured_type_reported(self, mock_new):
+        """未配置规则的票种被计入 skipped_unconfigured_count"""
+        with tempfile_dir() as tmpdir:
+            p = os.path.join(tmpdir, 'a.pdf')
+            open(p, 'w').close()
+
+            mock_new.return_value = self._handler({
+                'invoice_type': '定额发票',
+                'invoice_type_key': 'fixed_amount_invoice',
+            })
+            result = handle_batch_rename_invoices(
+                [p], dry_run=True, rules={'vat_invoice': '{发票类型}'}
+            )
+            self.assertTrue(result['success'])
+            self.assertEqual(result['renamed_count'], 0)
+            self.assertEqual(result['skipped_unconfigured_count'], 1)
+            self.assertIn('跳过未配置规则', result['message'])
 
 
 if __name__ == '__main__':

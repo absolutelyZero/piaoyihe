@@ -25,6 +25,9 @@ class CommonInvoiceExtractor(InvoiceExtractor):
 
     INVOICE_TYPE_KEYWORDS = ["发票"]
 
+    # 普票与专票同属「增值税发票」一类，共用一条重命名规则
+    TYPE_KEY = "vat_invoice"
+
     def extract_amount(self) -> float:
         """
         提取金额
@@ -220,14 +223,23 @@ class CommonInvoiceExtractor(InvoiceExtractor):
         # 策略2：查找第一个包含公司关键词的"名称:"
         name_pattern = r'名[\n\s]*称[：:]\s*([\u4e00-\u9fa5a-zA-Z0-9（）()]+)'
         matches = re.findall(name_pattern, self._text)
-        company_keywords = ['公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室', '部']
+        company_keywords = [
+            '公司', '企业', '股份', '有限', '集团', '厂', '店', '中心', '工作室', '部',
+            '宾馆', '酒店', '饭店', '旅行社', '经营部', '租赁部', '合作社', '事务所', '研究院',
+        ]
         for buyer in matches:
             buyer = buyer.strip().replace('\n', '').replace(' ', '')
             if len(buyer) > 4 and any(keyword in buyer for keyword in company_keywords):
                 return buyer[:30]
 
         # 策略3：查找第一个公司名称
-        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室|部)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        company_pattern = (
+            r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*'
+            r'(?:股份有限公司|有限责任公司|有限公司|分公司|旅行社|集团公司|集团|'
+            r'宾馆|酒店|饭店|经营部|租赁部|合作社|事务所|研究院|医院|'
+            r'公司|企业|股份|有限|厂|店|中心|工作室|部)'
+            r'[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        )
         matches = re.findall(company_pattern, self._text)
         for buyer in matches:
             buyer = buyer.strip().replace('\n', '').replace(' ', '')
@@ -256,7 +268,13 @@ class CommonInvoiceExtractor(InvoiceExtractor):
 
         seller_labels = ['销', '售方', '销售方']
         buyer_labels = ['购', '买方', '购买方']
-        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室|部)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        company_pattern = (
+            r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*'
+            r'(?:股份有限公司|有限责任公司|有限公司|分公司|旅行社|集团公司|集团|'
+            r'宾馆|酒店|饭店|经营部|租赁部|合作社|事务所|研究院|医院|'
+            r'公司|企业|股份|有限|厂|店|中心|工作室|部)'
+            r'[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        )
 
         for words in self._words:
             if not words:
@@ -350,7 +368,13 @@ class CommonInvoiceExtractor(InvoiceExtractor):
                 return seller[:30]
 
         # 策略3：查找最后一个公司名称
-        company_pattern = r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*(?:公司|企业|股份|有限|集团|厂|店|中心|工作室|部)[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        company_pattern = (
+            r'([\u4e00-\u9fa5a-zA-Z0-9（）()]*'
+            r'(?:股份有限公司|有限责任公司|有限公司|分公司|旅行社|集团公司|集团|'
+            r'宾馆|酒店|饭店|经营部|租赁部|合作社|事务所|研究院|医院|'
+            r'公司|企业|股份|有限|厂|店|中心|工作室|部)'
+            r'[\u4e00-\u9fa5a-zA-Z0-9（）()]*)'
+        )
         matches = re.findall(company_pattern, self._text)
         if matches:
             seller = matches[-1].strip().replace('\n', '').replace(' ', '')
@@ -364,32 +388,43 @@ class CommonInvoiceExtractor(InvoiceExtractor):
         提取发票号码
 
         提取策略（按优先级）：
-        1. 匹配"发票号码:"字段
-        2. 匹配"代码:"字段
-        3. 匹配20位数字代码格式
+        1. 匹配"发票号码:"字段（标签在号码左侧）
+        2. 匹配号码位于"发票号码"标签左侧的版式（标签右对齐，如号码→标题→标签）
+        3. 匹配"代码:"字段
+        4. 匹配20位数字代码格式（排除银行账号、纳税人识别号所在行）
 
         Returns:
             str: 发票号码，无则返回空字符串
         """
-        # 策略1：匹配"发票号码:"字段
+        # 策略1：标签在号码左侧，如「发票号码：26952000001331049211」
         code_pattern = r'发票号码[:：]\s*(\d{20})'
         match = re.search(code_pattern, self._text)
         if match:
             return match.group(1).strip()
 
-        # 策略2：匹配"代码:"字段（在发票信息区域）
+        # 策略2：号码在"发票号码"标签左侧同一行（标签右对齐版式），如
+        # 「26447000002110821606        电子发票（普通发票）        发票号码:」
+        code_pattern = r'(?<!\d)(\d{20})(?!\d)[^\n]{0,60}发票号码'
+        match = re.search(code_pattern, self._text)
+        if match:
+            return match.group(1).strip()
+
+        # 策略3：匹配"代码:"字段（在发票信息区域）
         code_pattern = r'代码[:：]\s*(\d{20})'
         match = re.search(code_pattern, self._text)
         if match:
             return match.group(1).strip()
 
-        # 策略3：匹配20位数字代码格式（通常是发票号码）
-        code_pattern = r'\b(\d{20})\b'
-        matches = re.findall(code_pattern, self._text)
-        for code in matches:
-            # 发票号码通常以特定数字开头
-            if code.startswith(('0', '1')):
-                return code
+        # 策略4：匹配20位数字代码格式（通常是发票号码）
+        # 新版全电发票号码首位不固定（如 2、3 开头），不再做首位过滤，
+        # 改为逐行排除银行账号、纳税人识别号等干扰字段
+        excluded_keywords = ('银行账号', '开户银行', '纳税人识别号', '统一社会信用代码')
+        for line in self._text.splitlines():
+            if any(keyword in line for keyword in excluded_keywords):
+                continue
+            match = re.search(r'(?<!\d)(\d{20})(?!\d)', line)
+            if match:
+                return match.group(1)
 
         return ""
 
