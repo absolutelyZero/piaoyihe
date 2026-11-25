@@ -71,7 +71,7 @@
 ## Risks / Trade-offs
 
 - **[QSS 优先级混乱]** 新旧样式并存期间局部 `setStyleSheet` 会覆盖全局 QSS → 分阶段替换，先生成全局表再逐文件删除内联样式；每次替换后按 `01`/`04` 截图比对。
-- **[中文字体缺失]** macOS / Win7 未必有 Noto Sans SC → 字体栈回退 `Noto Sans SC → Source Han Sans SC → Source Han Sans CN → Microsoft YaHei → PingFang SC → SimHei → DengXian → system sans`，数字栈回退 `Inter → Noto Sans SC → monospace`（栈内只保留随包分发的字体）；并把设计稿同款 `Inter-VF.ttf` / `NotoSansSC-VF.ttf`（SIL OFL 1.1）随程序打包、启动时由 `register_bundled_fonts()` 注册，不联网加载，避免离线风险。
+- **[中文字体缺失]** macOS / Win7 未必有 Noto Sans SC → 字体栈回退 `Microsoft YaHei UI → Microsoft YaHei → Noto Sans SC → Source Han Sans SC → Source Han Sans CN → PingFang SC → SimHei → DengXian → system sans`（桌面首选系统雅黑：Noto 无 hinting、1x 屏小字发虚；Noto 随包分发，macOS / Linux 自动回退到它），数字栈回退 `Inter → Microsoft YaHei UI → Microsoft YaHei → Noto Sans SC → monospace`；并把设计稿同款 `Inter-VF.ttf` / `NotoSansSC-VF.ttf`（SIL OFL 1.1）随程序打包、启动时由 `register_bundled_fonts()` 注册，不联网加载，避免离线风险。
 - **[深色模式对比不足]** 琥珀警示与蓝色数值在深色底上可能不够清晰 → 令牌表固定深色专用语义色（`#D9A441` / `#4A86D8`），并要求深色截图逐项核对文字对比。
 - **[信号槽漏接]** 重排 3238 行主窗口时可能漏连某个按钮 → 51 项清单逐项手动触发 + 现有 `test_*.py` 回归；`feature-preservation` 提供验收记录要求。
 - **[设计稿与规格区段数不一致]** `req/ui/01` 仍是五段式，规格已改为三段式，直接按图比对会误判缺项 → 结构验收以 `workspace-structure` 的三段式需求与 `test_ui_shell.py` 的 `test_01` 为准，`01` 只用于色值/间距/控件形态比对；A 组 6 项按「落点变化、项数不变」口径核对（标题栏入口 → 状态栏、拖放提示 → 台账投放带、检查更新 → 版本号）。

@@ -43,7 +43,10 @@ class FontConstantTests(unittest.TestCase):
             tokens.FONT_WEIGHT,
             {"regular": 400, "medium": 500, "semibold": 600, "bold": 700},
         )
-        self.assertEqual(tokens.FONT_SIZE["base"], 13)
+        # base 为 14 而非设计稿的 13：沿用 P2-A 的决定（当时为补 Noto Sans SC 缺 hinting
+        # 导致的 1x 屏发虚）。P2-B 已把中文栈首位换成微软雅黑 UI，若后续要回到设计稿
+        # 的 13px，只需改 FONT_SIZE 与两处断言，栅格余量由雅黑自身的 hinting 保证。
+        self.assertEqual(tokens.FONT_SIZE["base"], 14)
         self.assertEqual(tokens.FONT_BODY_PIXEL_SIZE, tokens.FONT_SIZE["base"])
         self.assertEqual(tokens.FONT_LINE_HEIGHT_BODY, 22)
         self.assertEqual(tokens.FONT_LETTER_SPACING, 0)
@@ -103,7 +106,9 @@ class FontConstantTests(unittest.TestCase):
     def test_font_stacks_have_chinese_fallback_for_mixed_text(self):
         self.assertIn("Noto Sans SC", tokens.FONT_MONO_STACK)
         self.assertEqual(tokens.FONT_MONO_STACK.split(",")[0].strip('"'), "Inter")
-        self.assertEqual(tokens.FONT_CN_STACK.split(",")[0].strip('"'), "Noto Sans SC")
+        # 中文栈首位为系统雅黑 UI（Windows 1x 屏清晰度，见 tokens.py 栈定义上方说明）
+        self.assertEqual(tokens.FONT_CN_STACK.split(",")[0].strip('"'), "Microsoft YaHei UI")
+        self.assertEqual(tokens.FONT_MONO_FAMILIES[1], "Microsoft YaHei UI")
         self.assertNotIn("Geist Mono", tokens.FONT_MONO_STACK)
 
     def test_no_inline_font_stylesheets_in_ui_sources(self):
@@ -144,7 +149,7 @@ class NumericFontRuntimeTests(unittest.TestCase):
     def test_header_font_is_single_source(self):
         regular = tokens.header_font(False)
         bold = tokens.header_font(True)
-        self.assertEqual(regular.family(), "Noto Sans SC")
+        self.assertEqual(regular.family(), tokens.FONT_CN_FAMILIES[0])
         self.assertEqual(regular.pixelSize(), tokens.FONT_SIZE["caption"])
         self.assertFalse(regular.bold())
         self.assertTrue(bold.bold())
@@ -155,7 +160,9 @@ class NumericFontRuntimeTests(unittest.TestCase):
 
         panel = FileListPanel(PDFHandler())
         hdr = panel.table.horizontalHeaderItem(3)
-        self.assertEqual(hdr.font().pixelSize(), 11)
+        # 表头字号由 FONT_SIZE["caption"] 单一来源决定（当前 12px；
+        # 设计稿为 11px，为 Windows 1x 屏清晰度有意提一档，见 tokens.py 注释）
+        self.assertEqual(hdr.font().pixelSize(), tokens.FONT_SIZE["caption"])
         self.assertTrue(hdr.font().bold())  # 仅金额列加粗
         self.assertFalse(panel.table.horizontalHeaderItem(1).font().bold())
 
@@ -171,7 +178,7 @@ class NumericFontRuntimeTests(unittest.TestCase):
         applied = tokens.apply_numeric_text_fonts(root)
         self.assertGreaterEqual(applied, 1)
         self.assertEqual(a.font().family(), "Inter")
-        self.assertEqual(a.font().pixelSize(), 11)
+        self.assertEqual(a.font().pixelSize(), tokens.FONT_SIZE["caption"])
         # 未在数字清单中的中文标签保持应用默认中文栈
         self.assertNotEqual(b.font().family(), "Inter")
 

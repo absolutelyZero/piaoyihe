@@ -35,9 +35,9 @@
 | 修正项 | 结果 |
 | --- | --- |
 | 1 字重/字号常量集中定义，QSS 无魔法数字 | `FONT_WEIGHT` / `FONT_SIZE` / `DESIGN_DISPLAY_SIZE` 落地；QSS 45 处 `font-size`、19 处 `font-weight` 全部改为常量引用；Bold 20px 明确标注「设计稿展示用，界面不消费」，未加入 QSS |
-| 2 表头字体双来源 | `QHeaderView::section` 移除 font-*；统一由 `tokens.header_font()` 生成 11px / Noto Sans SC / Regular，仅金额列 Bold + 主色（实测 9 列均 11px，仅 col3 加粗） |
+| 2 表头字体双来源 | `QHeaderView::section` 移除 font-*；统一由 `tokens.header_font()` 生成 12px / 中文栈首位 Microsoft YaHei UI / Regular，仅金额列 Bold + 主色（实测 9 列均 12px，仅 col3 加粗；12px 即设计稿实测值，见 4b-9） |
 | 3 内联 `font-size` 清理 | `main_frame.py` 9 处逐控件 `setStyleSheet` 删除，改为 `helpText` / `qrcodeHint` / `qrcodePlaceholder` / `hSeparator` 的 objectName + QSS 绑定；旧版遗留方法与注释一并清理，全项目已无逐控件 `font-*` 内联样式 |
-| 4 数字展示位统一 Inter + tnum | 纯数字/金额/版本号/缩放/示例结果、含数字的次级文本位（状态栏/页码/每页张数/重复计数/记录数）、数字输入控件（SpinBox / 路径框）全部纳入 `apply_numeric_text_fonts()`；中文经 `setFamilies` 回退 Noto Sans SC；中文规则输入框、字段芯片、中文下拉保持中文栈 |
+| 4 数字展示位统一 Inter + tnum | 纯数字/金额/版本号/缩放/示例结果、含数字的次级文本位（状态栏/页码/每页张数/重复计数/记录数）、数字输入控件（SpinBox / 路径框）全部纳入 `apply_numeric_text_fonts()`；中文经 `setFamilies` 回退到中文栈首位（Microsoft YaHei UI）；中文规则输入框、字段芯片、中文下拉保持中文栈 |
 | 5 QSS 与 setFont 冲突 | 6 类冲突逐项消除，清单见 `字体与界面对应关系.md` 第 4 节；关键机制：QSS 通用 `QLabel` / 容器 / 表单规则不再声明 `font-family`（否则覆盖 `setFont()` 导致 `tnum` 失效），默认字体由 `app.setFont()` 唯一提供 |
 
 **关键回归修复**：启用 `Inter+tnum` 后 20 位发票号码在 11px 下实测宽 140px，叠加 delegate 文本边距后 151px 列会触发省略号。收紧单元格内边距 6→4px 并把发票号码列 151→162px（路径列 Stretch 吸收，9 列结构与总宽不变），放大截图确认 `24310000000017846321` 完整显示、无省略号。标题栏 `v0.1.15` 完整显示。
@@ -74,7 +74,9 @@
     - 第二步（最终）：根因是**各控件行高不统一**（标签由 sizeHint 得 19px、按钮被 QSS 钉 24px），且**QSS 的 `min-height`/`max-height` 会覆盖代码里的 `setFixedHeight()`**（重刷样式即回弹，代码里钉高度无效）。因此在 `tokens.py` 增加三条作用域规则统一状态栏行高：`QFrame#statusBar QLabel#statusBarLabel`、`QFrame#statusBar QPushButton#textButton` 均 `min-height/max-height: 22px`，`QFrame#statusBar QLabel#versionLabel` 因自带 1px 边框 + 3px 内边距改为 `padding: 3px 8px; min-height/max-height: 14px`（内容高 14 + 边距 = 22）。`QPushButton#textButton` 默认 24px 保留给预览头与对话框标题栏。
     - 结果：cocoa（dpr=2）实测五项 h 全为 22、y 全为 5，墨迹中线 spread 0.5px，且在 light / repolish / dark / light again 四种状态下稳定；预览头三项 h 全为 24、spread 0.25px 未受影响。新增 `test_18`（断言状态栏四项同高且为 22px、盒中心极差 ≤ 1px、不超出栏高）与 `test_19`（断言浅/深两套 QSS 都含三条作用域规则），`tests/test_ui_tokens.py` 同步断言这两条选择器。
 
-9. 用户反馈「字体与设计稿不是同一种、不清晰」→ 数字字体 `Geist Mono` 在目标机器不存在、静默回退 `Arial`（比例数字、字形不同），应用级字号 `9pt`=12px 小于设计稿 13px。改为随程序打包设计稿同款 `Inter-VF.ttf` / `NotoSansSC-VF.ttf` 并在启动时注册；财务列改用 `ui.tokens.numeric_font()`（Inter + `tnum` 等宽），发票号码列 11px、其余财务列 12px；应用级默认字号改为 13px。两 VF 均为 SIL OFL 1.1，许可证随包分发。
+9. 用户反馈「字体与设计稿不是同一种、不清晰」→ 数字字体 `Geist Mono` 在目标机器不存在、静默回退 `Arial`（比例数字、字形不同），应用级字号 `9pt`=12px 小于设计稿 13px。改为随程序打包设计稿同款 `Inter-VF.ttf` / `NotoSansSC-VF.ttf` 并在启动时注册；财务列改用 `ui.tokens.numeric_font()`（Inter + `tnum` 等宽），发票号码列 11px、其余财务列 12px；应用级默认字号改为 13px（后续 P2 又抬到 14px，理由与实测见 `字体与界面对应关系.md` §6.5）。两 VF 均为 SIL OFL 1.1，许可证随包分发。
+
+10. 用户反馈「Windows 下字体看上去有点不清晰」→ 根因是打包的 Noto Sans SC 由自动工具生成、**不含 TrueType hinting 指令**（`fpgm`/`prep`/`cvt` 三表皆无），96 DPI 1x 屏上小字横画只能摊在两行像素上。三步处置：①`text_muted` 对比度 2.97:1 → 4.97:1（深色 4.18 → 5.29）；②`caption` 11 → 12px（同时回到设计稿表头实测值）；③中文栈首位改为系统 `Microsoft YaHei UI`（雅黑逐字形调过指令，12px 边缘像素 42.8% vs Noto 47.9%）。P2 保留 `base` = 14px。连带把裁切线数字框 60 → 64px、前缀空格 2 → 1，修掉雅黑下「左 0 mm」末位 `m` 被削的问题。实测与冲突说明见 `字体与界面对应关系.md` §6.1–§6.6。
 
 ## 4b. 第二轮「逐一核实」：按 `req/ui/` 原型图逐区域像素比对后修复
 

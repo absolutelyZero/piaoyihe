@@ -440,9 +440,11 @@ class FileListPanel(QWidget):
             （标识当前排序列），首列是眼睛图标。切换深浅主题后需要重新着色，
             否则会停留在初始化时的浅色值（深色下表头几乎不可读）。
 
-            字体由 ``ui.tokens.header_font()`` 单一来源生成（11px / Noto Sans SC
-            / Regular，金额列 Bold）。QSS 的 ``QHeaderView::section`` 不再声明
-            font-size / font-weight，避免 QSS 与 setFont() 互相覆盖。
+            字体由 ``ui.tokens.header_font()`` 单一来源生成（12px / 中文栈首位
+            Microsoft YaHei UI / Regular，金额列 Bold）。12px 与设计稿实测值一致
+            （acceptance.md 4b 第 9 条）；此前误用 11px，在 Windows 1x 屏上因字体
+            无 hinting 而发虚。QSS 的 ``QHeaderView::section`` 不再声明 font-size /
+            font-weight，避免 QSS 与 setFont() 互相覆盖。
         """
         header_secondary = QColor(self.theme.tokens["text_secondary"])
         regular = header_font(False)

@@ -85,19 +85,25 @@ class StylesheetTests(unittest.TestCase):
 
     def test_font_stacks_match_design_system(self):
         # 设计稿（req/ui/00「05 / 字体与数字」）：中文 Noto Sans SC，数字 Inter。
+        # 桌面端中文栈首位有意改为 Microsoft YaHei UI：Noto Sans SC 不含 TrueType
+        # hinting，Windows 1x 屏上 13px 发虚；雅黑同字号边缘像素占比 43.2% vs 48.6%。
+        # Noto 仍留在回退链中，供 macOS / Linux 与字形回退使用。
         # Geist Mono 在目标机器不存在会回退 Arial，已从字体栈移除。
+        self.assertIn("Microsoft YaHei UI", tokens.FONT_CN_STACK)
         self.assertIn("Noto Sans SC", tokens.FONT_CN_STACK)
-        self.assertIn("Microsoft YaHei", tokens.FONT_CN_STACK)
         self.assertIn("Inter", tokens.FONT_MONO_STACK)
         self.assertNotIn("Geist Mono", tokens.FONT_MONO_STACK)
         self.assertIn("monospace", tokens.FONT_MONO_STACK)
-        self.assertEqual(tokens.FONT_CN_STACK.split(",")[0].strip('"'), "Noto Sans SC")
+        self.assertEqual(tokens.FONT_CN_STACK.split(",")[0].strip('"'), "Microsoft YaHei UI")
+        self.assertEqual(tokens.FONT_CN_FAMILIES[0], "Microsoft YaHei UI")
         self.assertEqual(tokens.FONT_MONO_STACK.split(",")[0].strip('"'), "Inter")
 
     def test_bundled_fonts_declared(self):
         self.assertIn("Inter-VF.ttf", tokens.BUNDLED_FONTS)
         self.assertIn("NotoSansSC-VF.ttf", tokens.BUNDLED_FONTS)
-        self.assertEqual(tokens.FONT_BODY_PIXEL_SIZE, 13)
+        # 与 FONT_SIZE["base"] 同步（14px：为补足 Windows 1x 的栅格余量而偏离设计稿 13）
+        self.assertEqual(tokens.FONT_BODY_PIXEL_SIZE, tokens.FONT_SIZE["base"])
+        self.assertEqual(tokens.FONT_BODY_PIXEL_SIZE, 14)
 
     def test_resolve_font_family_is_deterministic(self):
         family = tokens.resolve_font_family()

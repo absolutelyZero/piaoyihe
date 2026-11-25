@@ -53,7 +53,11 @@ LIGHT: Dict[str, str] = {
     "border_strong": "#CBD5E1",
     "text_primary": "#16202E",
     "text_secondary": "#5A6B7F",
-    "text_muted": "#8A97A8",
+    # 原 #8A97A8 在白底仅 2.97:1（页面底色 #F4F6F9 上 2.74:1），低于 WCAG 小字
+    # 4.5:1；配合 11px 小字在 Windows 1x 屏上会明显发虚。提深到 #667085：
+    # 白底 4.97:1 / 页面底色 4.59:1，均达标，同时与 text_secondary（5.46:1）
+    # 仍保持一档可辨的层级差。
+    "text_muted": "#667085",
     "accent": "#1A56A8",
     "accent_hover": "#154688",
     "accent_pressed": "#103670",
@@ -91,7 +95,10 @@ DARK: Dict[str, str] = {
     "border_strong": "#3D4C5F",
     "text_primary": "#E6EDF5",
     "text_secondary": "#A3B1C2",
-    "text_muted": "#74869A",
+    # 浅色 muted #667085 的深色对位：#74869A 在 surface #1C2430 上仅 4.18:1，
+    # 提到 #8798AC 后为 5.29:1（页面底色 #141A23 上 5.92:1），与
+    # text_secondary（7.16:1）保持同样的层级差。
+    "text_muted": "#8798AC",
     "accent": "#4A86D8",
     "accent_hover": "#5E98E4",
     "accent_pressed": "#3A70BE",
@@ -128,17 +135,29 @@ RADIUS = {"card": 8, "control": 6, "chip": 4}
 #   中文 Noto Sans SC（Regular 13 / Medium 14 / SemiBold 16 / Bold 20，行高 22，字距 0）
 #   数字用 Inter，并启用 OpenType `tnum` 得到等宽数字后右对齐（见 file_list.py）。
 # 设计稿 .op 源文件中数字节点的 fontFamily 正是 "Inter"，而非此前代码写的 Geist Mono。
-# 因此把设计稿同款可变字体（Inter-VF.ttf / NotoSansSC-VF.ttf，均 SIL OFL 1.1）
-# 随程序打包，启动时由 register_bundled_fonts() 注册，不再依赖系统是否安装。
-# 等宽栈也只保留这两项：任何指向目标机不存在的字体（Geist Mono / JetBrains Mono /
+#
+# 【中文栈首位 = Microsoft YaHei UI，有意偏离设计稿字形】
+# Noto Sans SC 由 Google 用自动工具生成，不含 TrueType hinting 指令（fpgm / prep /
+# cvt 三表皆无）。Windows 96 DPI 的 1x 屏上，13px 的横画无法吸附到像素格，只能摊在
+# 两行像素上——实测墨迹中 48.6% 是半透明边缘像素、每实心像素摊 3.11 份墨迹。
+# 雅黑是微软为 12–13px 屏幕阅读逐字形调过指令的字体，同样 13px 下边缘像素只占
+# 43.2%、每实心像素摊 3.00 份（Noto 要 14px 才 2.95）。二者笔画结实度同级，故桌面
+# 首选雅黑。代价是字形不同：雅黑字面更方正、x-height 略高，中英混排节奏略有变化。
+# 换栈对布局的影响很小：汉字的 advance width 两者完全一致（均为 1em，实测「批量
+# 重命名」同为 60px、「打开文件」同为 48px），仅中英混排字符串变宽
+# （「支持 PDF / PNG / JPG / OFD」154px → 161px，+4.5%）。
+# Noto 仍随程序打包并留在回退链第二位之后：macOS / Linux 没有雅黑，以及将来若要
+# 回退设计稿字形，只需调整栈序、不必改代码。
+# 等宽栈只保留这四项：任何指向目标机不存在的字体（Geist Mono / JetBrains Mono /
 # Consolas）都会让 Qt 回退到 Arial，并触发一次字体别名扫描拖慢启动。
-FONT_CN_STACK = '"Noto Sans SC","Source Han Sans SC","Source Han Sans CN","Microsoft YaHei","PingFang SC","SimHei","DengXian",sans-serif'
-FONT_MONO_STACK = '"Inter","Noto Sans SC",monospace'
-FONT_CN_FAMILIES = ("Noto Sans SC", "Source Han Sans SC", "Source Han Sans CN", "Microsoft YaHei", "PingFang SC", "SimHei", "DengXian")
-FONT_MONO_FAMILIES = ("Inter", "Noto Sans SC")
+FONT_CN_STACK = '"Microsoft YaHei UI","Microsoft YaHei","Noto Sans SC","Source Han Sans SC","Source Han Sans CN","PingFang SC","SimHei","DengXian",sans-serif'
+FONT_MONO_STACK = '"Inter","Microsoft YaHei UI","Microsoft YaHei","Noto Sans SC",monospace'
+FONT_CN_FAMILIES = ("Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", "Source Han Sans CN", "PingFang SC", "SimHei", "DengXian")
+FONT_MONO_FAMILIES = ("Inter", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC")
 
-# 设计稿正文 Regular 13px / 行高 22；应用级默认字号必须与之对齐，
-# 此前 apply_application_style() 用 QFont(family, 9) = 12px，未被 QSS 覆盖的控件偏小。
+# 设计稿正文 Regular 13px / 行高 22；本实现取 14px（见 FONT_SIZE["base"] 的说明）。
+# 应用级默认字号由 apply_application_style() 的 app.setFont() 唯一提供，
+# 未被 QSS 覆盖的控件继承这一档。
 # FONT_BODY_PIXEL_SIZE 派生自 FONT_SIZE["base"]，定义在 FONT_SIZE 之后。
 
 # ---------------------------------------------------------------------------
@@ -158,10 +177,24 @@ FONT_WEIGHT = {
 # 界面中无对应控件，故不加入此表、也不生成 QSS 规则。
 FONT_SIZE = {
     "micro": 10,       # 进度条百分比
-    "caption": 11,     # 次级/弱化文字、表头、状态栏、版本号
+    # 原为 11px。11px 在 macOS 2x 屏上等效 22 物理像素，笔画有足够像素铺满；
+    # 但 Windows 96 DPI 1x 下只剩 11 物理像素，且 Noto Sans SC 不含 TrueType
+    # hinting 指令（缺 fpgm / prep / cvt 表），横画无法吸附到像素格，实测墨迹中
+    # 48.6% 是半透明边缘像素（单个字实心笔画仅 118px）。提到 12px 后实心笔画增至
+    # 140px（+19%）。12px 同时也是设计稿表头的实测值（acceptance.md 4b 第 9 条），
+    # 故表头回到设计稿；caption 与 body 同为 12px，层级改由颜色与字重区分。
+    "caption": 12,     # 次级/弱化文字、表头、状态栏、版本号
     "body": 12,        # 参数值、表格数据、芯片
-    "base": 13,        # 正文基线（= FONT_BODY_PIXEL_SIZE）
-    "subhead": 14,     # 卡片标题、主按钮
+    # 原为设计稿的 13px。Noto Sans SC 缺 TrueType hinting 指令（fpgm / prep / cvt
+    # 三表皆无），Windows 96 DPI 1x 下 13px 的横画无法吸附到像素格，只能摊在两行
+    # 像素上。实测 9 段中文取平均：13px 的墨迹中 48.6% 是半透明边缘像素、每个实心
+    # 像素摊到 3.11 份墨迹；系统雅黑 13px 为 43.2% / 3.00。提到 14px 后降至
+    # 46.9% / 2.95，结实度追平雅黑 13px。【有意偏离设计稿：设计稿在 macOS 2x 屏
+    # 完成，13px 等效 26 物理像素，Windows 1x 没有这份余量。】
+    "base": 14,        # 正文基线（= FONT_BODY_PIXEL_SIZE）
+    # 卡片标题与主按钮。设计稿实测 14px，与抬档后的 base 同字号；两者层级由 Bold
+    # 字重与主色承担（原 13/14 的 1px 差在屏幕上本就几乎不可辨）。
+    "subhead": 14,
     "title": 15,       # 品牌名、合计金额
     "heading": 16,     # 台账标题、弹窗小节标题
     "dialog": 18,      # 弹窗主标题
@@ -174,9 +207,10 @@ FONT_LINE_HEIGHT_BODY = 22
 FONT_LETTER_SPACING = 0
 
 # 含数字的次级文本位（状态栏票据数 / 页码 / 每页张数 / 重复计数 / 记录数 / 版本号等）。
-# 设计稿 .op 源文件中数字节点 fontFamily 均为 "Inter"，中文节点为 "Noto Sans SC"；
-# Qt 单个 QLabel 无法逐字符切换字体，故用 FONT_MONO_STACK（Inter 优先，中文回退
-# Noto Sans SC）作为这些混排文本的字体族，使数字字形与设计稿一致。
+# 设计稿 .op 源文件中数字节点 fontFamily 均为 "Inter"；Qt 单个 QLabel 无法逐字符
+# 切换字体，故用 FONT_MONO_STACK（Inter 优先，中文按 FONT_CN_FAMILIES 的顺序回退，
+# 即 Microsoft YaHei UI）作为这些混排文本的字体族，使数字字形与设计稿一致、中文与
+# 界面其余部分同族。
 # 注意：QSS 无法启用 OpenType tnum，需要等宽对齐的金额列由 numeric_font() 承担。
 NUMERIC_TEXT_OBJECTS = (
     "statusBarLabel", "footLabel", "statusLabel", "statusChip",
@@ -324,7 +358,8 @@ def numeric_font(pixel_size: int, weight: Optional[int] = None) -> "QFont":
     ``weight`` 可选，取自 ``FONT_WEIGHT``（合计金额 Bold 等场景）。
 
     字体族使用 ``setFamilies`` 提供中文回退链：混排文本中的数字走 Inter，
-    中文走 Noto Sans SC，避免中文被回退到系统默认字体而产生字形漂移。
+    中文按 ``FONT_CN_FAMILIES`` 的顺序回退（桌面首选 Microsoft YaHei UI），
+    避免中文被回退到系统默认字体而产生字形漂移。
     """
     register_bundled_fonts()
     from PySide6.QtGui import QFont
@@ -351,7 +386,10 @@ def header_font(bold: bool = False) -> "QFont":
     """
     表头字体唯一来源（QTableWidgetItem 的 FontRole）。
 
-    设计稿 req/ui/01：表头 11px / 次级灰 / 常规字重，仅「金额」列主色加粗。
+    设计稿 req/ui/01：表头 12px / 次级灰 / 常规字重，仅「金额」列主色加粗
+    （acceptance.md 4b 第 9 条实测：设计稿表头居中、12px，此前代码误用 11px）。
+    本函数统一取 FONT_SIZE["caption"]，现为 12px，与设计稿一致；11px 在
+    Windows 96 DPI 的 1x 屏上因字体无 hinting 而明显发虚。
     以前 QSS 的 ``QHeaderView::section { font-weight: 500 }`` 与
     ``file_list.py`` 的 ``setBold()`` 同时指定字重，构成双来源；现在 QSS 不再
     声明表头字体，全部由此函数用 FONT_WEIGHT / FONT_SIZE 常量生成。
@@ -368,7 +406,7 @@ def header_font(bold: bool = False) -> "QFont":
 
 def build_stylesheet(dark: Optional[bool] = None) -> str:
     """由令牌生成应用级 QSS（同时覆盖主窗口、对话框与所有子控件）。"""
-    # 尽早注册打包字体，保证 QSS 中的 Inter / Noto Sans SC 能解析到设计稿同款字形；
+    # 尽早注册打包字体，保证 QSS 中的 Inter / Noto Sans SC 能解析到打包字形；
     # 幂等且无 Qt 环境时静默跳过，不影响纯逻辑调用。
     register_bundled_fonts()
     t = get_tokens(dark)
@@ -383,7 +421,7 @@ def build_stylesheet(dark: Optional[bool] = None) -> str:
     return f"""
 /* ===== 票易合 v2 · 财务级 UI 全局样式（由 ui/tokens.py 生成） ===== */
 /* 应用级默认字体由 apply_application_style() 的 app.setFont() 唯一提供
-   （Noto Sans SC / 13px / Regular）。此处刻意不声明 font-*：
+   （Microsoft YaHei UI / FONT_SIZE["base"] = 14px / Regular）。此处刻意不声明 font-*：
    Qt QSS 一旦声明字体就会覆盖子控件的 setFont()，导致数字位无法启用 tnum。 */
 QMainWindow, QWidget#centralWidget, QDialog {{
     background-color: {t['background']};
@@ -497,7 +535,8 @@ QLabel {{
 }}
 QLabel#titleLabel {{ font-size: {S['heading']}px; font-weight: {W['bold']}; }}
 QLabel#sectionLabel {{ font-size: {S['heading']}px; font-weight: {W['bold']}; }}
-/* 设计稿：「合并预览」「排版与输出参数」为 14px/700（ink 高 13px），比台账标题小一档 */
+/* 设计稿：「合并预览」「排版与输出参数」为 14px/700（ink 高 13px），比台账标题小一档。
+   base 抬到 14px 后与正文同字号，层级由 700 字重 + 主色区分。 */
 QLabel#cardTitleLabel {{ font-size: {S['subhead']}px; font-weight: {W['bold']}; }}
 QLabel#subtitleLabel, QLabel#hintLabel, QLabel#statusLabel {{
     font-size: {S['caption']}px;
@@ -572,7 +611,8 @@ QLabel#warningChip {{
     background-color: {t['warning_tint']};
     color: {t['warning']};
     /* 设计稿：警告 chip 带 1px 浅琥珀描边（#F0D9A8）、内边距更紧、字号 11px，
-       使其总宽约 103px（含前置警示符号），比计数 chip 更紧凑。 */
+       使其总宽约 103px（含前置警示符号），比计数 chip 更紧凑。
+       字号随 FONT_SIZE["caption"] 提到 12px，宽度约增 3px，仍小于计数 chip。 */
     border: 1px solid {t['warning_border']};
     font-size: {S['caption']}px;
     padding: 1px 8px;
@@ -695,14 +735,16 @@ QPushButton#textButton {{
 }}
 /* 状态栏行高：32px 栏高减上下各 4px 内边距与 1px 上边框后内层只有 23px，
    而文字按钮默认 24px 会被压到 24px 并下沉——cocoa 实测「使用帮助」墨迹中线比
-   相邻 11px 文本低 2px。把这一条带的文字项与文字按钮统一钉到 22px（墨迹中线极差
-   0.5px）；versionLabel 自带 1px 边框与 3px 内边距，故内容高取 14px 以凑满 22px。 */
+   相邻文本低 2px。把这一条带的文字项与文字按钮统一钉到 22px（墨迹中线极差
+   0.5px）。versionLabel 自带 1px 边框，caption 提到 12px 后字高增至 15px，
+   故内容高取 16px、上下内边距收到 2px，凑满 16+4+2=22px（原先 14+6+2=22 时
+   14px 内容区装不下 15px 字，实测有 1px 裁切）。 */
 QFrame#statusBar QLabel#statusBarLabel {{ min-height: 22px; max-height: 22px; }}
 QFrame#statusBar QPushButton#textButton {{ min-height: 22px; max-height: 22px; }}
 QFrame#statusBar QLabel#versionLabel {{
-    padding: 3px 8px;
-    min-height: 14px;
-    max-height: 14px;
+    padding: 2px 8px;
+    min-height: 16px;
+    max-height: 16px;
 }}
 QPushButton#textButton:hover {{ background-color: {t['accent_tint']}; }}
 /* 操作条中的「删除选中」按设计稿为白底灰边；「清空全部」用 [tone=danger] 呈现浅红 */
@@ -1047,8 +1089,9 @@ def apply_application_style(app, dark: Optional[bool] = None) -> None:
     """
     注册打包字体、注入全局 QSS，并把应用默认字体设为设计稿正文（供 main.py 调用）。
 
-    顺序至关重要：必须先注册 Inter / Noto Sans SC 两个可变字体，再 setStyleSheet，
+    顺序至关重要：必须先注册 Inter / Noto Sans SC 两个打包字体，再 setStyleSheet，
     否则 QSS 里的字体名会回退到系统里另一个字形的字体（此前 Geist Mono 回退 Arial）。
+    中文族首选系统雅黑 UI（见 FONT_CN_FAMILIES 上方说明），Noto 仅作跨平台兜底。
     """
     # 幂等；缺字体文件/无 GUI 环境时静默跳过，由系统字体栈兜底。
     register_bundled_fonts()
@@ -1068,7 +1111,8 @@ def apply_application_style(app, dark: Optional[bool] = None) -> None:
         for family in FONT_CN_FAMILIES:
             if family in available:
                 base_font = QFont(family)
-                # 设计稿正文 Regular 13px（此前 QFont(family, 9) = 12px 偏小、发虚）；
+                # 设计稿正文 Regular 13px，本实现抬到 14px 以补足 Windows 1x 的
+                # 栅格余量（此前 QFont(family, 9) = 12px 更小、更虚）；
                 # 显式 400 避免可变字体被解析到 Thin 实例。
                 base_font.setPixelSize(FONT_BODY_PIXEL_SIZE)
                 base_font.setWeight(QFont.Weight.Normal)
@@ -1086,7 +1130,7 @@ def apply_numeric_text_fonts(root) -> int:
     且 QSS 声明 font-family 会覆盖 ``setFont()``，因此这些控件在 QSS 中
     不声明字体族，改由此函数集中设置（含中文回退族），保证：
       - 数字字形 = Inter、启用 tnum（等宽数字）
-      - 中文 = Noto Sans SC（经 setFamilies 回退链）
+      - 中文 = Microsoft YaHei UI（经 setFamilies 回退链，与界面其余部分同族）
       - 字号 = QSS 中各 objectName 的 font-size（NUMERIC_TEXT_SIZES 与之对齐）
 
     必须在窗口/对话框构建完成、且已 setStyleSheet() 之后调用。返回处理数量。

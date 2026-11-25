@@ -437,9 +437,12 @@ def create_layout_card(window) -> QFrame:
     window.crop_mark_checkbox = QCheckBox("显示裁切线")
     window.crop_mark_checkbox.setToolTip("开启后绘制左右两侧的裁切线，便于裁剪")
     window.default_crop_mark_dist = 0
-    # 设计稿：数字与单位紧贴（「左 0 mm」），单位作为后缀内嵌，避免出现大段空隙
-    window.crop_mark_left_spinbox = _spin(window, 0, 50, 0, "左  ", 60)
-    window.crop_mark_right_spinbox = _spin(window, 0, 50, 0, "右  ", 60)
+    # 设计稿：数字与单位紧贴（「左 0 mm」），单位作为后缀内嵌，避免出现大段空隙。
+    # 宽度 64px 与上方「页边距」四个数字框同宽；前缀只留 1 个空格：中文栈换雅黑后
+    # 「左  0 mm」（2 空格）实测 53px 而内容区仅 52px，末尾的 m 会被削掉；1 个空格
+    # 后为 50px，留 2px 余量（Noto 时代同样存在 2~3px 的隐性裁切，只是不明显）。
+    window.crop_mark_left_spinbox = _spin(window, 0, 50, 0, "左 ", 64)
+    window.crop_mark_right_spinbox = _spin(window, 0, 50, 0, "右 ", 64)
     for _spinbox in (window.crop_mark_left_spinbox, window.crop_mark_right_spinbox):
         _spinbox.setSuffix(" mm")
         # 复合框内部的数字框去掉独立描边（设计稿为一体化复合框）
