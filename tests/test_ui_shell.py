@@ -336,23 +336,71 @@ class UIShellTests(unittest.TestCase):
         self.assertTrue(callable(migrate_rename_rules))
 
     def test_15_dialogs_use_unified_structure(self):
-        from core.update_checker import QRCodeDialog, UpdateDialog
+        from core.update_checker import TEXT_CHECKING, TEXT_CHECK_FAILED, UpdateDialog, UpdateInfo
 
-        update_dlg = UpdateDialog(
-            self.window, "https://example.invalid/qr.png", self.tmp_config, "0.1.16"
-        )
-        self.assertEqual(update_dlg.view_button.objectName(), "primaryButton")
-        for dlg in (update_dlg,):
-            names = {f.objectName() for f in dlg.findChildren(QFrame)}
-            self.assertIn("dialogHeader", names)
-            self.assertIn("dialogFooter", names)
-        update_dlg.close()
+        # 构造即可显示：不传任何网络结果，第二行先呈现「正在检查最新版本中…」
+        update_dlg = UpdateDialog(self.window, "0.1.16", self.tmp_config)
 
-        qr_dlg = QRCodeDialog(self.window, "https://example.invalid/qr.png")
-        names = {f.objectName() for f in qr_dlg.findChildren(QFrame)}
+        # 统一结构：标题栏 + 内容区 + 页脚操作区
+        names = {f.objectName() for f in update_dlg.findChildren(QFrame)}
         self.assertIn("dialogHeader", names)
         self.assertIn("dialogFooter", names)
-        qr_dlg.close()
+
+        # 第一行当前版本、第二行初始为检查中
+        self.assertIn("当前版本", update_dlg.current_label.text())
+        self.assertIn("0.1.16", update_dlg.current_label.text())
+        self.assertEqual(update_dlg.latest_label.text(), TEXT_CHECKING)
+
+        # 页脚只有稍后与忽略此版本，不再有「立即更新」
+        self.assertEqual(update_dlg.ignore_button.objectName(), "secondaryButton")
+        self.assertEqual(update_dlg.later_button.objectName(), "secondaryButton")
+        self.assertIn("忽略", update_dlg.ignore_button.text())
+        self.assertIn("稍后", update_dlg.later_button.text())
+        self.assertFalse(hasattr(update_dlg, "view_button"))
+        footer_buttons = [
+            b.text() for b in update_dlg.findChild(QFrame, "dialogFooter").findChildren(QPushButton)
+        ]
+        self.assertEqual(footer_buttons, ["稍后", "忽略此版本"])
+
+        # 成功回填：显示最新版本号与可点击的 Release 地址
+        info = UpdateInfo(
+            version="0.1.17",
+            release_url="https://example.invalid/releases/tag/v0.1.17",
+            tag="v0.1.17",
+        )
+        update_dlg.set_update_info(info)
+        self.assertIn("最新版本", update_dlg.latest_label.text())
+        self.assertIn("0.1.17", update_dlg.latest_label.text())
+        self.assertIn("example.invalid/releases/tag/v0.1.17", update_dlg.release_label.text())
+        self.assertTrue(update_dlg.release_label.openExternalLinks())
+
+        # 失败回填：只在弹窗内提示，不抛异常
+        update_dlg.set_check_failed()
+        self.assertEqual(update_dlg.latest_label.text(), TEXT_CHECK_FAILED)
+
+        # 已是最新版本的回填
+        update_dlg.set_no_update()
+        self.assertIn("已是最新", update_dlg.latest_label.text())
+
+        # 二维码为本地资源，不依赖网络下载
+        self.assertGreater(update_dlg.qrcode_label.minimumWidth(), 0)
+
+        update_dlg.close()
+
+    def test_16_update_dialog_degrades_when_qrcode_missing(self):
+        """二维码资源缺失时降级为文字提示，不抛异常、不弹错误框。"""
+        from unittest import mock
+
+        from core.update_checker import UpdateDialog, UpdateInfo
+
+        # 把资源目录指向不存在的路径，模拟二维码缺失（不能 patch 方法本身：
+        # QPixmap 收到 MagicMock 会段错误，必须让 _qrcode_path 返回真实的字符串路径）
+        with mock.patch("core.update_checker._res_dir", return_value="/nonexistent"):
+            dlg = UpdateDialog(self.window, "0.1.16", self.tmp_config)
+            # 降级为文字，而不是崩溃或空控件
+            self.assertTrue(dlg.qrcode_label.pixmap().isNull())
+            self.assertIn("二维码", dlg.qrcode_label.text())
+            dlg.close()
 
     # ---- 空态投放带（tasks 3.4）----
 
@@ -386,6 +434,30 @@ class UIShellTests(unittest.TestCase):
             self.mf._res_dir = original
 
         dlg.close()
+
+    def test_21_manual_check_opens_dialog_without_blocking(self):
+        """点击版本号：先弹窗，检查结果异步回填，不再弹任何消息框。"""
+        from unittest import mock
+
+        shown_messages = []
+        with mock.patch(
+            "ui.main_frame.open_update_dialog", return_value=object()
+        ) as opener, mock.patch(
+            "ui.main_frame.QMessageBox.warning",
+            side_effect=lambda *a: shown_messages.append(a),
+        ), mock.patch(
+            "ui.main_frame.QMessageBox.information",
+            side_effect=lambda *a: shown_messages.append(a),
+        ):
+            self.window._check_update_status(force_check=True)
+
+        opener.assert_called_once()
+        args = opener.call_args[0]
+        self.assertIs(args[0], self.window)
+        self.assertEqual(args[1], self.mf.VERSION_FILE)
+        self.assertEqual(args[2], self.tmp_config)
+        self.assertEqual(shown_messages, [])
+        self.assertIsNotNone(self.window._update_dialog)
 
     def test_17_empty_drop_zone_keeps_ledger_header(self):
         """空态投放带占满表头以下的列表区，九列表头始终可见。"""

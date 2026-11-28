@@ -173,6 +173,18 @@ python -m code.mcp_server --transport sse --host 127.0.0.1 --port 8766
 - Windows 打包：`package_win.bat`
 - macOS 打包：`package_macos.sh`
 
+#### 版本发布
+
+发布新版本时，客户端从 GitHub Release 的稳定地址检查更新，因此版本清单必须随 Release 一起发布：
+
+1. 修改 `code/version.json` 的 `version` 字段，使其与新标签一致（例如标签 `v0.1.17` 对应版本号 `0.1.17`）。
+2. 推送 `v*` 标签，CI 会自动构建安装包、生成 `version.json` 并上传到同一个 Release。
+3. CI 会校验清单版本号与标签一致，不一致时发布失败，避免用户收到指向不存在版本的更新提示。
+
+检查地址：`https://github.com/absolutelyZero/piaoyihe/releases/latest/download/version.json`
+
+无法访问 GitHub 的用户，可在更新弹窗中扫描公众号二维码获取更新方式。
+
 #### 联系我们
 
 如果有问题，欢迎关注公众号并私信

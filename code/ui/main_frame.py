@@ -25,7 +25,7 @@ from ui.merge_worker import MergeWorker
 from ui.file_load_worker import FileLoadWorker
 from core.pdf_handler import PDFHandler, is_supported_file
 from core.invoice_service import InvoiceService, migrate_rename_rules
-from core.update_checker import UpdateChecker, show_update_dialog
+from core.update_checker import UpdateChecker, open_update_dialog, show_update_dialog
 from ui.theme import AppTheme
 from ui.tokens import build_stylesheet, clear_inline_styles, apply_numeric_text_fonts, _res_dir
 from ui.shell import (
@@ -1839,64 +1839,26 @@ class MainWindow(QMainWindow):
         参数:
             force_check (bool): 是否强制检查，默认为False
         """
+        if force_check:
+            # 手动检查：先固定弹出弹窗，再在后台线程拉取最新版本，
+            # 进行中与失败都在弹窗第二行呈现，不再额外弹消息框。
+            try:
+                self._update_dialog = open_update_dialog(self, VERSION_FILE, CONFIG_FILE)
+            except Exception as e:
+                print(f"检查更新失败: {e}")
+            return
+
         try:
-            # 创建更新检查器，传入必需的参数
+            # 自动检查：先取后弹，失败静默，只有确实存在新版本才弹窗
             checker = UpdateChecker(
                 local_version_file=VERSION_FILE,
-                remote_version_url="https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/version.json",
                 config_file=CONFIG_FILE
             )
-            
-            # 检查是否有更新
-            has_update, remote_version = checker.check_for_updates(ignore_ignored_version=force_check)
-            
-            if has_update:
-                # 显示更新对话框
-                qrcode_url = "https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/updatelog.png"
-                show_update_dialog(self, qrcode_url, CONFIG_FILE, remote_version)
-            else:
-                if force_check:
-                    QMessageBox.information(self, "检查更新", "当前已是最新版本")
-                    
+            update_info = checker.check_for_updates()
+            if update_info:
+                show_update_dialog(self, update_info, CONFIG_FILE, VERSION_FILE)
         except Exception as e:
             print(f"检查更新失败: {e}")
-            if force_check:
-                QMessageBox.warning(self, "检查更新", f"检查更新失败: {str(e)}")
-    
-    def _is_version_newer(self, remote_version, current_version):
-        """
-        比较版本号
-        
-        功能描述:
-            比较两个版本号，判断远程版本是否较新
-        
-        参数:
-            remote_version (str): 远程版本号
-            current_version (str): 当前版本号
-        
-        返回值:
-            bool: 远程版本是否较新
-        """
-        try:
-            remote_parts = [int(x) for x in remote_version.split('.')]
-            current_parts = [int(x) for x in current_version.split('.')]
-            
-            # 补齐版本号位数
-            while len(remote_parts) < len(current_parts):
-                remote_parts.append(0)
-            while len(current_parts) < len(remote_parts):
-                current_parts.append(0)
-            
-            # 比较版本号
-            for i in range(len(remote_parts)):
-                if remote_parts[i] > current_parts[i]:
-                    return True
-                elif remote_parts[i] < current_parts[i]:
-                    return False
-            
-            return False
-        except:
-            return False
     
     def eventFilter(self, obj, event):
         """

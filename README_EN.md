@@ -126,6 +126,18 @@ Additional fields vary by tool, such as `output_path`, `info`, `results`, `renam
 - Windows packaging: `package_win.bat`
 - macOS packaging: `package_macos.sh`
 
+#### Version Release
+
+The app checks for updates from a stable GitHub Release asset, so the version manifest must be published together with each Release:
+
+1. Update `version` in `code/version.json` so it matches the new tag (tag `v0.1.17` -> version `0.1.17`).
+2. Push a `v*` tag; CI builds the installers, generates `version.json` and uploads both to the same Release.
+3. CI verifies the manifest version matches the tag and fails the release on mismatch, so users never get an update pointing at a nonexistent version.
+
+Update check URL: `https://github.com/absolutelyZero/piaoyihe/releases/latest/download/version.json`
+
+Users who cannot reach GitHub can scan the WeChat official account QR code shown in the update dialog.
+
 #### Contact Us
 
 If you have any questions, please follow our WeChat official account and send us a message.

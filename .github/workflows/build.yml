@@ -207,7 +207,11 @@ jobs:
       contents: write
 
     steps:
-      # 步骤1: 下载所有构建产物
+      # 步骤1: 取仓库代码（后续步骤要读 code/version.json）
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      # 步骤2: 下载所有构建产物
       - name: 下载 macOS x64 构建产物
         uses: actions/download-artifact@v4
         with:
@@ -226,13 +230,42 @@ jobs:
           name: 票易合-Windows
           path: release-artifacts/
 
-      # 步骤2: 列出所有待发布文件
+      # 步骤5: 生成随 Release 一起发布的版本清单
+      # 清单在仓库 version.json 的基础上补充 tag / release_url，
+      # 客户端据此一次请求即可拿到版本号与发布页地址
+      - name: 生成版本清单
+        run: |
+          set -euo pipefail
+          VERSION=$(python3 -c "import json; print(json.load(open('code/version.json'))['version'])")
+          cat > release-artifacts/version.json <<EOF
+          {
+            "version": "$VERSION",
+            "tag": "${GITHUB_REF_NAME}",
+            "release_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          }
+          EOF
+          echo "=== 生成的版本清单 ==="
+          cat release-artifacts/version.json
+
+      # 步骤6: 校验清单版本号与标签一致，避免发布出指向不存在版本的清单
+      - name: 校验版本号与标签一致
+        run: |
+          set -euo pipefail
+          MANIFEST_VERSION=$(python3 -c "import json; print(json.load(open('release-artifacts/version.json'))['version'])")
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::code/version.json 的版本号 ($MANIFEST_VERSION) 与标签 ($GITHUB_REF_NAME) 不一致，请先同步版本号再打标签"
+            exit 1
+          fi
+          echo "版本号一致: $MANIFEST_VERSION"
+
+      # 步骤7: 列出所有待发布文件
       - name: 列出发布文件
         run: |
-          echo "=== 待发布的安装包 ==="
+          echo "=== 待发布的文件 ==="
           ls -lh release-artifacts/
 
-      # 步骤3: 创建 GitHub Release 并上传安装包
+      # 步骤8: 创建 GitHub Release 并上传安装包与版本清单
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
         with:

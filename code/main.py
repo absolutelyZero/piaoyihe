@@ -195,9 +195,8 @@ def _run_gui_mode(
     def delayed_check_update():
         local_version_file = os.path.join(os.path.dirname(__file__), 'version.json')
         config_file = os.path.join(os.path.dirname(__file__), 'config.json')
-        remote_version_url = "https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/version.json"
-        qrcode_url = "https://piaoyihe.oss-cn-hangzhou.aliyuncs.com/update/updatelog.png"
-        check_updates_on_start(window, local_version_file, remote_version_url, qrcode_url, config_file)
+        # 版本清单地址由 core.update_checker.VERSION_MANIFEST_URL 统一提供
+        check_updates_on_start(window, local_version_file, config_file)
 
     # 延迟500毫秒后检查更新，确保主窗口已完全显示
     QTimer.singleShot(500, delayed_check_update)
