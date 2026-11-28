@@ -670,8 +670,8 @@ def create_status_bar(window) -> QFrame:
     """状态栏：唯一承载全局状态与入口的区段。
 
     左侧为常驻运行状态（就绪 / 模式 / 布局摘要 / 文件数量），右侧依次为
-    一次性回执的临时消息位、配置保存状态、使用帮助入口与版本号；版本号
-    本身即「检查更新」入口，不再另设按钮。
+    一次性回执的临时消息位、配置保存状态、赞赏作者入口、使用帮助入口
+    与版本号；版本号本身即「检查更新」入口，不再另设按钮。
     """
     bar = QFrame()
     bar.setObjectName("statusBar")
@@ -690,6 +690,12 @@ def create_status_bar(window) -> QFrame:
 
     window.status_right_label = label("配置自动保存", "statusBarLabel")
     box.addWidget(window.status_right_label)
+
+    # 赞赏作者入口位于「使用帮助」左侧，两者共用 text_button 样式
+    window.appreciation_button = text_button("赞赏作者")
+    window.appreciation_button.setToolTip("赞赏作者 · 扫码支持")
+    window.appreciation_button.clicked.connect(window._on_appreciation)
+    box.addWidget(window.appreciation_button)
 
     window.feedback_button = text_button("使用帮助")
     window.feedback_button.setToolTip("使用帮助与反馈")

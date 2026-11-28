@@ -286,7 +286,7 @@ class UIShellTests(unittest.TestCase):
         matrix = {
             "A 窗口框架": [
                 "status_bar", "status_left_label", "version_label",
-                "feedback_button", "progress_bar",
+                "appreciation_button", "feedback_button", "progress_bar",
             ],
             "B 票据台账": [
                 "file_list", "ledger_card", "ledger_count_label", "ledger_total_label",
@@ -318,7 +318,8 @@ class UIShellTests(unittest.TestCase):
             ],
             "H 系统能力": [
                 "_load_config", "_save_config", "_check_update_status",
-                "_on_version_click", "_on_feedback", "_on_preview_checkbox_changed",
+                "_on_version_click", "_on_feedback", "_on_appreciation",
+                "_on_preview_checkbox_changed",
             ],
         }
         total = 0
@@ -354,6 +355,38 @@ class UIShellTests(unittest.TestCase):
         qr_dlg.close()
 
     # ---- 空态投放带（tasks 3.4）----
+
+    # ---- 赞赏作者弹窗（add-appreciation-author-entry）----
+    def test_20_appreciation_dialog(self):
+        """赞赏弹窗沿用统一结构，并展示两张带标注的收款码；缺失图片优雅降级。"""
+        from PySide6.QtWidgets import QLabel
+
+        dlg = self.mf.AppreciationDialog(self.window)
+        self.assertEqual(dlg.windowTitle(), "赞赏作者")
+        self.assertTrue(dlg.isModal())
+        names = {f.objectName() for f in dlg.findChildren(QFrame)}
+        self.assertIn("dialogHeader", names)
+        self.assertIn("dialogFooter", names)
+
+        texts = [w.text() for w in dlg.findChildren(QLabel)]
+        self.assertTrue(any("赞赏作者" in t for t in texts))
+        self.assertTrue(any("微信支付" in t for t in texts))
+        self.assertTrue(any("支付宝" in t for t in texts))
+        self.assertTrue(any("扫码赞赏" in t for t in texts))
+
+        # 图片缺失时降级为占位提示，不抛异常
+        original = self.mf._res_dir
+        try:
+            self.mf._res_dir = lambda: os.path.join(self._tmp_dir, "missing_res")
+            degraded = self.mf.AppreciationDialog(self.window)
+            dtexts = [w.text() for w in degraded.findChildren(QLabel)]
+            self.assertTrue(any("收款码不可用" in t for t in dtexts))
+            degraded.close()
+        finally:
+            self.mf._res_dir = original
+
+        dlg.close()
+
     def test_17_empty_drop_zone_keeps_ledger_header(self):
         """空态投放带占满表头以下的列表区，九列表头始终可见。"""
         from PySide6.QtWidgets import QTableWidget

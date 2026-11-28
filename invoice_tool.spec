@@ -42,6 +42,8 @@ a = Analysis(
         ('code/config.json', 'code'),
         # 图标整目录打包：代码按文件名引用，避免新增图标漏打包
         ('code/res/icons', 'res/icons'),
+        # 赞赏作者收款码整目录打包
+        ('code/res/qrcode', 'res/qrcode'),
         *ofd2pdf_datas,
     ],
     hiddenimports=[

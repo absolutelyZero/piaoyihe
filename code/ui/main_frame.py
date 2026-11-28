@@ -27,7 +27,7 @@ from core.pdf_handler import PDFHandler, is_supported_file
 from core.invoice_service import InvoiceService, migrate_rename_rules
 from core.update_checker import UpdateChecker, show_update_dialog
 from ui.theme import AppTheme
-from ui.tokens import build_stylesheet, clear_inline_styles, apply_numeric_text_fonts
+from ui.tokens import build_stylesheet, clear_inline_styles, apply_numeric_text_fonts, _res_dir
 from ui.shell import (
     build_shell, update_status_bar, update_duplicate_chip, show_feedback,
     create_ledger_column, create_preview_card,
@@ -1486,6 +1486,16 @@ class MainWindow(QMainWindow):
         """
         dialog = FeedbackDialog(self)
         dialog.exec()
+
+    def _on_appreciation(self):
+        """
+        打开赞赏作者对话框
+
+        功能描述:
+            展示赞赏引导与微信 / 支付宝收款码，供用户自愿扫码支持
+        """
+        dialog = AppreciationDialog(self)
+        dialog.exec()
     
     def _on_version_click(self):
         """
@@ -2128,3 +2138,101 @@ class FeedbackDialog(QDialog):
     def _setup_stylesheet(self):
         """使用帮助对话框同样消费 ui.tokens 生成的全局 QSS。"""
         self.setStyleSheet(build_stylesheet(_theme.dark))
+
+class AppreciationDialog(QDialog):
+    """赞赏作者对话框：展示赞赏引导与微信 / 支付宝收款码。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("赞赏作者")
+        self.setMinimumSize(480, 400)
+        self.setModal(True)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # 统一标题栏
+        header = QFrame()
+        header.setObjectName("dialogHeader")
+        header_box = QHBoxLayout(header)
+        header_box.setContentsMargins(12, 10, 12, 10)
+        title = QLabel("赞赏作者")
+        title.setObjectName("sectionLabel")
+        header_box.addWidget(title)
+        header_box.addStretch(1)
+        layout.addWidget(header)
+
+        # 内容区：赞赏引导
+        guide = QLabel(
+            "如果本工具对你有帮助，欢迎扫码赞赏作者。\n"
+            "你的每一份支持，都是持续改进的动力。"
+        )
+        guide.setObjectName("qrcodeHint")
+        guide.setWordWrap(True)
+        guide.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(guide)
+
+        layout.addStretch(1)
+
+        # 内容区：并排展示两张收款码
+        qr_row = QHBoxLayout()
+        qr_row.setSpacing(24)
+        qr_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        for filename, caption in (
+            ("wxpay.jpeg", "微信支付"),
+            ("alipay.jpeg", "支付宝"),
+        ):
+            column = QVBoxLayout()
+            column.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            column.setSpacing(8)
+            pixmap = self._load_pixmap(filename)
+            image = QLabel()
+            image.setFixedSize(180, 180)
+            image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            if pixmap is None:
+                image.setText(f"{caption}收款码不可用")
+                image.setObjectName("qrcodePlaceholder")
+            else:
+                image.setPixmap(
+                    pixmap.scaled(
+                        180, 180,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+            column.addWidget(image)
+            caption_label = QLabel(caption)
+            caption_label.setObjectName("qrcodeHint")
+            caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            column.addWidget(caption_label)
+            qr_row.addLayout(column)
+        layout.addLayout(qr_row)
+
+        layout.addStretch(1)
+
+        # 统一页脚操作区
+        footer = QFrame()
+        footer.setObjectName("dialogFooter")
+        footer_box = QHBoxLayout(footer)
+        footer_box.setContentsMargins(12, 10, 12, 10)
+        footer_box.addStretch(1)
+        close_button = QPushButton("关闭")
+        close_button.setObjectName("secondaryButton")
+        close_button.clicked.connect(self.close)
+        footer_box.addWidget(close_button)
+        layout.addWidget(footer)
+
+        self.setStyleSheet(build_stylesheet(_theme.dark))
+        clear_inline_styles(self)
+        apply_numeric_text_fonts(self)
+
+    @staticmethod
+    def _load_pixmap(filename):
+        """从随程序分发的 res/qrcode 目录加载收款码，失败返回 None。"""
+        path = os.path.join(_res_dir(), "qrcode", filename)
+        if not os.path.exists(path):
+            return None
+        pixmap = QPixmap(path)
+        return None if pixmap.isNull() else pixmap
+
