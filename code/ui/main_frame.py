@@ -2153,15 +2153,15 @@ class AppreciationDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
 
         # 统一标题栏
-        header = QFrame()
-        header.setObjectName("dialogHeader")
-        header_box = QHBoxLayout(header)
-        header_box.setContentsMargins(12, 10, 12, 10)
-        title = QLabel("赞赏作者")
-        title.setObjectName("sectionLabel")
-        header_box.addWidget(title)
-        header_box.addStretch(1)
-        layout.addWidget(header)
+        # header = QFrame()
+        # header.setObjectName("dialogHeader")
+        # header_box = QHBoxLayout(header)
+        # header_box.setContentsMargins(12, 10, 12, 10)
+        # title = QLabel("赞赏作者")
+        # title.setObjectName("sectionLabel")
+        # header_box.addWidget(title)
+        # header_box.addStretch(1)
+        # layout.addWidget(header)
 
         # 内容区：赞赏引导
         guide = QLabel(
@@ -2212,16 +2212,16 @@ class AppreciationDialog(QDialog):
         layout.addStretch(1)
 
         # 统一页脚操作区
-        footer = QFrame()
-        footer.setObjectName("dialogFooter")
-        footer_box = QHBoxLayout(footer)
-        footer_box.setContentsMargins(12, 10, 12, 10)
-        footer_box.addStretch(1)
-        close_button = QPushButton("关闭")
-        close_button.setObjectName("secondaryButton")
-        close_button.clicked.connect(self.close)
-        footer_box.addWidget(close_button)
-        layout.addWidget(footer)
+        # footer = QFrame()
+        # footer.setObjectName("dialogFooter")
+        # footer_box = QHBoxLayout(footer)
+        # footer_box.setContentsMargins(12, 10, 12, 10)
+        # footer_box.addStretch(1)
+        # close_button = QPushButton("关闭")
+        # close_button.setObjectName("secondaryButton")
+        # close_button.clicked.connect(self.close)
+        # footer_box.addWidget(close_button)
+        # layout.addWidget(footer)
 
         self.setStyleSheet(build_stylesheet(_theme.dark))
         clear_inline_styles(self)
